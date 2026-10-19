@@ -64,6 +64,9 @@ const SPOOL_STUCK_MS = 60 * 60_000;
 const FAILED_RECENT_MS = 7 * 24 * 60 * 60_000;
 /** Recent sessions over which recall delivered is compared with reads. */
 export const RECENT_SESSIONS = 10;
+// Usage observations: the model chose not to look, nothing the person can repair.
+// They count toward the verdict but never raise the session-start line.
+const ADVISORY = new Set(['no_reads', 'no_file_context']);
 /** Fewer recalls than this is too little to say anything about reads. */
 const MIN_RECALLS = 3;
 /** Fewer answerable Reads than this is too little to say file context should have fired. */
@@ -272,6 +275,6 @@ export function memoryHealth(db: DB, opts: { project?: string | null; now?: numb
       file_context_fires: fileFires,
       file_reads: fileReads,
     },
-    line: reasons[0]?.text ?? null,
+    line: reasons.find((r) => !ADVISORY.has(r.code))?.text ?? null,
   };
 }
