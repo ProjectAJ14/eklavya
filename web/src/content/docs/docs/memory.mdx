@@ -212,6 +212,8 @@ Each recall block names its receipt (`receipt="123"`) and shows the call that us
 
 This estimates context volume compared with raw evidence. It is not API billing, money saved or prompt-cache usage, and does not claim Claude would otherwise have read every event. Base includes whole-file snapshots stored with edits, so it overstates what reading the history would really cost; treat the percentage as an upper bound.
 
+**What the percentage is compared with.** It compares the recall block with re-sending the raw evidence behind it. It does not compare memory with having no memory: without memory none of the recall block would be sent, so every recalled token is added to the session, and memory pays back only when the session needs an earlier decision, fix or unfinished work. The percentage also does not say the model read anything. Contributors can count injected tokens per scope, read results and recall blocks that were never followed by a read from a copy of the database with `node eval/memory-tokens.mjs --db <copy>`; the repository's `eval/README.md` describes it.
+
 ### The memory tools
 
 Claude uses these tools on your behalf. Search returns compact IDs and titles; `memory_get` then reads selected entries. All accept optional `cwd` to identify the project.
