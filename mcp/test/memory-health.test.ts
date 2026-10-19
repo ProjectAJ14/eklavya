@@ -121,6 +121,18 @@ describe('memory health verdict', () => {
     expect(codes()).toEqual([]);
   });
 
+  it('does not call evidence behind when its batch was quarantined on purpose', () => {
+    const batch = Number(
+      db.prepare("INSERT INTO memory_batches (project, session_id, reason) VALUES (?, 's1', 'manual')").run(PROJECT).lastInsertRowid,
+    );
+    db.prepare("INSERT INTO memory_jobs (batch_id, status) VALUES (?, 'quarantined')").run(batch);
+    evidence(627, { status: 'batched' });
+    db.prepare('UPDATE evidence_events SET batch_id = ?').run(batch);
+    expect(codes()).toEqual([]);
+    evidence(30);
+    expect(codes()).toEqual(['no_entries']);
+  });
+
   it('names a login failure from the job error without ever repeating the error text', () => {
     job('paused', { cls: 'transient', error: 'Not logged in · Please run /login https://x.test/?token=SECRET', hoursAgo: 2 });
     const h = memoryHealth(db, { now: NOW });
