@@ -1,3 +1,10 @@
+# [1.81.0](https://github.com/ProjectAJ14/eklavya/compare/v1.80.0...v1.81.0) (2026-10-18)
+
+
+### Features
+
+* **memory:** hold a large file's first whole Read so Claude opens its history ([#219](https://github.com/ProjectAJ14/eklavya/issues/219)) ([abbe110](https://github.com/ProjectAJ14/eklavya/commit/abbe11075f8442a67747e007950fba50f1fa8174)), closes [#221](https://github.com/ProjectAJ14/eklavya/issues/221)
+
 # [1.80.0](https://github.com/ProjectAJ14/eklavya/compare/v1.79.0...v1.80.0) (2026-10-18)
 
 
