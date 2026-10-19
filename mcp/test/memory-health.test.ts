@@ -215,7 +215,9 @@ describe('memory health verdict', () => {
     receipt('c', 'prompt');
     const h = memoryHealth(db, { now: NOW });
     expect(h.verdict).toBe('warn');
-    expect(h.line).toBe('Memory · recall reached Claude 3 times in the last 3 sessions and memory_search was never called');
+    expect(h.reasons[0]?.text).toBe('Memory · recall reached Claude 3 times in the last 3 sessions and memory_search was never called');
+    // A usage observation is not a fault the person can fix: no session-start line.
+    expect(h.line).toBeNull();
     expect(h.facts).toMatchObject({ recall_delivered: 3, memory_reads: 0, sessions_checked: 3 });
     read('b');
     expect(codes()).toEqual([]);
@@ -241,7 +243,7 @@ describe('memory health verdict', () => {
     entry(3, { files: JSON.stringify(names) });
     // The same file read twice in a session is one chance, as the hook injects once.
     evidence(1, { tool: 'Read', files: JSON.stringify([names[0]]) });
-    expect(memoryHealth(db, { now: NOW }).line).toBe(
+    expect(memoryHealth(db, { now: NOW }).reasons[0]?.text).toBe(
       'Memory · file context never fired across 10 reads of files with history in the last 1 session',
     );
     // A subagent's Reads never trigger the hook, so they do not count.
