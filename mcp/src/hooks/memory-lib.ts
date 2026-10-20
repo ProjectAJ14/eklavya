@@ -42,26 +42,27 @@ export const SEAM_MIN_EVENTS = 8;
 export const SEAM_MAX_AGE_MS = 20 * 60_000;
 
 /**
- * Closes the project's open evidence that is worth a summary now.
+ * Closes open evidence that is worth a summary now.
  *
- * Every session in the project, not only this one: a session that ended with
- * two events after its last closed batch has no seam of its own left, so its
- * tail is closed here — at once with `all`, otherwise once it is old enough.
- * That is what keeps the thresholds from stranding anything.
+ * Every session, not only this one: a session that ended with two events after
+ * its last closed batch has no seam of its own left, so its tail is closed here
+ * — at once with `all`, otherwise once it is old enough. That is what keeps the
+ * thresholds from stranding anything. This project's sessions follow those
+ * rules; another project's are closed only once aged, because a developer who
+ * never returns to that project would otherwise leave its tail unsummarised and
+ * missing from recall for days.
  */
 function closeOpenBatches(db: DB, resolved: ResolvedConfig, project: string, all: boolean): void {
   const now = Date.now();
-  for (const open of openSessions(db, project)) {
+  for (const open of openSessions(db)) {
+    if (open.project === GLOBAL_PROJECT) continue;
     const oldest = parseStamp(open.oldest);
-    const due =
-      all ||
-      open.events >= SEAM_MIN_EVENTS ||
-      // An unreadable stamp is closed rather than kept open for ever.
-      oldest === null ||
-      now - oldest >= SEAM_MAX_AGE_MS;
+    // An unreadable stamp is closed rather than kept open for ever.
+    const aged = oldest === null || now - oldest >= SEAM_MAX_AGE_MS;
+    const due = open.project === project ? all || open.events >= SEAM_MIN_EVENTS || aged : aged;
     if (!due) continue;
     batchSession(db, {
-      project,
+      project: open.project,
       sessionId: open.sessionId,
       reason: 'session_seam',
       maxEvents: resolved.config.memory.batch_max_events,

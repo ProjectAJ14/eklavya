@@ -18,7 +18,7 @@ skills, and prepares local storage. New installs have the quiz side panel,
 memory and prompt feedback on. Memory summaries and prompt feedback use
 `claude-sonnet-5` through your Claude Code login, so captured session evidence
 goes to that model. [Memory](https://eklavya-run.web.app/docs/memory/) explains
-what is captured and how to use local summaries instead.
+what is captured, when batches close (a quiet session's leftovers after 20 minutes, in any project) and how to use local summaries instead.
 If Claude Mem is installed, it keeps recording and Eklavya memory stays off
 until you [switch recorders](https://eklavya-run.web.app/docs/migrating/).
 
