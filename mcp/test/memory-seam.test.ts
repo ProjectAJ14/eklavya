@@ -10,6 +10,7 @@ import type { EvidenceIdentity } from '../src/memory/identity.js';
 import { drainSpool } from '../src/memory/capture.js';
 import { spoolEvent, spoolPath, takeSpooled } from '../src/memory/spool.js';
 import { appendEvent } from '../src/memory/store.js';
+import { GLOBAL_PROJECT } from '../src/store.js';
 import { cleanup, tempDbPath } from './helpers.js';
 
 const PROJECT = '/tmp/demo-repo';
@@ -120,6 +121,20 @@ describe('a Stop seam closes a batch only once it is worth a summary', () => {
     // `all` flushes this project only; it must not close a fresh session elsewhere.
     await flushAtSeam(db, resolved(), identity('s1'), { all: true });
     expect(batches('other-fresh')).toBe(0);
+  });
+
+  it('leaves an aged tail outside git open, since recall never serves it', async () => {
+    appendEvent(db, {
+      eventUid: `g${seq++}`,
+      project: GLOBAL_PROJECT,
+      sessionId: 'nowhere',
+      kind: 'tool_use',
+      body: 'ran step',
+      occurredAt: new Date(Date.now() - SEAM_MAX_AGE_MS - 60_000).toISOString(),
+    });
+    await flushAtSeam(db, resolved(), identity('s1'));
+    expect(batches('nowhere')).toBe(0);
+    expect(open('nowhere')).toBe(1);
   });
 
   it('a session start flushes every session in the project, so nothing is stranded', async () => {
