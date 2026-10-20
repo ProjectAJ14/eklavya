@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import os from 'node:os';
 import type { DB } from './db.js';
 import { loadConfig, type EklavyaConfig } from './config.js';
+import { needsInlineAttribution } from './surface.js';
 import { ownVersion } from './dashboard-daemon.js';
 import { answerPosition, MCQ_OPTION_COUNT } from './mcq.js';
 import { normalizeSlug } from './slug.js';
@@ -219,8 +220,10 @@ export interface SyncInput {
  */
 export function panelSync(db: DB, args: SyncInput) {
   const reply = syncReply(db, args);
-  // The terminal prints the SessionStart banner itself; only a host that drops it needs this.
-  const greeting = args.host.surface === 'terminal' ? null : greetingLine(loadConfig(args.cwd || os.homedir()).config);
+  // The terminal prints the SessionStart banner itself; only a host that drops it needs this. The
+  // mod can report `terminal` from a Desktop session, so the host's own entrypoint counts too.
+  const headerless = args.host.surface !== 'terminal' || needsInlineAttribution();
+  const greeting = !headerless ? null : greetingLine(loadConfig(args.cwd || os.homedir()).config);
   return greeting ? { ...reply, greeting } : reply;
 }
 

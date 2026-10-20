@@ -204,6 +204,15 @@ function options(slug: string) {
 
 describe('the greeting for a host without the SessionStart banner', () => {
   const sync = (surface: string) => panelSync(db, { session_id: SESSION, cwd, host: { surface } }) as any;
+  // Whatever host runs the suite must not decide which of these is the terminal.
+  const entrypoint = process.env.CLAUDE_CODE_ENTRYPOINT;
+  beforeEach(() => {
+    process.env.CLAUDE_CODE_ENTRYPOINT = 'cli';
+  });
+  afterEach(() => {
+    if (entrypoint === undefined) delete process.env.CLAUDE_CODE_ENTRYPOINT;
+    else process.env.CLAUDE_CODE_ENTRYPOINT = entrypoint;
+  });
 
   it('is sent to the desktop app, with the panel on or off, and never to the terminal', () => {
     configure(true);
@@ -211,6 +220,20 @@ describe('the greeting for a host without the SessionStart banner', () => {
     expect(sync('terminal').greeting).toBeUndefined();
     configure(false);
     expect(sync('desktop')).toMatchObject({ disabled: true, greeting: expect.stringContaining('Eklavya active') });
+  });
+
+  it('is sent when the mod reports terminal from a Desktop session, by the host entrypoint', () => {
+    configure(true);
+    const was = process.env.CLAUDE_CODE_ENTRYPOINT;
+    try {
+      process.env.CLAUDE_CODE_ENTRYPOINT = 'claude-desktop';
+      expect(sync('terminal').greeting).toContain('Eklavya active');
+      process.env.CLAUDE_CODE_ENTRYPOINT = 'cli';
+      expect(sync('terminal').greeting).toBeUndefined();
+    } finally {
+      if (was === undefined) delete process.env.CLAUDE_CODE_ENTRYPOINT;
+      else process.env.CLAUDE_CODE_ENTRYPOINT = was;
+    }
   });
 
   it('stays out when quiet or when memory is off', () => {
