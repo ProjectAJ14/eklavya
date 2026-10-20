@@ -1,3 +1,10 @@
+## [1.82.2](https://github.com/ProjectAJ14/eklavya/compare/v1.82.1...v1.82.2) (2026-10-20)
+
+
+### Bug Fixes
+
+* **memory:** close aged session tails in every project ([#237](https://github.com/ProjectAJ14/eklavya/issues/237)) ([2e47168](https://github.com/ProjectAJ14/eklavya/commit/2e4716821578e3a578713e905764e66f9a1623aa)), closes [#231](https://github.com/ProjectAJ14/eklavya/issues/231)
+
 ## [1.82.1](https://github.com/ProjectAJ14/eklavya/compare/v1.82.0...v1.82.1) (2026-10-20)
 
 
