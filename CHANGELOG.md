@@ -1,3 +1,10 @@
+## [1.82.3](https://github.com/ProjectAJ14/eklavya/compare/v1.82.2...v1.82.3) (2026-10-20)
+
+
+### Bug Fixes
+
+* **memory:** skip semantic recall for prompts with fewer than three meaningful words ([#238](https://github.com/ProjectAJ14/eklavya/issues/238)) ([089e4c5](https://github.com/ProjectAJ14/eklavya/commit/089e4c51ebefb5fb2da1706b0c562bf71608f6ff)), closes [#230](https://github.com/ProjectAJ14/eklavya/issues/230)
+
 ## [1.82.2](https://github.com/ProjectAJ14/eklavya/compare/v1.82.1...v1.82.2) (2026-10-20)
 
 
