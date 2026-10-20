@@ -586,6 +586,17 @@ describe('recallForPrompt', () => {
     expect(recallForPrompt(db, cfg, { project: PROJECT, sessionId: 's2', prompt: own })).not.toBeNull();
   });
 
+  // Issue #230: a long tool name clears the 25-character floor with one term.
+  it('matches a prompt of one or two terms by words alone, and recalls nothing for filler', () => {
+    const hit = insertEntry(db, { project: PROJECT, title: 'Wired up the zephyrctl deploy helper', narrative: 'zephyrctl flags', type: 'change' });
+    insertEntry(db, { project: PROJECT, title: 'Refresh token rotation change', narrative: 'unrelated test failures', type: 'change' });
+    const cfg = config();
+    const ask = (prompt: string) => recallForPrompt(db, cfg, { project: PROJECT, sessionId: 's1', prompt });
+    expect(ask('use zephyrctl-internal-tool please')).toBeNull();
+    expect(ask('please use zephyrctl for the')!.entries.map((e) => e.id)).toEqual([hit]);
+    expect(ask('please use this now, can you')).toBeNull();
+  });
+
   // Issue #117: what a session wrote is already in its context.
   it('does not hand a session the entries it wrote, and does hand them to another session', () => {
     const own = insertEntry(db, { project: PROJECT, sessionId: 'S', title: 'Refresh token rotation change', narrative: 'mine', type: 'change' });

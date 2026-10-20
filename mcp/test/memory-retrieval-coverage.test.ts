@@ -103,4 +103,27 @@ describe('prompt recall and search coverage', () => {
     expect(semanticSearch(db, 'finance importer delimiter', { project: P }, 10).map((h) => h.entry.id)).not.toContain(ids.csv);
     expect(searched('finance importer delimiter', 3)).toContain(ids.csv);
   });
+
+  // Issue #230: a prompt of a word or two clears the length floor when the word
+  // is long, and a close vector on that little text is noise.
+  describe('a prompt with fewer than three meaningful words', () => {
+    it('recalls nothing for filler or a name no entry mentions', () => {
+      expect(recalled('please use this now, can you')).toBeNull();
+      expect(recalled('use the dashboard-layouts-tool')).toBeNull();
+      expect(recalled('use exportcsvfinanceimporter')).toBeNull();
+    });
+
+    it('recalls the entries that mention a bare name', () => {
+      expect(recalledIds('please, use the exportCsv now')).toEqual([ids.csv]);
+    });
+
+    it('still reaches a close-in-meaning entry once the prompt has three words', () => {
+      expect(recalledIds('which delimiter does the CSV export use')).toEqual([ids.csv]);
+    });
+
+    it('does not count a script without spaces as one word', () => {
+      const ja = insertEntry(db, { project: P, title: '財務インポーター用のCSVエクスポートの区切り文字', narrative: '区切り文字はセミコロンにした', type: 'decision' });
+      expect(recalledIds('財務インポーター用のCSVエクスポートの区切り文字は何ですか')).toEqual([ja]);
+    });
+  });
 });

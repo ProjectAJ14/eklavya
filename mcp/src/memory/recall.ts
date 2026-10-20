@@ -635,6 +635,11 @@ export function ownWords(prompt: string): string {
     .trim();
 }
 
+/** Fewer meaningful terms than this and a prompt is matched by words alone. */
+const MIN_TERMS = 3;
+const UNSPACED = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Thai}]/u;
+const FILLER = new Set(['the', 'and', 'for', 'with', 'use', 'using', 'please', 'this', 'that', 'can', 'you', 'now', 'run', 'try']);
+
 export function recallForPrompt(
   db: DB,
   config: EklavyaConfig,
@@ -644,6 +649,14 @@ export function recallForPrompt(
   // Too short to be about anything. "yes", "carry on", "fix it" match whatever
   // happens to share a word, and a recall on those is pure cost.
   if (query.length < 25) return null;
+  // Enough characters is not enough words: "use <long-tool-name>" clears 25 and
+  // has one term. A close vector on so little text is noise (issue #230), so
+  // such a prompt recalls only entries that contain its terms, and a prompt
+  // with no term at all recalls nothing.
+  const terms = query.toLowerCase().split(/[^\p{L}\p{N}_-]+/u).filter((w) => w.length > 2 && !FILLER.has(w));
+  if (!terms.length) return null;
+  // A script written without spaces has no words to count.
+  const sparse = terms.length < MIN_TERMS && !UNSPACED.test(query);
 
   const scope = {
     project: opts.project,
@@ -661,8 +674,8 @@ export function recallForPrompt(
   // MIN_COSINE is measured, not chosen: on the eval corpus an on-topic
   // paraphrase scores around 0.55 and an unrelated prompt around 0.24.
   const MIN_COSINE = 0.35;
-  const lexical = keywordSearch(db, query, { ...scope, strict: true });
-  const semantic = semanticSearch(db, query, scope).filter((h) => h.score >= MIN_COSINE);
+  const lexical = keywordSearch(db, sparse ? terms.join(' ') : query, { ...scope, strict: true });
+  const semantic = sparse ? [] : semanticSearch(db, query, scope).filter((h) => h.score >= MIN_COSINE);
   if (!lexical.length && !semantic.length) return null;
 
   // Ranked here and handed to `recall` as candidates, rather than letting it
