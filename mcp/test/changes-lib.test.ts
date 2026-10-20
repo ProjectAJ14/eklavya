@@ -35,6 +35,11 @@ const touch = (rel: string) => {
   const t = fs.statSync(file(rel)).mtimeMs / 1000 + 5;
   fs.utimesSync(file(rel), t, t);
 };
+/** Moves an absolute path's mtime clearly past any baseline stamped before it: filesystems keep coarser time than `Date.now()`. */
+const later = (abs: string) => {
+  const t = Date.now() / 1000 + 5;
+  fs.utimesSync(abs, t, t);
+};
 /** A real content change to a clean tracked file. */
 const edit = () => write('a.ts', 'export const a = 2;\n');
 const fp = () => treeFingerprint(repo);
@@ -426,6 +431,7 @@ describe('a session started in a folder of repositories', () => {
       run(cwd, command);
       expect(marked(), command).toBe(false);
       write('n.ts', 'n\n');
+      later(file('n.ts'));
       run(cwd, command);
       expect(marked(), command).toBe(true);
     }
@@ -436,6 +442,7 @@ describe('a session started in a folder of repositories', () => {
     fs.mkdirSync(sp);
     spawnSync('git', ['init', '-q'], { cwd: sp });
     fs.writeFileSync(path.join(sp, 'x.ts'), 'x\n');
+    later(path.join(sp, 'x.ts'));
     noteBashEdit(db, 's1', parent, 'curl https://example.com/a/b -o $HOME/x --flag=/nope');
     expect(marked()).toBe(false);
     noteBashEdit(db, 's1', parent, `sed -i '' s/a/b/ "${sp}/x.ts"`);
@@ -615,6 +622,7 @@ describe('edges of the folder-of-repositories path', () => {
 
   it('stops looking when the time budget is spent, before or after finding a tree', () => {
     write('n.ts', 'n\n');
+    later(file('n.ts'));
     const real = Date.now.bind(Date);
     // The clock reads only changes-lib makes: `allowed` of them see the start, the rest see the budget gone.
     const spend = (allowed: number) => {
