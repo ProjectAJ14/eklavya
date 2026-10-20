@@ -282,7 +282,7 @@ describe('sessionChangedCode', () => {
     try {
       recordBaseline(db, 's1', plain);
       expect(db.prepare(`SELECT value FROM meta WHERE key = 'tree_fp:s1'`).get()).toEqual({
-        value: expect.stringMatching(/\|$/),
+        value: expect.stringMatching(/\|@/),
       });
       expect(sessionChangedCode(db, 's1', plain)).toBe(false);
       noteEdit(db, 's1', file('a.ts'));
@@ -399,7 +399,12 @@ describe('HEAD moves (issue 228)', () => {
 describe('a session started in a folder of repositories', () => {
   let parent: string;
   beforeEach(() => {
+    // The shared `repo` moves inside the folder the session starts in.
+    const old = repo;
     parent = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-parent-')));
+    repo = path.join(parent, 'inner');
+    spawnSync('git', ['clone', '-q', old, repo]);
+    fs.rmSync(old, { recursive: true, force: true });
     recordBaseline(db, 's1', parent);
   });
   afterEach(() => fs.rmSync(parent, { recursive: true, force: true }));
@@ -501,10 +506,10 @@ describe('a repository that names a command in its own config', () => {
   });
 });
 
-describe('a named repository whose config defines a clean filter', () => {
-  it.skipIf(process.platform === 'win32')('is not listed, so its filter never runs', () => {
+describe('a repository outside the folder the session started in', () => {
+  it.skipIf(process.platform === 'win32')('is never asked through the words of a command, so its filter and fsmonitor never run', () => {
     const parent = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-parent-')));
-    const marker = path.join(parent, 'filter-ran');
+    const marker = path.join(parent, 'ran');
     try {
       write('.gitattributes', '*.ts filter=spy\n');
       git('config', 'filter.spy.clean', `touch ${marker}; cat`);
@@ -513,7 +518,10 @@ describe('a named repository whose config defines a clean filter', () => {
       fs.rmSync(marker, { force: true }); // setup's own git calls may have run it on a racy file
       recordBaseline(db, 's1', parent);
       edit(); // same size: git must run the filter to compare content
-      noteBashEdit(db, 's1', parent, `git -C ${repo} status`);
+      for (const command of [`git -C ${repo} status`, `sed -i '' s/a/b/ ${file('a.ts')}`]) {
+        noteBashEdit(db, 's1', parent, command);
+        noteBashEdit(db, 's1', repo, 'sed -i x a.ts'); // cwd moved out of the folder
+      }
       expect(fs.existsSync(marker)).toBe(false);
       expect(sessionChangedCode(db, 's1', parent)).toBe(false);
       // Control: git itself does run the filter on this tree.

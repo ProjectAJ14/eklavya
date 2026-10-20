@@ -50,12 +50,15 @@
  * edit followed by a commit still counts through its commit entry.
  *
  * A session started outside any repository (a folder of repos) records the
- * baseline's time with an empty fingerprint. Its Bash edits are found from the
+ * baseline's time and that folder (`@<dir>`) in place of a fingerprint. Its Bash edits are found from the
  * trees the command names -- `cd`, `git -C`, any path in it -- and the folder
  * it is in now, since `cd` persists between calls. Files under `artifacts/` or
  * `reports/` are research output, not code, and never count.
- * A named repository whose own config defines a clean/process filter is skipped:
- * `git status` would run that command, and no flag turns it off.
+ * Only repositories inside the folder the session started in are looked at
+ * through the words of a command: a repository's own config can name commands
+ * `git status` runs (a clean filter, a submodule's config), and no flag turns
+ * them all off, so a tree the session was merely pointed at is not asked. The
+ * leading `cd` is the exception, as before.
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -137,11 +140,11 @@ export function recordBaseline(db: DB, sessionId: string, cwd: string, fp = tree
     db.prepare(
       `DELETE FROM meta WHERE key LIKE ? AND substr(value, 1, 10) < date('now', '-7 day')`,
     ).run(`${KEY_PREFIX}%`);
-    // Outside a repository only the start time is kept, for `noteBashEdit`.
+    // Outside a repository only the start time and folder are kept, for `noteBashEdit`.
     if (fp === null && !outsideRepo(cwd)) return;
     db.prepare('INSERT OR IGNORE INTO meta (key, value) VALUES (?, ?)').run(
       `${KEY_PREFIX}${sessionId}`,
-      `${new Date().toISOString()}|${fp ?? ''}`,
+      `${new Date().toISOString()}|${fp ?? `@${cwd}`}`,
     );
   } catch {
     /* No baseline means `sessionChangedCode` treats the session as unknown. */
@@ -179,7 +182,7 @@ export function sessionChangedCode(db: DB, sessionId: string, cwd: string): bool
     const base = row.value.slice(bar + 1);
     if (base === now) return false;
     // Started outside a repository, now inside one: only the marks speak.
-    if (base === '') return false;
+    if (base.startsWith('@')) return false;
     const [baseStatus, baseHead] = base.split(':');
     const [nowStatus] = now.split(':');
     // A status change is an edit; a pre-split baseline (no head part) cannot say.
@@ -296,7 +299,8 @@ export function noteBashEdit(db: DB, sessionId: string, cwd: string, command: st
     const since = Date.parse(row.value.slice(0, bar));
     if (Number.isNaN(since)) return;
     const deadline = Date.now() + BASH_SCAN_MS;
-    const targets = bashTargets(command, cwd, row.value.length === bar + 1);
+    const base = row.value.slice(bar + 1);
+    const targets = bashTargets(command, cwd, base.startsWith('@') ? base.slice(1) : null);
     const roots = new Set<string>();
     for (const target of targets) {
       if (Date.now() > deadline) break;
@@ -305,7 +309,6 @@ export function noteBashEdit(db: DB, sessionId: string, cwd: string, command: st
     }
     for (const root of roots) {
       if (Date.now() > deadline) return;
-      if (runsFilter(root)) continue;
       const entries = statusEntries(root);
       const moved = entries?.some(({ rel }) => {
         try {
@@ -322,39 +325,29 @@ export function noteBashEdit(db: DB, sessionId: string, cwd: string, command: st
 }
 
 /**
- * True when the repository's own config defines a clean/process filter. `git
- * status` runs those on modified files its `.gitattributes` selects, and `-c`
- * cannot switch them off, so a tree the session merely names is not listed.
- * Reading config executes nothing. Costs: a repo that sets up a filter locally
- * (`git lfs install --local`) is not seen through Bash from a folder of repos.
- */
-function runsFilter(root: string): boolean {
-  return Boolean(
-    git(root, ['config', '--local', '--includes', '--name-only', '--get-regexp', '^filter\\..*\\.(clean|process)$'])?.trim(),
-  );
-}
-
-/**
  * The directories whose git trees a Bash command may have edited. Always the
- * leading `cd`. For a session started outside any repository (`outside`) there
+ * leading `cd`. For a session started outside any repository (`startDir`) there
  * is no tree of its own for the fingerprint to cover, so also: `git -C <dir>`,
  * every path-like word that exists (relative ones against `cwd`), and `cwd`
- * itself, which `cd` in an earlier call may have moved into a repository.
+ * itself, which `cd` in an earlier call may have moved into a repository --
+ * each only when it lies inside `startDir`, the folder the session began in.
  * At most four, so the git calls fit the hook's budget.
  */
-function bashTargets(command: string, cwd: string, outside: boolean): string[] {
+function bashTargets(command: string, cwd: string, startDir: string | null): string[] {
   const out = new Set<string>();
   const lead = leadingCd(command, cwd);
   if (lead) out.add(lead);
-  if (outside) {
-    out.add(cwd);
+  if (startDir !== null) {
+    const inside = (d: string) => !path.relative(startDir, d).startsWith('..') && !path.isAbsolute(path.relative(startDir, d));
+    if (inside(cwd)) out.add(cwd);
     const words = (command.match(/"[^"]*"|'[^']*'|[^\s;&|<>]+/g) ?? []).map((w) => w.replace(/^["']|["']$/g, ''));
     words.forEach((w, i) => {
       if (w.includes('$') || w.startsWith('-')) return;
       if (!w.includes('/') && words[i - 1] !== '-C') return;
       const abs = path.resolve(cwd, w === '~' || w.startsWith('~/') ? path.join(os.homedir(), w.slice(1)) : w);
       try {
-        out.add(fs.statSync(abs).isDirectory() ? abs : path.dirname(abs));
+        const dir = fs.statSync(abs).isDirectory() ? abs : path.dirname(abs);
+        if (inside(dir)) out.add(dir);
       } catch {
         /* Not a path: `s/a/b/`, a URL. */
       }
