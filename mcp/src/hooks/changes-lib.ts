@@ -300,12 +300,20 @@ export function noteBashEdit(db: DB, sessionId: string, cwd: string, command: st
     if (Number.isNaN(since)) return;
     const deadline = Date.now() + BASH_SCAN_MS;
     const base = row.value.slice(bar + 1);
-    const targets = bashTargets(command, cwd, base.startsWith('@') ? base.slice(1) : null);
+    const { lead, extra } = bashTargets(command, cwd, base.startsWith('@'));
+    const trust = base.startsWith('@') ? trustRoot(base.slice(1)) : null;
     const roots = new Set<string>();
-    for (const target of targets) {
+    for (const [target, foreign] of [...(lead ? [[lead, false]] : []), ...extra.map((d) => [d, true])] as [string, boolean][]) {
       if (Date.now() > deadline) break;
       const root = git(target, ['rev-parse', '--show-toplevel'])?.trim();
-      if (root) roots.add(root);
+      if (!root) continue;
+      // A tree reached only through a word of the command is asked only when
+      // it and its git dir, both resolved through symlinks, lie in the trust root.
+      if (foreign) {
+        const gitDir = git(target, ['rev-parse', '--absolute-git-dir'])?.trim();
+        if (!trust || !gitDir || !within(trust, realOf(root)) || !within(trust, realOf(gitDir))) continue;
+      }
+      roots.add(root);
     }
     for (const root of roots) {
       if (Date.now() > deadline) return;
@@ -326,35 +334,58 @@ export function noteBashEdit(db: DB, sessionId: string, cwd: string, command: st
 
 /**
  * The directories whose git trees a Bash command may have edited. Always the
- * leading `cd`. For a session started outside any repository (`startDir`) there
+ * leading `cd`. For a session started outside any repository there
  * is no tree of its own for the fingerprint to cover, so also: `git -C <dir>`,
  * every path-like word that exists (relative ones against `cwd`), and `cwd`
  * itself, which `cd` in an earlier call may have moved into a repository --
- * each only when it lies inside `startDir`, the folder the session began in.
+ * each only when its tree and git dir lie inside the folder the session began
+ * in (`trustRoot`), checked after symlinks are resolved.
  * At most four, so the git calls fit the hook's budget.
  */
-function bashTargets(command: string, cwd: string, startDir: string | null): string[] {
-  const out = new Set<string>();
+function bashTargets(command: string, cwd: string, outside: boolean): { lead: string | null; extra: string[] } {
   const lead = leadingCd(command, cwd);
-  if (lead) out.add(lead);
-  if (startDir !== null) {
-    const inside = (d: string) => !path.relative(startDir, d).startsWith('..') && !path.isAbsolute(path.relative(startDir, d));
-    if (inside(cwd)) out.add(cwd);
+  const extra = new Set<string>();
+  if (outside) {
+    extra.add(cwd);
     const words = (command.match(/"[^"]*"|'[^']*'|[^\s;&|<>]+/g) ?? []).map((w) => w.replace(/^["']|["']$/g, ''));
     words.forEach((w, i) => {
       if (w.includes('$') || w.startsWith('-')) return;
       if (!w.includes('/') && words[i - 1] !== '-C') return;
       const abs = path.resolve(cwd, w === '~' || w.startsWith('~/') ? path.join(os.homedir(), w.slice(1)) : w);
       try {
-        const dir = fs.statSync(abs).isDirectory() ? abs : path.dirname(abs);
-        if (inside(dir)) out.add(dir);
+        extra.add(fs.statSync(abs).isDirectory() ? abs : path.dirname(abs));
       } catch {
         /* Not a path: `s/a/b/`, a URL. */
       }
     });
   }
   // ponytail: first four win (cd, cwd, then paths in order); the rest are not looked at.
-  return [...out].slice(0, 4);
+  return { lead, extra: [...extra].slice(0, lead ? 3 : 4) };
+}
+
+const realOf = (p: string): string => {
+  try {
+    return fs.realpathSync(p);
+  } catch {
+    return path.resolve(p);
+  }
+};
+
+const within = (base: string, d: string): boolean => {
+  const rel = path.relative(base, d);
+  return !rel.startsWith('..') && !path.isAbsolute(rel);
+};
+
+/**
+ * The folder whose repositories a command's words may point at: the one the
+ * session started in, resolved. Not `/`, the home directory or a folder above
+ * it -- trusting everything under those trusts the downloads folder -- so a
+ * session started there only sees `cd` and edit tools.
+ */
+function trustRoot(startDir: string): string | null {
+  const real = realOf(startDir);
+  const home = realOf(os.homedir());
+  return real === path.parse(real).root || real === home || within(real, home) ? null : real;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -529,6 +529,46 @@ describe('a repository outside the folder the session started in', () => {
       expect(fs.existsSync(marker)).toBe(true);
     } finally {
       fs.rmSync(parent, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('the trust root cannot be widened by the repository itself', () => {
+  let parent: string;
+  beforeEach(() => {
+    parent = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-parent-')));
+    recordBaseline(db, 's1', parent);
+  });
+  afterEach(() => fs.rmSync(parent, { recursive: true, force: true }));
+
+  it('does not follow a symlink inside the folder to a repository outside it', () => {
+    edit();
+    fs.symlinkSync(repo, path.join(parent, 'link'));
+    noteBashEdit(db, 's1', parent, `sed -i '' s/a/b/ link/a.ts`);
+    noteBashEdit(db, 's1', parent, `git -C ${path.join(parent, 'link')} status`);
+    expect(sessionChangedCode(db, 's1', parent)).toBe(false);
+  });
+
+  it('does not trust a repository whose .git file points outside the folder', () => {
+    const shell = path.join(parent, 'shell');
+    fs.mkdirSync(shell);
+    fs.writeFileSync(path.join(shell, '.git'), `gitdir: ${path.join(repo, '.git')}\n`);
+    fs.writeFileSync(path.join(shell, 'a.ts'), 'x\n');
+    noteBashEdit(db, 's1', parent, `sed -i '' s/a/b/ ${shell}/a.ts`);
+    expect(sessionChangedCode(db, 's1', parent)).toBe(false);
+  });
+
+  it('trusts nothing in a session started in the home directory', () => {
+    const spy = vi.spyOn(os, 'homedir').mockReturnValue(parent);
+    try {
+      const inner = path.join(parent, 'inner');
+      spawnSync('git', ['clone', '-q', repo, inner]);
+      recordBaseline(db, 's2', parent);
+      fs.writeFileSync(path.join(inner, 'n.ts'), 'n\n');
+      noteBashEdit(db, 's2', parent, `sed -i '' s/a/b/ ${inner}/n.ts`);
+      expect(sessionChangedCode(db, 's2', parent)).toBe(false);
+    } finally {
+      spy.mockRestore();
     }
   });
 });
