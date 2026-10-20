@@ -35,6 +35,8 @@ beforeEach(() => {
   home = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-panel-home-'));
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-panel-root-'));
   process.env.EKLAVYA_HOME = home;
+  // The host running the suite must not decide what counts as the terminal.
+  process.env.CLAUDE_CODE_ENTRYPOINT = 'cli';
   delete process.env.EKLAVYA_SESSION_ID;
   // Pinned: `loadConfig` reads the real config otherwise.
   fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ focus: 'project', cadence: 'end', quiz: { panel: true } }));
