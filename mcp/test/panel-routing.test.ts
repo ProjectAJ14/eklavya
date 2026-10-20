@@ -202,6 +202,25 @@ function options(slug: string) {
   return LABELS.map((label, i) => ({ label, description: `note ${i}`, grade: i === at ? 4 : [2, 1, 2][d++]!, ...(i === at ? { correct: true } : {}) }));
 }
 
+describe('the greeting for a host without the SessionStart banner', () => {
+  const sync = (surface: string) => panelSync(db, { session_id: SESSION, cwd, host: { surface } }) as any;
+
+  it('is sent to the desktop app, with the panel on or off, and never to the terminal', () => {
+    configure(true);
+    expect(sync('desktop').greeting).toMatch(/^Eklavya active · v\S+ · memory on · questions (on|off)$/);
+    expect(sync('terminal').greeting).toBeUndefined();
+    configure(false);
+    expect(sync('desktop')).toMatchObject({ disabled: true, greeting: expect.stringContaining('Eklavya active') });
+  });
+
+  it('stays out when quiet or when memory is off', () => {
+    configure(true, { quiet: true });
+    expect(sync('desktop').greeting).toBeUndefined();
+    configure(true, { memory: { enabled: false } });
+    expect(sync('desktop').greeting).toBeUndefined();
+  });
+});
+
 describe('off is inert', () => {
   it('registers nothing, keeps no heartbeat and shows no row', () => {
     configure(false);
