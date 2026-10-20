@@ -61,13 +61,39 @@ before what it is called. One idea per section under an `<h2>`. A concrete
 example — a timeline, a snippet with the broken and the fixed line — beats a
 paragraph of definition. Name the gotcha at the end, in plain terms.
 
+**Same depth as any good artifact; only the theme is Eklavya's.** A page about
+what happened in this session (an incident, a bug hunt, a migration, a report)
+must be as informative as the best page the host could write without Eklavya.
+Eklavya changes the look, never the substance. If the host has the
+`artifact-design` and `artifact-diagramming` skills, read them first and apply
+their advice on content and on what to draw; their palette, fonts, CDN
+libraries and publishing rules do not apply here, the tokens below win.
+
+Before writing, list the facts in the conversation: every id, date, count,
+size, name and verdict you were told or found. Then give each kind of fact its
+natural picture; a fact you leave as a sentence is usually a diagram you skipped.
+
+| The facts are | Draw |
+|---|---|
+| Dated events, "when did it happen" | **To-scale timeline**: days on an axis, a span band for the ongoing part, labels above and below |
+| The real items of a set and one verdict per item (files in a build, rows in a batch, steps in a run) | **Item tiles**, one tile per real item, the bad ones in `.svg-bad`, with the one-line outcome under each set |
+| Many things pointing at one thing | **Fan-in** with the real ids, and a healthy case beside it for contrast |
+| What is proven and what is only suspected | A **status table**: Confirmed, Likely, Not checked, Unknown |
+| What to do, who and how long | **Action cards**, one recommended, with its cost and what it does not fix |
+
+Never replace the real items with a generic stand-in. A page that says "one
+file is empty" has told the reader less than one that draws all nine
+files and marks the empty one. Put a one-line takeaway under every
+picture. A page that reports an incident usually needs the steps, the items,
+the timeline, the status table and the actions; a concept page needs fewer.
+
 **Draw whenever an idea has moving parts.** A sequence, a branch, a
 before/after, a hierarchy or a number worth comparing is a diagram that has not
-been drawn yet; two or three in a medium page is normal.
+been drawn yet; two or three in a concept page is normal, and a report as many as its facts need.
 
 **Pick the diagram from the idea, not from habit.** Every page so far has been
 one left-to-right row of boxes. Choose the type that matches the shape of the
-thing, and when a page has two or three diagrams, make them different types.
+thing, and when a page has two or three diagrams, make them different types (one tile diagram per case, drawn the same way, is the exception).
 
 | The idea | Draw | Colour it by |
 |---|---|---|
@@ -85,6 +111,7 @@ thing, and when a page has two or three diagrams, make them different types.
 | Two measures, four verdicts | **Quadrant** (2×2 with labelled corners) | the quadrant |
 | Narrowing or ranking | **Funnel / pyramid** (stacked bars, count on each) | the stage |
 | Tables and their links | **Schema / ER** (box per table, key columns, lines with 1 / n) | the owner of the data |
+| Real items with one verdict each | **Item tiles** (a grid of small boxes, one per item, the faulty ones `.svg-bad`) | the verdict |
 | Many things against many | **Matrix / heatmap** (grid, one tint per cell, value printed) | the value band |
 | What overlaps, what is only in one | **Venn** (two or three circles, `fill-opacity` via `-soft`) | the set |
 
@@ -102,7 +129,8 @@ diagram more than adding one. Avoid:
 
 Layout: snap coordinates, widths and gaps to multiples of 4 so edges line up;
 keep 16px between a shape and its text; one idea per diagram, at most about
-eight nodes. Give every `<svg>` a `<title>` and a one-sentence `<desc>` as its
+eight nodes for a flow (item tiles and timelines show real data and may carry
+more). Give every `<svg>` a `<title>` and a one-sentence `<desc>` as its
 first children, as well as `role="img"` and `aria-label`.
 
 Draw them as **inline SVG** inside `<figure>`, with a `<figcaption>` that
@@ -182,6 +210,27 @@ Skeletons (copy, then change the words and the numbers):
   <line class="svg-axis" x1="110" y1="10" x2="110" y2="130"/>
   <text class="svg-small" x="10" y="42">before</text><rect class="svg-bar-2" x="110" y="26" width="440" height="24"/><text class="svg-label" x="558" y="43">840 ms</text>
   <text class="svg-small" x="10" y="92">after</text><rect class="svg-bar-1" x="110" y="76" width="34" height="24"/><text class="svg-label" x="152" y="93">60 ms</text>
+</svg>
+
+<!-- Item tiles: one real item per tile, the faulty one in .svg-bad -->
+<svg viewBox="0 0 640 120" role="img" aria-label="Build 7 has four files and one of them is empty">
+  <text class="svg-text-1" x="0" y="16">Build 7 · 4 files</text>
+  <rect class="svg-bad" x="0" y="28" width="148" height="48"/><text class="svg-label" x="8" y="48">logo.png</text><text class="svg-small" x="8" y="66">0 bytes</text>
+  <rect class="svg-box-1" x="164" y="28" width="148" height="48"/><text class="svg-label" x="172" y="48">app.js</text><text class="svg-small" x="172" y="66">148 KB</text>
+  <rect class="svg-box-1" x="328" y="28" width="148" height="48"/><text class="svg-label" x="336" y="48">style.css</text><text class="svg-small" x="336" y="66">12 KB</text>
+  <rect class="svg-box-1" x="492" y="28" width="148" height="48"/><text class="svg-label" x="500" y="48">index.html</text><text class="svg-small" x="500" y="66">3 KB</text>
+  <text class="svg-small" x="0" y="104">Red: the upload check failed. Teal: passed.</text>
+</svg>
+
+<!-- To-scale timeline: x = days (here 20 px a day), leaders carry the labels -->
+<svg viewBox="0 0 640 180" role="img" aria-label="Bad deploys began on 3 March and the first alert fired on 18 March">
+  <rect class="svg-box-2" x="20" y="72" width="600" height="20"/><text class="svg-small" x="28" y="86">bad deploys keep going out</text>
+  <line class="svg-axis" x1="20" y1="100" x2="620" y2="100"/>
+  <line class="svg-axis" x1="20" y1="96" x2="20" y2="104"/><text class="svg-small" x="20" y="118" text-anchor="middle">3 Mar</text>
+  <line class="svg-axis" x1="320" y1="96" x2="320" y2="104"/><text class="svg-small" x="320" y="118" text-anchor="middle">18 Mar</text>
+  <line class="svg-line" x1="20" y1="72" x2="20" y2="40"/><circle class="svg-bar-2" cx="20" cy="72" r="4"/><text class="svg-label" x="28" y="36">3 Mar · first bad deploy</text>
+  <line class="svg-line-spot" x1="320" y1="72" x2="320" y2="40"/><circle class="svg-bar-1" cx="320" cy="72" r="4"/><text class="svg-label" x="328" y="36">18 Mar · first alert fires</text>
+  <line class="svg-line" x1="620" y1="124" x2="620" y2="140"/><text class="svg-label" x="620" y="156" text-anchor="end">2 Apr · newest bad deploy</text>
 </svg>
 ```
 

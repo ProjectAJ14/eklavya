@@ -320,4 +320,17 @@ describe('diagram colours and the skill that teaches them', () => {
     expect(agent).toContain('.svg-box-1');
     expect(agent).toContain('.svg-bad');
   });
+
+  it('teaches report pages to draw the real items and dates, in skill and agent', () => {
+    for (const kind of ['Item tiles', 'To-scale timeline', 'Fan-in', 'status table', 'Action cards']) expect(skill, kind).toContain(kind);
+    expect(skill).toContain('Same depth as any good artifact');
+    expect(skill).toContain('artifact-diagramming');
+    expect(agent).toContain('Same depth');
+    expect(agent).toContain('never invent an id or a date');
+  });
+
+  it('ships a tile skeleton and a timeline skeleton', () => {
+    expect(skeletons.some((x) => /Build 7/.test(x) && x.includes('svg-bad'))).toBe(true);
+    expect(skeletons.some((x) => x.includes('svg-axis') && x.includes('3 Mar'))).toBe(true);
+  });
 });
