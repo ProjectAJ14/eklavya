@@ -77,6 +77,24 @@ const receipts = db
      FROM context_receipts r WHERE ${DELIVERED} AND ${NOT_HELPER_RECEIPT} AND datetime(r.created_at) >= datetime(?)`,
   )
   .all(since);
+// Uptake, the share of sessions with a recall where the model opened a recalled
+// entry: a `memory_get` in that session, at or after the recall, whose ids
+// include one the receipt listed. Per session, not per block, so a session with
+// five recalls counts once.
+const uptake = db
+  .prepare(
+    `SELECT r.session_id AS session,
+            EXISTS(SELECT 1 FROM memory_reads m, json_each(m.entry_ids) j, context_receipt_items i
+                   WHERE m.tool = 'memory_get' AND m.session_id = r.session_id
+                     AND datetime(m.created_at) >= datetime(r.created_at)
+                     AND i.receipt_id = r.id AND i.entry_id = j.value) AS opened
+     FROM context_receipts r
+     WHERE r.session_id IS NOT NULL AND ${DELIVERED} AND ${NOT_HELPER_RECEIPT} AND datetime(r.created_at) >= datetime(?)`,
+  )
+  .all(since);
+const uptakeSessions = new Map();
+for (const u of uptake) uptakeSessions.set(u.session, (uptakeSessions.get(u.session) ?? 0) | u.opened);
+const sessionsOpened = [...uptakeSessions.values()].filter(Boolean).length;
 const reads = db
   .prepare(
     `SELECT session_id AS session, tool, COUNT(*) AS n, COALESCE(SUM(result_tokens), 0) AS tokens
@@ -126,6 +144,8 @@ const totals = {
   read_tokens: sum((s) => s.read_tokens),
   reads_by_tool: byTool,
   prepared_never_written: prepared,
+  sessions_with_recall: uptakeSessions.size,
+  sessions_that_opened_a_recalled_entry: sessionsOpened,
 };
 totals.blocks_not_followed = totals.recall_blocks - totals.blocks_followed_by_any_later_read_in_session;
 totals.memory_tokens_in_context = totals.injected_total + totals.read_tokens;
@@ -170,6 +190,7 @@ console.log(`  recall blocks written:                     ${n(totals.recall_bloc
 console.log(`  followed by a read that named the block:   ${n(totals.blocks_followed_by_linked_read)} (${pct(totals.blocks_followed_by_linked_read, totals.recall_blocks)})`);
 console.log(`  followed by any read later in the session: ${n(totals.blocks_followed_by_any_later_read_in_session)} (${pct(totals.blocks_followed_by_any_later_read_in_session, totals.recall_blocks)})`);
 console.log(`  never followed by a read:                  ${n(totals.blocks_not_followed)} (${pct(totals.blocks_not_followed, totals.recall_blocks)})`);
+console.log(`  sessions with a recall that opened a recalled entry (memory_get): ${n(sessionsOpened)} of ${n(uptakeSessions.size)} (${pct(sessionsOpened, uptakeSessions.size)})`);
 console.log('  A read shows memory was fetched, not that the answer used it.');
 const c = comparison.result;
 console.log('\nComparison line (same arithmetic as the dashboard and `eklavya memory status`):');

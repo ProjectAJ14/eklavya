@@ -320,7 +320,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
   // after the last one. Counting it afterwards means the block the model
   // receives is reliably larger than the budget that was supposed to bound it.
   const wrapperTokens = estimateTokens(
-    [`<eklavya-memory project="${projectAttr}" items="00" receipt="000000">`, note, RECEIPT_HINT(0), footer].join('\n'),
+    [`<eklavya-memory project="${projectAttr}" items="00" receipt="000000">`, note, RECEIPT_HINT(0, [1000000, 1000000]), footer].join('\n'),
   );
 
   // Fill to the token budget rather than the item count: six short notes and
@@ -409,7 +409,9 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     const detail = items.filter((x) => x.e !== checkpoint).map((x) => x.text);
     const closing = items.filter((x) => x.e === checkpoint).map((x) => x.text);
     const header = `<eklavya-memory project="${projectAttr}" items="${items.length + timelineRows.length}" receipt="${receipt}">`;
-    const hint = RECEIPT_HINT(Number(receipt));
+    // Only a prompt's candidates are ranked, so only there is the first the best
+    // match; a session start's are newest-first and name none.
+    const hint = RECEIPT_HINT(Number(receipt), opts.scope === 'prompt' ? items.slice(0, 2).map((x) => x.e.id) : []);
     const block = opts.index
       ? [header, note, hint, ...indexLines, ...(detail.length ? [DETAIL_HEADING, ...detail] : []), ...closing, footer].join('\n')
       : [header, note, hint, ...items.map((x) => x.text), footer].join('\n');
