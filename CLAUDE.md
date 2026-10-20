@@ -72,6 +72,8 @@ Code's hook-driven learning loop.
    tests that call `loadConfig()` read the real `~/.eklavya/config.json`, so they
    pass locally and fail in CI. Pin the config or point `EKLAVYA_HOME` at a temp
    directory before calling a test green.
+   CI also enforces 100% coverage across the whole suite; shards passing is not
+   enough. See `.claude/rules/coverage.md` for how to measure it before pushing.
 2. Build `web/` when docs or site content changes. Its SEO audit checks built
    links, anchors and assets; inspect changed layouts at 1280, 900 and 560px in
    both themes.

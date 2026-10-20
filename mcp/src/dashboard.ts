@@ -1858,7 +1858,7 @@ const FIELDS: Omit<SettingField, 'type'>[] = [
   { key: 'quiz.enforced', group: 'Questions', label: 'Gate commits',
     help: 'Hold commits until the session\'s questions are passed. Off whenever questions are off.' },
   { key: 'quiz.only_on_changes', group: 'Questions', label: 'Only after code changes',
-    help: 'Ask only in sessions that changed code in a git repository, so reading, research and plain questions are not quizzed.' },
+    help: 'Ask only in sessions that changed code in a git repository (a pull or branch switch alone is not a change), so reading, research and plain questions are not quizzed.' },
   { key: 'quiz.panel', group: 'Questions', label: 'Quiz side panel (experimental)',
     help: 'Show questions in a side panel instead of Claude\'s question card, so Claude keeps working while you answer. Needs a supported Claude Code build; anywhere else the card is used. Off changes nothing.' },
   { key: 'focus', group: 'Questions', label: 'Focus',
