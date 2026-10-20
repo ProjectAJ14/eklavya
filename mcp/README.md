@@ -51,7 +51,7 @@ Code's learning loop.
 | Purpose | Tools |
 |---|---|
 | Learner state and concepts | `get_learner_profile`, `log_session_concepts`, `upsert_concepts`, `get_concept_graph` |
-| Questions and assessment | `get_session_quiz_plan`, `record_attempt`, `get_gate_status` |
+| Questions and assessment (automatic questions wait for a code change, not a `git pull`; see `quiz.only_on_changes`) | `get_session_quiz_plan`, `record_attempt`, `get_gate_status` |
 | Quiz side panel (experimental) | `present_question` for the model; `panel_sync` and `panel_answer`, called only by the panel mod, never by the model; its header stacks the mark above the topic in a pane under 60 cells wide |
 | Settings | `get_config`, `set_config` |
 | Find and read memory (`memory_status` includes a `health` verdict with reasons) | `memory_search`, `memory_get`, `memory_timeline`, `memory_file_history`, `memory_status` |

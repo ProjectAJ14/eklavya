@@ -40,9 +40,20 @@
  * Known edges, all accepted:
  *   - a file already dirty at session start, edited and then reverted, still
  *     counts (its mtime moved; a clean file reverted is clean again and does not);
- *   - a build that writes untracked, un-ignored files counts;
- *   - `git pull` or a branch switch moves HEAD and counts.
+ *   - a build that writes untracked, un-ignored files counts.
  * Each errs towards asking, which is the behaviour before this existed.
+ *
+ * HEAD moving is not a change by itself. The fingerprint keeps HEAD apart from
+ * the status hash (`<status>:<head>`); when only HEAD moved, the reflog after
+ * the baseline's HEAD decides: a `commit`, `merge`, `rebase` or `cherry-pick` entry is
+ * the session's work, a `checkout:` or a fast-forward `pull` is not. A Bash
+ * edit followed by a commit still counts through its commit entry.
+ *
+ * A session started outside any repository (a folder of repos) records the
+ * baseline's time with an empty fingerprint. Its Bash edits are found from the
+ * trees the command names -- `cd`, `git -C`, any path in it -- and the folder
+ * it is in now, since `cd` persists between calls. Files under `artifacts/` or
+ * `reports/` are research output, not code, and never count.
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -52,11 +63,22 @@ import path from 'node:path';
 import type { DB } from './lib.js';
 
 const KEY_PREFIX = 'tree_fp:';
+/** Research output committed beside code: never a code change. */
+const OUTPUT_DIR = /(^|\/)(artifacts|reports)\//;
+const CODE_REFLOG = /^(commit|merge|rebase|cherry-pick)\b/;
 /** A hook has ten seconds in all; git gets a fraction of it. */
 const GIT_TIMEOUT_MS = 2000;
+/** The hook has ten seconds; looking at the trees a Bash command names gets four. */
+const BASH_SCAN_MS = 4000;
+/**
+ * A repository the session merely names must not run its own config
+ * (`core.fsmonitor` is a command `git status` executes) nor take its index lock
+ * while the developer's own git runs there.
+ */
+const GIT_SAFE = ['--no-optional-locks', '-c', 'core.fsmonitor=false'];
 
 export function git(cwd: string, args: string[]): string | null {
-  const res = spawnSync('git', args, { cwd, encoding: 'utf8', timeout: GIT_TIMEOUT_MS, windowsHide: true });
+  const res = spawnSync('git', [...GIT_SAFE, ...args], { cwd, encoding: 'utf8', timeout: GIT_TIMEOUT_MS, windowsHide: true });
   return res.status === 0 && typeof res.stdout === 'string' ? res.stdout : null;
 }
 
@@ -69,7 +91,7 @@ export function treeFingerprint(cwd: string): string | null {
     if (entries === null) return null;
     // An unborn branch has no HEAD; the status entries still fingerprint it.
     const head = git(root, ['rev-parse', '--verify', '-q', 'HEAD'])?.trim() ?? '';
-    const hash = createHash('sha1').update(head);
+    const hash = createHash('sha1');
     for (const { entry, rel } of entries) {
       let stamp = 'gone';
       try {
@@ -80,7 +102,7 @@ export function treeFingerprint(cwd: string): string | null {
       }
       hash.update(`\0${entry}\0${stamp}`);
     }
-    return hash.digest('hex');
+    return `${hash.digest('hex')}:${head}`;
   } catch {
     return null;
   }
@@ -97,7 +119,8 @@ function statusEntries(root: string): Array<{ entry: string; rel: string }> | nu
     if (entry.length < 4) continue;
     // `R` and `C` entries carry the source path as the next NUL field.
     if (entry[0] === 'R' || entry[0] === 'C') i++;
-    out.push({ entry, rel: entry.slice(3) });
+    const rel = entry.slice(3);
+    if (!OUTPUT_DIR.test(rel)) out.push({ entry, rel });
   }
   return out;
 }
@@ -112,10 +135,11 @@ export function recordBaseline(db: DB, sessionId: string, cwd: string, fp = tree
     db.prepare(
       `DELETE FROM meta WHERE key LIKE ? AND substr(value, 1, 10) < date('now', '-7 day')`,
     ).run(`${KEY_PREFIX}%`);
-    if (fp === null) return;
+    // Outside a repository only the start time is kept, for `noteBashEdit`.
+    if (fp === null && !outsideRepo(cwd)) return;
     db.prepare('INSERT OR IGNORE INTO meta (key, value) VALUES (?, ?)').run(
       `${KEY_PREFIX}${sessionId}`,
-      `${new Date().toISOString()}|${fp}`,
+      `${new Date().toISOString()}|${fp ?? ''}`,
     );
   } catch {
     /* No baseline means `sessionChangedCode` treats the session as unknown. */
@@ -149,10 +173,35 @@ export function sessionChangedCode(db: DB, sessionId: string, cwd: string): bool
       recordBaseline(db, sessionId, cwd, now);
       return false;
     }
-    return row.value.slice(row.value.indexOf('|') + 1) !== now;
+    const bar = row.value.indexOf('|');
+    const base = row.value.slice(bar + 1);
+    if (base === now) return false;
+    // Started outside a repository, now inside one: only the marks speak.
+    if (base === '') return false;
+    const [baseStatus, baseHead] = base.split(':');
+    const [nowStatus] = now.split(':');
+    // A status change is an edit; a pre-split baseline (no head part) cannot say.
+    if (baseHead === undefined || baseStatus !== nowStatus) return true;
+    return headMovedByCode(cwd, baseHead);
   } catch {
     return true;
   }
+}
+
+/**
+ * True when a commit, merge, rebase or cherry-pick sits in HEAD's reflog after
+ * the entry that landed on the baseline's HEAD; unknown answers true. Walks by
+ * commit, not by clock, so entries in the baseline's own second cannot blur it.
+ */
+function headMovedByCode(cwd: string, baseHead: string): boolean {
+  const log = git(cwd, ['reflog', 'show', 'HEAD', '--format=%H%x09%gs']);
+  if (log === null || baseHead === '') return true;
+  for (const line of log.split('\n')) {
+    const [sha, subject = ''] = line.split('\t');
+    if (sha === baseHead) return false;
+    if (CODE_REFLOG.test(subject)) return true;
+  }
+  return true;
 }
 
 /**
@@ -164,7 +213,7 @@ export function sessionChangedCode(db: DB, sessionId: string, cwd: string): bool
  * "false" with a clean exit.
  */
 function outsideRepo(cwd: string): boolean {
-  const res = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], {
+  const res = spawnSync('git', [...GIT_SAFE, 'rev-parse', '--is-inside-work-tree'], {
     cwd,
     encoding: 'utf8',
     env: { ...process.env, LC_ALL: 'C' },
@@ -185,12 +234,13 @@ function editMarked(db: DB, sessionId: string): boolean {
   }
 }
 
-/** True when `file` is in a git working tree and not ignored. Two git calls. */
+/** True when `file` is in a git working tree, not ignored and not research output. Two git calls. */
 function inWorkTree(file: string): boolean {
   const dir = path.dirname(file);
-  if (git(dir, ['rev-parse', '--is-inside-work-tree'])?.trim() !== 'true') return false;
+  const root = git(dir, ['rev-parse', '--show-toplevel'])?.trim();
+  if (!root || OUTPUT_DIR.test(path.relative(root, file).split(path.sep).join('/'))) return false;
   // Exit 0 means ignored: build output, a vendored folder.
-  const ignored = spawnSync('git', ['check-ignore', '-q', file], { cwd: dir, timeout: GIT_TIMEOUT_MS, windowsHide: true });
+  const ignored = spawnSync('git', [...GIT_SAFE, 'check-ignore', '-q', file], { cwd: dir, timeout: GIT_TIMEOUT_MS, windowsHide: true });
   return ignored.status !== 0;
 }
 
@@ -236,28 +286,66 @@ export function leadingCd(command: string, cwd: string): string | null {
 export function noteBashEdit(db: DB, sessionId: string, cwd: string, command: string): void {
   try {
     if (editMarked(db, sessionId)) return;
-    const target = leadingCd(command, cwd);
-    if (!target) return;
     const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(`${KEY_PREFIX}${sessionId}`) as
       | { value: string }
       | undefined;
-    const since = row ? Date.parse(row.value.slice(0, row.value.indexOf('|'))) : NaN;
+    if (!row) return;
+    const bar = row.value.indexOf('|');
+    const since = Date.parse(row.value.slice(0, bar));
     if (Number.isNaN(since)) return;
-    const root = git(target, ['rev-parse', '--show-toplevel'])?.trim();
-    if (!root) return;
-    const entries = statusEntries(root);
-    if (!entries) return;
-    const moved = entries.some(({ rel }) => {
-      try {
-        return fs.statSync(path.join(root, rel)).mtimeMs >= since;
-      } catch {
-        return false; // Deleted: no mtime to say when. The fingerprint still sees it in the session's own tree.
-      }
-    });
-    if (moved) markEdit(db, sessionId);
+    const deadline = Date.now() + BASH_SCAN_MS;
+    const targets = bashTargets(command, cwd, row.value.length === bar + 1);
+    const roots = new Set<string>();
+    for (const target of targets) {
+      if (Date.now() > deadline) break;
+      const root = git(target, ['rev-parse', '--show-toplevel'])?.trim();
+      if (root) roots.add(root);
+    }
+    for (const root of roots) {
+      if (Date.now() > deadline) return;
+      const entries = statusEntries(root);
+      const moved = entries?.some(({ rel }) => {
+        try {
+          return fs.statSync(path.join(root, rel)).mtimeMs >= since;
+        } catch {
+          return false; // Deleted: no mtime to say when. The fingerprint still sees it in the session's own tree.
+        }
+      });
+      if (moved) return markEdit(db, sessionId);
+    }
   } catch {
     /* Unmarked falls back to the git comparison. */
   }
+}
+
+/**
+ * The directories whose git trees a Bash command may have edited. Always the
+ * leading `cd`. For a session started outside any repository (`outside`) there
+ * is no tree of its own for the fingerprint to cover, so also: `git -C <dir>`,
+ * every path-like word that exists (relative ones against `cwd`), and `cwd`
+ * itself, which `cd` in an earlier call may have moved into a repository.
+ * At most four, so the git calls fit the hook's budget.
+ */
+function bashTargets(command: string, cwd: string, outside: boolean): string[] {
+  const out = new Set<string>();
+  const lead = leadingCd(command, cwd);
+  if (lead) out.add(lead);
+  if (outside) {
+    out.add(cwd);
+    const words = (command.match(/"[^"]*"|'[^']*'|[^\s;&|<>]+/g) ?? []).map((w) => w.replace(/^["']|["']$/g, ''));
+    words.forEach((w, i) => {
+      if (w.includes('$') || w.startsWith('-')) return;
+      if (!w.includes('/') && words[i - 1] !== '-C') return;
+      const abs = path.resolve(cwd, w === '~' || w.startsWith('~/') ? path.join(os.homedir(), w.slice(1)) : w);
+      try {
+        out.add(fs.statSync(abs).isDirectory() ? abs : path.dirname(abs));
+      } catch {
+        /* Not a path: `s/a/b/`, a URL. */
+      }
+    });
+  }
+  // ponytail: first four win (cd, cwd, then paths in order); the rest are not looked at.
+  return [...out].slice(0, 4);
 }
 
 /**

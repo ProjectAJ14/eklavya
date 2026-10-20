@@ -152,7 +152,8 @@ questions off and keep memory on.
 | `memory.enabled` | `true`: record and recall | `false`: learning only |
 
 By default Eklavya asks only in sessions that change code (edit tools or
-shell commands, in this checkout or a sibling worktree), up to four
+shell commands, in this checkout, a sibling worktree or a repository below a
+folder you started in; a `git pull` or branch switch alone does not count), up to four
 questions per session on its own. Checkpoint questions are at least four minutes
 apart; questions while background agents build share the budget but skip that
 gap. `/eklavya:quiz` can always ask more. Change a dial with `/eklavya:mode` in Claude Code,

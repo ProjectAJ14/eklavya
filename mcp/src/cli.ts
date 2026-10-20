@@ -145,7 +145,8 @@ Config namespaces (nested; edit ~/.eklavya/config.json or this project's file di
   quiz.{enabled, enforced, only_on_changes, panel} — whether questions happen, whether
              they gate commits, whether they wait for a code change in a
              git repository (default true: sessions that only read, research
-             or answer questions are not quizzed, even outside a repository),
+             or answer questions, or only pull, are not quizzed, even
+             outside a repository),
              and whether they show in the Claude Code side panel instead of
              the question card (experimental, default true).
              Separate from memory: silencing questions never stops
