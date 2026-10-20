@@ -162,7 +162,7 @@ A resumed session gets back its whole transcript, so on `resume` the block leave
 
 #### When you send a prompt
 
-A prompt with at least 25 characters of your own words (pasted blocks and background-agent reports are ignored) is searched against the project's memory. An entry is recalled only if it contains every word of the prompt or is close in meaning, within a third of `retrieval.max_items` and `retrieval.max_tokens`. Prompt recall never repeats an entry this session was already handed, and never recalls an entry this session wrote: that work is already in Claude's context. When nothing qualifies, nothing is added.
+A prompt with at least 25 characters of your own words (pasted blocks and background-agent reports are ignored) is searched against the project's memory. A prompt with fewer than three meaningful words (filler such as "use" or "please" does not count) is matched on its words alone, so a bare tool name recalls entries that mention it, never entries that are merely close in meaning; a prompt of only filler recalls nothing. An entry is recalled only if it contains every word of the prompt or is close in meaning, within a third of `retrieval.max_items` and `retrieval.max_tokens`. Prompt recall never repeats an entry this session was already handed, and never recalls an entry this session wrote: that work is already in Claude's context. When nothing qualifies, nothing is added.
 
 #### When Claude opens a file
 
