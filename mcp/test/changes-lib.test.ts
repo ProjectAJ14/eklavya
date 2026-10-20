@@ -500,3 +500,27 @@ describe('a repository that names a command in its own config', () => {
     }
   });
 });
+
+describe('a named repository whose config defines a clean filter', () => {
+  it.skipIf(process.platform === 'win32')('is not listed, so its filter never runs', () => {
+    const parent = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-parent-')));
+    const marker = path.join(parent, 'filter-ran');
+    try {
+      write('.gitattributes', '*.ts filter=spy\n');
+      git('config', 'filter.spy.clean', `touch ${marker}; cat`);
+      git('add', '.gitattributes');
+      git('commit', '-qm', 'attrs');
+      fs.rmSync(marker, { force: true }); // setup's own git calls may have run it on a racy file
+      recordBaseline(db, 's1', parent);
+      edit(); // same size: git must run the filter to compare content
+      noteBashEdit(db, 's1', parent, `git -C ${repo} status`);
+      expect(fs.existsSync(marker)).toBe(false);
+      expect(sessionChangedCode(db, 's1', parent)).toBe(false);
+      // Control: git itself does run the filter on this tree.
+      spawnSync('git', ['status', '--porcelain'], { cwd: repo });
+      expect(fs.existsSync(marker)).toBe(true);
+    } finally {
+      fs.rmSync(parent, { recursive: true, force: true });
+    }
+  });
+});

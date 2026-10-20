@@ -54,6 +54,8 @@
  * trees the command names -- `cd`, `git -C`, any path in it -- and the folder
  * it is in now, since `cd` persists between calls. Files under `artifacts/` or
  * `reports/` are research output, not code, and never count.
+ * A named repository whose own config defines a clean/process filter is skipped:
+ * `git status` would run that command, and no flag turns it off.
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -303,6 +305,7 @@ export function noteBashEdit(db: DB, sessionId: string, cwd: string, command: st
     }
     for (const root of roots) {
       if (Date.now() > deadline) return;
+      if (runsFilter(root)) continue;
       const entries = statusEntries(root);
       const moved = entries?.some(({ rel }) => {
         try {
@@ -316,6 +319,19 @@ export function noteBashEdit(db: DB, sessionId: string, cwd: string, command: st
   } catch {
     /* Unmarked falls back to the git comparison. */
   }
+}
+
+/**
+ * True when the repository's own config defines a clean/process filter. `git
+ * status` runs those on modified files its `.gitattributes` selects, and `-c`
+ * cannot switch them off, so a tree the session merely names is not listed.
+ * Reading config executes nothing. Costs: a repo that sets up a filter locally
+ * (`git lfs install --local`) is not seen through Bash from a folder of repos.
+ */
+function runsFilter(root: string): boolean {
+  return Boolean(
+    git(root, ['config', '--local', '--includes', '--name-only', '--get-regexp', '^filter\\..*\\.(clean|process)$'])?.trim(),
+  );
 }
 
 /**
