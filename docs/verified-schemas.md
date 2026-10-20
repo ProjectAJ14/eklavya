@@ -183,7 +183,7 @@ holds for it. `PANEL_SURFACES` in `mcp/src/panel-state.ts` lists `desktop` anywa
 2026-10-08 at the maintainer's request): the planner still falls back to the card when the
 mod never reports in or reports `placed: false`. Verify rows 5, 12 and 13 on a Desktop build
 and record them here. `panel_sync` also returns a one-line `greeting` (never on the terminal, which prints the
-SessionStart `systemMessage`) that the mod toasts once per session; not yet observed on Desktop.
+SessionStart `systemMessage`) that the mod toasts once per session; not yet observed on Desktop. The mod reports `surfaces()[0]`, which is `terminal` when the host attaches both (a Desktop session's heartbeats flipped between `desktop` and `terminal`), so the server also reads the host's `CLAUDE_CODE_ENTRYPOINT` (`needsInlineAttribution`) before deciding a session is a terminal.
 "Declared" rows come from the build's own `claude-code.d.ts`; "observed" rows from a probe
 log or a driven session.
 
