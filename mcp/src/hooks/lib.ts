@@ -77,6 +77,18 @@ export async function readInput(): Promise<HookInput> {
 }
 
 /**
+ * A hand-typed session id (`t-x`) against the real `~/.eklavya` writes junk
+ * into the learner's database. Host ids are UUIDs, so a short one with neither
+ * `EKLAVYA_HOME` nor `EKLAVYA_DB` set is almost certainly a manual run.
+ */
+export function syntheticIdWarning(input: HookInput, env: NodeJS.ProcessEnv = process.env): string | null {
+  const id = input.session_id;
+  if (typeof id !== 'string' || !id || id.length >= 16) return null;
+  if (env.EKLAVYA_HOME !== undefined || env.EKLAVYA_DB !== undefined) return null; // same test as eklavyaHome()/dbPath()
+  return `eklavya: session_id "${id}" looks synthetic and EKLAVYA_HOME is unset, so this run writes to your real ~/.eklavya. Use EKLAVYA_HOME=$(mktemp -d).\n`;
+}
+
+/**
  * Opens the knowledge DB read-write, WITHOUT migrating or seeding it.
  *
  * `openDb()` is the server's entry point and does both, which is right for a
@@ -255,6 +267,8 @@ export async function run(body: (input: HookInput) => Promise<number | void>): P
   let code = 0;
   try {
     const input = await readInput();
+    const warning = syntheticIdWarning(input);
+    if (warning) process.stderr.write(warning);
     code = (await body(input)) ?? 0;
   } catch {
     code = 0;

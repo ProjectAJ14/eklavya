@@ -67,6 +67,7 @@ An **observation** summarises a batch of evidence into a title, narrative, facts
 - At `memory.batch_max_events` events (40 by default).
 - At a turn end when they contain at least eight events or are 20 minutes old.
 - At the next session start, even if a smaller batch remains. Compaction is the same session, not a new start.
+- At any turn end or session start in any project, for a leftover from a session that has gone quiet for 20 minutes. A session you never return to is still summarised, without waiting for another session in its project.
 
 New installs use `claude-sonnet-5` to write observations through `claude -p` and
 your Claude Code login. The captured evidence described above goes to that

@@ -18,7 +18,7 @@ skills, and prepares local storage. New installs have the quiz side panel,
 memory and prompt feedback on. Memory summaries and prompt feedback use
 `claude-sonnet-5` through your Claude Code login, so captured session evidence
 goes to that model. [Memory](https://eklavya-run.web.app/docs/memory/) explains
-what is captured and how to use local summaries instead.
+what is captured, when batches close (a quiet session's leftovers after 20 minutes, in any project) and how to use local summaries instead.
 If Claude Mem is installed, it keeps recording and Eklavya memory stays off
 until you [switch recorders](https://eklavya-run.web.app/docs/migrating/).
 
@@ -147,7 +147,8 @@ defaults and scopes. The [memory guide](https://eklavya-run.web.app/docs/memory/
 covers retrieval, processing, providers, privacy and sync.
 
 State is local under `~/.eklavya/`, including `knowledge.db` (SQLite, WAL).
-`EKLAVYA_HOME` and `EKLAVYA_DB` override those paths. Questions and memory have
+`EKLAVYA_HOME` and `EKLAVYA_DB` override those paths; set one when running a hook
+by hand, or it writes to your real database. Questions and memory have
 independent switches. Set `providers.observer` to `null` for local memory
 summaries and no prompt feedback. The observer's instructions are scored by
 `eval/gepa/memory/`, and an end-of-turn batch's output schema requires its

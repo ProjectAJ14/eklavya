@@ -120,15 +120,18 @@ export function pendingEventCount(db: DB, project?: string, sessionId?: string):
   return row.n;
 }
 
-/** Every session in a project with evidence not yet in a batch: how much, and since when. */
-export function openSessions(db: DB, project: string): { sessionId: string; events: number; oldest: string }[] {
+/** Every session with evidence not yet in a batch: how much, and since when. One project, or every project. */
+export function openSessions(
+  db: DB,
+  project?: string,
+): { project: string; sessionId: string; events: number; oldest: string }[] {
   return db
     .prepare(
-      `SELECT session_id AS sessionId, COUNT(*) AS events, MIN(occurred_at) AS oldest
-       FROM evidence_events WHERE status = 'accepted' AND project = ?
-       GROUP BY session_id`,
+      `SELECT project, session_id AS sessionId, COUNT(*) AS events, MIN(occurred_at) AS oldest
+       FROM evidence_events WHERE status = 'accepted' AND (@project IS NULL OR project = @project)
+       GROUP BY project, session_id`,
     )
-    .all(project) as { sessionId: string; events: number; oldest: string }[];
+    .all({ project: project ?? null }) as { project: string; sessionId: string; events: number; oldest: string }[];
 }
 
 /**

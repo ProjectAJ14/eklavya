@@ -111,6 +111,14 @@ tests need the same isolation as subprocesses: otherwise local settings can hide
 a failure or tests can write real learner data. Do not commit databases,
 transcripts containing private work, or files from `~/.eklavya/`.
 
+Run a hook by hand the same way, or it writes into your real learner database:
+
+```bash
+echo '{"session_id":"t-1","cwd":"'$PWD'"}' | EKLAVYA_HOME=$(mktemp -d) node hooks/run.mjs session-start
+```
+
+A hook given a short session id with `EKLAVYA_HOME` and `EKLAVYA_DB` unset warns on stderr.
+
 The test workflow runs on PRs and pushes to main. The release workflow tests
 main before publication. Model-based evaluations run separately because they
 cost model calls and are not deterministic.
