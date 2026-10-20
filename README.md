@@ -51,7 +51,7 @@ explains the controls.
 |---|---|---|
 | Learning | Short questions about the code Claude just wrote. | [First session](https://eklavya-run.web.app/docs/first-session/) |
 | Memory | Claude remembers your past work in this project. | [Memory](https://eklavya-run.web.app/docs/memory/) |
-| Artifacts | Turn any explanation into a page with diagrams. | [Artifacts](https://eklavya-run.web.app/docs/commands/#the-artifacts-skill) |
+| Artifacts | Turn any explanation or incident write-up into a page with diagrams, timelines and a status table. | [Artifacts](https://eklavya-run.web.app/docs/commands/#the-artifacts-skill) |
 | Dashboard | See your progress, streak, memory and pages in the browser, and copy a ready-to-run command for your due reviews. | [Dashboard](https://eklavya-run.web.app/docs/dashboard/) |
 | Report a problem | Tell Claude a question or grade was wrong: it drafts a GitHub issue with paths and code removed, and files it only after you say yes. | [How to report one](https://eklavya-run.web.app/docs/faq/#how-do-i-report-a-problem-with-eklavya) |
 | Dials | Choose what it teaches, when it asks and how hard. | [The dials](https://eklavya-run.web.app/docs/dials/) |

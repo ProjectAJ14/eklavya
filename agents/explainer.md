@@ -76,6 +76,12 @@ In this order, each under its own `<h2>`:
   when you are sure it behaves that way: a wrong comparison teaches the wrong
   thing.
 
+A page about what happened (an incident or a bug hunt) rather than one concept
+follows the skill's "Same depth" section instead of the list above: inventory
+the real ids, dates and counts you were handed, then draw them (item tiles, a
+to-scale timeline, a status table, action cards). Use only facts you were
+handed; never invent an id or a date to fill a diagram.
+
 Plain English, short sentences, no jargon without a gloss. State a claim no
 more strongly than the page later supports: a guarantee the gotcha qualifies
 is stated as qualified the first time. Any CSS you add
