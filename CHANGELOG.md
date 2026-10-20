@@ -1,3 +1,11 @@
+## [1.82.1](https://github.com/ProjectAJ14/eklavya/compare/v1.82.0...v1.82.1) (2026-10-20)
+
+
+### Bug Fixes
+
+* **hooks:** warn when a hand-run hook would write to the real learner database ([#236](https://github.com/ProjectAJ14/eklavya/issues/236)) ([43139c3](https://github.com/ProjectAJ14/eklavya/commit/43139c30b7c5a700a0478b5fd5a055925fe9262e)), closes [#232](https://github.com/ProjectAJ14/eklavya/issues/232)
+* **quiz:** a pull is not a code change; find Bash edits from a folder of repos ([#233](https://github.com/ProjectAJ14/eklavya/issues/233)) ([e6f9c96](https://github.com/ProjectAJ14/eklavya/commit/e6f9c967f5bf98a72261dc86fe6139550e7541dc)), closes [#228](https://github.com/ProjectAJ14/eklavya/issues/228)
+
 # [1.82.0](https://github.com/ProjectAJ14/eklavya/compare/v1.81.4...v1.82.0) (2026-10-20)
 
 
