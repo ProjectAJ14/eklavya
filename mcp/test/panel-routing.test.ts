@@ -221,6 +221,13 @@ describe('the greeting for a host without the SessionStart banner', () => {
     expect(sync('terminal').greeting).toContain('Eklavya active');
   });
 
+  it('says questions off when they are, and greets a session opened without a folder', () => {
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ quiz: { enabled: false, panel: true } }));
+    expect(panelSync(db, { session_id: SESSION, cwd: '', host: { surface: 'desktop' } }) as any).toMatchObject({
+      greeting: expect.stringMatching(/memory on · questions off$/),
+    });
+  });
+
   it('stays out when quiet or when memory is off', () => {
     configure(true, { quiet: true });
     expect(sync('desktop').greeting).toBeUndefined();
