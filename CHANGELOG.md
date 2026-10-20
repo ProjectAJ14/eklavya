@@ -1,3 +1,10 @@
+# [1.83.0](https://github.com/ProjectAJ14/eklavya/compare/v1.82.3...v1.83.0) (2026-10-20)
+
+
+### Features
+
+* **memory:** name best-match ids in prompt recall and report recall uptake ([#239](https://github.com/ProjectAJ14/eklavya/issues/239)) ([8f82465](https://github.com/ProjectAJ14/eklavya/commit/8f8246513f1d8680b7c26c50aa874c8c9862186d)), closes [#229](https://github.com/ProjectAJ14/eklavya/issues/229)
+
 ## [1.82.3](https://github.com/ProjectAJ14/eklavya/compare/v1.82.2...v1.82.3) (2026-10-20)
 
 
