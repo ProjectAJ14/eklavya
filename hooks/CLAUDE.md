@@ -36,6 +36,11 @@ It is a process because better-sqlite3 is synchronous: a timer cannot interrupt
 a query, and `process.exit` waits for a worker thread stuck in one. A new
 optional SessionStart detail is a child step there, never an inline query.
 
+Run a hook by hand with `EKLAVYA_HOME=$(mktemp -d)` (see `CONTRIBUTING.md`).
+Without it the run writes into the real `~/.eklavya`; `run()` in
+`mcp/src/hooks/lib.ts` warns on stderr when a short, synthetic `session_id`
+meets the default home.
+
 ## The quiz panel is a mod, not a command hook
 
 `hooks/panel/` is a Claude Code mod: function hooks declared under `modules` in

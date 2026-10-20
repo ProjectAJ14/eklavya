@@ -81,6 +81,14 @@ export EKLAVYA_HOME=/tmp/eklavya-test
 export EKLAVYA_DB=/tmp/eklavya-test.db
 ```
 
+To run a hook by hand, set it for that one command, or the run writes into your real database:
+
+```bash
+echo '{"session_id":"t-1","cwd":"'$PWD'"}' | EKLAVYA_HOME=$(mktemp -d) node hooks/run.mjs session-start
+```
+
+A hook that receives a short, hand-typed `session_id` while neither variable is set prints a warning to stderr and still runs.
+
 `EKLAVYA_HOME` redirects Eklavya's state, not Claude Code's own settings or plugin registry. Running the installer can still change Claude Code registration; these variables are for isolating data, not a complete installation sandbox.
 
 For testing question wording, `EKLAVYA_SURFACE=code` or `cowork` overrides surface detection. It applies only to processes that inherit that environment. A shell inside Cowork's sandbox cannot change the environment of the host's hooks or server.
