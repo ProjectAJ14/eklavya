@@ -1,3 +1,10 @@
+# [1.82.0](https://github.com/ProjectAJ14/eklavya/compare/v1.81.4...v1.82.0) (2026-10-20)
+
+
+### Features
+
+* **artifacts:** give Eklavya report pages the depth of a plain Claude artifact ([#227](https://github.com/ProjectAJ14/eklavya/issues/227)) ([f410a38](https://github.com/ProjectAJ14/eklavya/commit/f410a38d7cbc54ec08e33aedb67c5dd74acbbd2b))
+
 ## [1.81.4](https://github.com/ProjectAJ14/eklavya/compare/v1.81.3...v1.81.4) (2026-10-19)
 
 
