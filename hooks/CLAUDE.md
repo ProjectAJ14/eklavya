@@ -50,7 +50,7 @@ throws is skipped and the question stays in the database (`panel_questions`) for
 the next sync. The rules it is validated against: static relative imports only,
 every `$` call inline or in a function declared at the top of the file, literal
 event names, render only its own pane, and never hold the answer key (the server
-grades; the mod draws and relays). It is opt-in: with `quiz.panel` off, `panel_sync`
+grades; the mod draws and relays). On a headerless host `panel_sync` also carries a `greeting` the mod toasts once (the SessionStart `systemMessage` never reaches Desktop; the terminal is never sent it, and `hooks/session-start.ts` is untouched). It is opt-in: with `quiz.panel` off, `panel_sync`
 returns `{disabled: true}` and the mod opens and draws nothing. `presentation` in
 `get_session_quiz_plan` is the one source for which tool asks; the checkpoint,
 the Stop sweep and the delegation lines (`delegation-lib.ts`) read it, and an

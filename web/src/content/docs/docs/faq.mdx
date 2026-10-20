@@ -65,9 +65,10 @@ Desktop build; if Desktop cannot show it, questions use the card.
 
 The Code tab does not draw the greeting a terminal session opens with ("Eklavya
 active · v… · memory on · questions off"), so the same first line is shown there
-as a short toast once per session. It needs the panel mod, so it is not verified
-on a real Desktop build either, and it is skipped when `quiet` is on or memory is
-off. The terminal is unchanged.
+as a short toast once per session. It comes from the panel mod, so it needs the
+plugin's mod to load (it shows even when `quiz.panel` is off), and it is not yet
+verified on a real Desktop build. `quiet` on or memory off skips it. The terminal
+is unchanged.
 
 ## Is Cowork different?
 

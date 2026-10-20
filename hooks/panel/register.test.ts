@@ -658,6 +658,37 @@ describe('the pane, state by state', () => {
   })
 })
 
+describe('the greeting for a host without the SessionStart banner', () => {
+  const GREETING = 'Eklavya active · v1.83.0 · memory on · questions on'
+
+  test('toasts what the server sends, once, however many syncs follow', async ($, on) => {
+    const w = world(on, { waiting: { ...QUESTION, greeting: GREETING } })
+    await boot($)
+    await $.session.start({ cwd: '/work/proj', surface: 'terminal', isInteractive: true })
+    expect(w.log.toasts.filter((t) => t === GREETING)).toHaveLength(1)
+  })
+
+  test('toasts nothing when the server sends no greeting', async ($, on) => {
+    const w = world(on, { waiting: { none: true } })
+    await boot($)
+    expect(w.log.toasts).toEqual([])
+  })
+
+  test('still toasts with the panel off, and when nothing waits', async ($, on) => {
+    const off = world(on, { waiting: { disabled: true, greeting: GREETING } })
+    await boot($)
+    expect(off.log.toasts).toEqual([GREETING])
+  })
+
+  test('greets again in the next session after a clear', async ($, on) => {
+    const w = world(on, { waiting: { none: true, greeting: GREETING } })
+    await boot($)
+    await $.session.end({ reason: 'clear', sessionId: 'old', resume: { id: 'old' } } as any)
+    await boot($)
+    expect(w.log.toasts.filter((t) => t === GREETING)).toHaveLength(2)
+  })
+})
+
 describe('placement and lifecycle', () => {
   test('a pane the host cannot seat is reported, and the learner told how to open it', async ($, on) => {
     const w = world(on, { placed: false })

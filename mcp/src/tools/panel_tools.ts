@@ -36,7 +36,7 @@ export const panelSyncTool: ToolDef = {
   name: 'panel_sync',
   title: 'Panel: is a question waiting',
   description:
-    'Called only by the Eklavya panel, never by the model. Returns the question waiting for this session and project (its repo, stem, options with ids and notes, phase, concept name, tier, more), or {none: true}; {disabled: true} when quiz.panel is off. Each call is the heartbeat of the mod: the planner chooses the panel only while one is fresh. Never returns the answer key. Reports whether the host could seat the pane (placed) so an invisible question is never counted as shown. Safe to call on every lifecycle event.',
+    'Called only by the Eklavya panel, never by the model. Returns the question waiting for this session and project (its repo, stem, options with ids and notes, phase, concept name, tier, more), or {none: true}; {disabled: true} when quiz.panel is off. Each call is the heartbeat of the mod: the planner chooses the panel only while one is fresh. Never returns the answer key. Reports whether the host could seat the pane (placed) so an invisible question is never counted as shown. On a host that draws no SessionStart banner (the Desktop Code tab, found by its reported surface or its entrypoint) the reply also carries a one-line `greeting` for the mod to toast once; never on the terminal, never when `quiet` is set or memory is off. Safe to call on every lifecycle event.',
   inputSchema: {
     session_id: z.string().min(1).max(LIMITS.sessionId).describe('The host session id.'),
     cwd: z.string().max(LIMITS.cwd).describe('The session working directory.'),
