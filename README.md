@@ -214,6 +214,10 @@ Development setup, the manual test scripts and the release process are in
 [`CONTRIBUTING.md`](CONTRIBUTING.md). CI fails any change that leaves a line,
 branch or function of the runtime untested (`npm run coverage` in `mcp/`).
 
+## Sponsors
+
+Eklavya is sponsored by [Nonstop](https://github.com/nonstopio).
+
 ## License
 
 MIT
