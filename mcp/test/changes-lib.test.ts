@@ -302,6 +302,9 @@ describe('sessionChangedCode', () => {
     process.env.GIT_CONFIG_NOSYSTEM = '1';
     try {
       if (treeFingerprint(repo) !== null) ctx.skip();
+      // No baseline either: git failed inside a repository, which is not "outside".
+      recordBaseline(db, 's1', repo);
+      expect(db.prepare(`SELECT count(*) AS n FROM meta WHERE key = 'tree_fp:s1'`).get()).toEqual({ n: 0 });
       expect(sessionChangedCode(db, 's1', repo)).toBe(true);
     } finally {
       process.env = saved;
@@ -570,5 +573,71 @@ describe('the trust root cannot be widened by the repository itself', () => {
     } finally {
       spy.mockRestore();
     }
+  });
+});
+
+describe('edges of the folder-of-repositories path', () => {
+  let parent: string;
+  beforeEach(() => {
+    parent = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-parent-')));
+    const old = repo;
+    repo = path.join(parent, 'inner');
+    spawnSync('git', ['clone', '-q', old, repo]);
+    fs.rmSync(old, { recursive: true, force: true });
+    recordBaseline(db, 's1', parent);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    fs.rmSync(parent, { recursive: true, force: true });
+  });
+  const marks = () => db.prepare(`SELECT count(*) AS n FROM meta WHERE key LIKE 'code_edit:%'`).get();
+
+  it('leaves a session that started outside a repository alone once its cwd is inside one', () => {
+    expect(sessionChangedCode(db, 's1', repo)).toBe(false);
+  });
+
+  it('asks when HEAD moved off an unborn baseline, which has no commit to walk from', () => {
+    fs.rmSync(path.join(repo, '.git'), { recursive: true, force: true });
+    git('init', '-q');
+    recordBaseline(db, 'u', repo);
+    git('commit', '-q', '--allow-empty', '-m', 'first');
+    expect(sessionChangedCode(db, 'u', repo)).toBe(true);
+  });
+
+  it('marks nothing from a baseline whose time cannot be read, or an empty command', () => {
+    db.prepare('INSERT INTO meta (key, value) VALUES (?, ?)').run('tree_fp:bad', `nope|@${parent}`);
+    noteBashEdit(db, 'bad', parent, `sed -i x ${repo}/a.ts`);
+    write('n.ts', 'n\n');
+    noteBashEdit(db, 's1', parent, '');
+    noteBashEdit(db, 's1', parent, 'cat ~/x/y');
+    expect(marks()).toEqual({ n: 0 });
+  });
+
+  it('stops looking when the time budget is spent, before or after finding a tree', () => {
+    write('n.ts', 'n\n');
+    const real = Date.now.bind(Date);
+    // The clock reads only changes-lib makes: `allowed` of them see the start, the rest see the budget gone.
+    const spend = (allowed: number) => {
+      let seen = 0;
+      vi.spyOn(Date, 'now').mockImplementation(() =>
+        /hooks\/changes-lib\.(ts|js)/.test(new Error().stack!) && ++seen > allowed ? real() + 10_000 : real(),
+      );
+    };
+    spend(1);
+    noteBashEdit(db, 's1', parent, `sed -i x ${repo}/n.ts`);
+    expect(marks()).toEqual({ n: 0 });
+    vi.restoreAllMocks();
+    spend(3); // the start, then one check for each of the two trees named
+    noteBashEdit(db, 's1', parent, `sed -i x ${repo}/n.ts`);
+    expect(marks()).toEqual({ n: 0 });
+    vi.restoreAllMocks();
+    noteBashEdit(db, 's1', parent, `sed -i x ${repo}/n.ts`);
+    expect(marks()).toEqual({ n: 1 });
+  });
+
+  it('trusts nothing when the start folder is gone', () => {
+    db.prepare('INSERT INTO meta (key, value) VALUES (?, ?)').run('tree_fp:gone', `${new Date(0).toISOString()}|@${path.join(parent, 'deleted')}`);
+    noteBashEdit(db, 'gone', parent, `sed -i x ${repo}/a.ts`);
+    expect(db.prepare(`SELECT count(*) AS n FROM meta WHERE key = 'code_edit:gone'`).get()).toEqual({ n: 0 });
   });
 });
