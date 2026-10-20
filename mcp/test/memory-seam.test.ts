@@ -101,6 +101,27 @@ describe('a Stop seam closes a batch only once it is worth a summary', () => {
     expect(batches('live')).toBe(0);
   });
 
+  it("closes another project's aged tail, and leaves its fresh one alone", async () => {
+    const other = '/tmp/other-repo';
+    const add = (sessionId: string, ageMs: number) =>
+      appendEvent(db, {
+        eventUid: `o${seq++}`,
+        project: other,
+        sessionId,
+        kind: 'tool_use',
+        body: 'ran step',
+        occurredAt: new Date(Date.now() - ageMs).toISOString(),
+      });
+    add('other-old', SEAM_MAX_AGE_MS + 60_000);
+    add('other-fresh', 0);
+    await flushAtSeam(db, resolved(), identity('s1'));
+    expect(batches('other-old')).toBe(1);
+    expect(batches('other-fresh')).toBe(0);
+    // `all` flushes this project only; it must not close a fresh session elsewhere.
+    await flushAtSeam(db, resolved(), identity('s1'), { all: true });
+    expect(batches('other-fresh')).toBe(0);
+  });
+
   it('a session start flushes every session in the project, so nothing is stranded', async () => {
     events(2, 'yesterday');
     await flushAtSeam(db, resolved(), identity('today'), { all: true });
