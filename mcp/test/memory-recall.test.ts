@@ -652,6 +652,13 @@ describe('delivery states', () => {
     }
   });
 
+  it('names the best-ranked entries in a prompt recall, and none at a session start', () => {
+    const id = insertEntry(db, { project: PROJECT, title: 'Refresh token rotation reuse detection', narrative: 'One-shot tokens.' });
+    const prompted = recallForPrompt(db, config(), { project: PROJECT, sessionId: 's1', prompt: 'why does refresh token rotation need reuse detection' })!;
+    expect(prompted.block).toContain(`Best match: #${id}.`);
+    expect(recall(db, config(), { project: PROJECT, sessionId: 's2', index: true }).block).not.toContain('Best match');
+  });
+
   it('is prepared until emitted, and only an emitted recall is excluded next time', () => {
     insertEntry(db, { project: PROJECT, title: 'Refresh token rotation reuse detection', narrative: 'One-shot tokens.' });
     const prompt = 'why does refresh token rotation need reuse detection';
