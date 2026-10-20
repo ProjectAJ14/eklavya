@@ -9,7 +9,7 @@ import { openDb, type DB } from '../src/db.js';
 import { DEFAULT_CONFIG, type EklavyaConfig, type ResolvedConfig } from '../src/config.js';
 import type { EvidenceIdentity } from '../src/memory/identity.js';
 import { appendEvent, batchSession } from '../src/memory/store.js';
-import { clearNudgeState, framingFor, NUDGE_KEY_PREFIX, openOrDiagnose, sessionId } from '../src/hooks/lib.js';
+import { clearNudgeState, framingFor, NUDGE_KEY_PREFIX, openOrDiagnose, sessionId, syntheticIdWarning } from '../src/hooks/lib.js';
 import { batchIfFull, record } from '../src/hooks/capture-lib.js';
 import { flushAtSeam, memoryHealthLine, recallBlock, wrapUpAtSeam } from '../src/hooks/memory-lib.js';
 import { noteBashEdit, noteEdit, recordBaseline, sessionChangedCode, treeFingerprint } from '../src/hooks/changes-lib.js';
@@ -288,5 +288,36 @@ describe('hooks/commit-lib lexer edges', () => {
     ['a trailing backslash in an open double quote', 'git commit -m "x\\', true],
   ])('%s', (_name, command, expected) => {
     expect(isCommitCommand(command)).toBe(expected);
+  });
+});
+
+describe('syntheticIdWarning', () => {
+  it('warns only for a short id against the default home', () => {
+    expect(syntheticIdWarning({ session_id: 't-x' }, {})).toContain('EKLAVYA_HOME=$(mktemp -d)');
+    expect(syntheticIdWarning({ session_id: 't-x' }, { EKLAVYA_HOME: '/tmp/h' })).toBeNull();
+    expect(syntheticIdWarning({ session_id: 't-x' }, { EKLAVYA_DB: '/tmp/d.db' })).toBeNull();
+    expect(syntheticIdWarning({ session_id: '3f2b8c1e-9d4a-4e7b-a1c2-5d6e7f8a9b0c' }, {})).toBeNull();
+    expect(syntheticIdWarning({}, {})).toBeNull();
+    expect(syntheticIdWarning({ session_id: '' }, {})).toBeNull();
+    expect(syntheticIdWarning({ session_id: 7 as unknown as string }, {})).toBeNull();
+  });
+
+  it('run() warns on stderr for a synthetic id against the default home and still exits 0', () => {
+    const lib = pathToFileURL(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'hooks', 'lib.js')).href;
+    const go = (env: NodeJS.ProcessEnv) =>
+      spawnSync(process.execPath, ['--input-type=module', '-e', `const { run } = await import(${JSON.stringify(lib)}); await run(async () => {});`], {
+        input: '{"session_id":"t-x"}',
+        env,
+      });
+    // HOME points at a temp dir so nothing here can reach the real ~/.eklavya.
+    const bare = { ...process.env, HOME: home, USERPROFILE: home };
+    delete bare.EKLAVYA_HOME;
+    delete bare.EKLAVYA_DB;
+    const warned = go(bare);
+    expect(warned.status).toBe(0);
+    expect(warned.stderr.toString()).toContain('looks synthetic');
+    const isolated = go({ ...bare, EKLAVYA_HOME: home });
+    expect(isolated.status).toBe(0);
+    expect(isolated.stderr.toString()).toBe('');
   });
 });
