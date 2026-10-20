@@ -17,7 +17,7 @@ Build first with `cd mcp && npm run build`, then run from the repository root.
 | Repeats, retention, answer-giveaway rate and option-length check send-backs in real history | `npm run eval -- history` | None; reads learner database |
 | Retrieval quality | `node eval/retrieval-harness.mjs` | None |
 | Memory performance | `node eval/memory-perf.mjs` | None |
-| Tokens memory injected and read per session and in total, recall blocks never followed by a read, and the base-versus-delivered line, from a copy of your database | `node eval/memory-tokens.mjs --db <copy> [--since <iso>] [--top N] [--json]` | None; reads a copy of `knowledge.db` |
+| Tokens memory injected and read per session and in total, recall blocks never followed by a read, the share of sessions that opened a recalled entry with `memory_get`, and the base-versus-delivered line, from a copy of your database | `node eval/memory-tokens.mjs --db <copy> [--since <iso>] [--top N] [--json]` | None; reads a copy of `knowledge.db` |
 | Whether recalled memory is on-topic and used, from your transcripts | `node eval/memory-usage.mjs [--days 3] [--pairs <file>]` | None; reads `~/.claude/projects` |
 | Whether a saved fact changes what a session builds, against memory off and irrelevant memory | `node eval/memory-use-harness.mjs run --plugin <checkout> --label <name>` then `score <run-dir>` | Whole Claude Code sessions |
 | Whether the tutor follows its grading, pacing and handoff rules at one frozen moment of a session | `node eval/conversation-harness.mjs run --root <checkout> --label <name>` | One model call per scenario and trial |
