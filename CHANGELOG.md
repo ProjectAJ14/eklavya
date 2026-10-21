@@ -1,3 +1,10 @@
+# [1.84.0](https://github.com/ProjectAJ14/eklavya/compare/v1.83.0...v1.84.0) (2026-10-21)
+
+
+### Features
+
+* **panel:** greet Desktop sessions with the SessionStart line ([#242](https://github.com/ProjectAJ14/eklavya/issues/242)) ([a7cdab8](https://github.com/ProjectAJ14/eklavya/commit/a7cdab83d08c5859955b4095c7185b75c7c5d80a))
+
 # [1.83.0](https://github.com/ProjectAJ14/eklavya/compare/v1.82.3...v1.83.0) (2026-10-20)
 
 
