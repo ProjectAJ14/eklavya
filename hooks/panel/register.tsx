@@ -60,6 +60,9 @@ let lastSyncAt = 0
 let openedFor: string | null = null
 let working: string | null = null
 let busy = false
+/** The greeting toast is shown once per session. */
+let greeted = false
+
 /** Bumped when the session ends: a submit that began before it is stale and must write nothing. */
 let epoch = 0
 let explainedAttempt = 0
@@ -108,6 +111,11 @@ async function whereAmI($: EngineInterface) {
 async function sync($: EngineInterface): Promise<'disabled' | 'none' | 'question'> {
   const where = await whereAmI($)
   const out = await call($, 'panel_sync', where)
+  // A host that draws no SessionStart banner gets it here, once. Never sent on the terminal.
+  if (typeof out.greeting === 'string' && !greeted) {
+    greeted = true
+    $.ui.toast(out.greeting)
+  }
   // Only a sync that reached the server counts as a heartbeat. The server can
   // still be starting when the session does, and a failed attempt must not hold
   // the next one back.
@@ -290,6 +298,7 @@ export const register: Register = on => {
   on('session.end', async ($, e, next) => {
     try {
       epoch += 1
+      greeted = false
       disarm()
       openedFor = null
       busy = false

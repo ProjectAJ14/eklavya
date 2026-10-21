@@ -50,6 +50,8 @@ beforeEach(() => {
   process.env.EKLAVYA_HOME = home;
   delete process.env.EKLAVYA_SESSION_ID;
   delete process.env.EKLAVYA_SURFACE;
+  // The host running the suite must not decide what counts as the terminal.
+  process.env.CLAUDE_CODE_ENTRYPOINT = 'cli';
   dbFile = tempDbPath('route');
   db = openDb(dbFile);
 });
@@ -201,6 +203,38 @@ function options(slug: string) {
   let d = 0;
   return LABELS.map((label, i) => ({ label, description: `note ${i}`, grade: i === at ? 4 : [2, 1, 2][d++]!, ...(i === at ? { correct: true } : {}) }));
 }
+
+describe('the greeting for a host without the SessionStart banner', () => {
+  const sync = (surface: string) => panelSync(db, { session_id: SESSION, cwd, host: { surface } }) as any;
+
+  it('is sent to the desktop app, with the panel on or off, and never to the terminal', () => {
+    configure(true);
+    expect(sync('desktop').greeting).toMatch(/^Eklavya active · v\S+ · memory on · questions (on|off)$/);
+    expect(sync('terminal').greeting).toBeUndefined();
+    configure(false);
+    expect(sync('desktop')).toMatchObject({ disabled: true, greeting: expect.stringContaining('Eklavya active') });
+  });
+
+  it('is sent when the mod reports terminal from a Desktop session, by the host entrypoint', () => {
+    configure(true);
+    process.env.CLAUDE_CODE_ENTRYPOINT = 'claude-desktop';
+    expect(sync('terminal').greeting).toContain('Eklavya active');
+  });
+
+  it('says questions off when they are, and greets a session opened without a folder', () => {
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ quiz: { enabled: false, panel: true } }));
+    expect(panelSync(db, { session_id: SESSION, cwd: '', host: { surface: 'desktop' } }) as any).toMatchObject({
+      greeting: expect.stringMatching(/memory on · questions off$/),
+    });
+  });
+
+  it('stays out when quiet or when memory is off', () => {
+    configure(true, { quiet: true });
+    expect(sync('desktop').greeting).toBeUndefined();
+    configure(true, { memory: { enabled: false } });
+    expect(sync('desktop').greeting).toBeUndefined();
+  });
+});
 
 describe('off is inert', () => {
   it('registers nothing, keeps no heartbeat and shows no row', () => {
