@@ -154,7 +154,7 @@ nav a small{display:block;font-size:12px;line-height:17px;color:var(--dim);margi
 nav a[aria-current=page]{border-left-color:var(--spot);background:var(--spot-soft)}nav a[aria-current=page] b{color:var(--spot)}
 .cnt{font:600 11px/16px var(--font-mono);background:var(--spot);color:var(--spot-ink);padding:0 7px}
 .side-foot{margin-top:auto;padding:0 20px}
-main{padding:32px 40px 80px;max-width:1040px;width:100%}
+main{padding:32px clamp(24px,3vw,64px) 80px;width:100%;min-width:0}
 h1{font:900 30px/1.1 var(--font-disp);letter-spacing:-.045em;margin:0 0 6px}
 .lede{color:var(--dim);margin:0 0 24px;max-width:70ch}
 h2{font:900 20px/1.2 var(--font-disp);letter-spacing:-.03em;margin:32px 0 12px}
@@ -269,10 +269,12 @@ function plain(r){
   if(errs)o+=' '+errs+' ended in an error'+(to?' ('+to+' timed out)':'')+'.';
   return o+' Mean score '+fx(s.mean_score,2)+'.'}
 function diff(d){return d?d.split('\\n').map(l=>'<div class="'+(l[0]==='+'&&l[1]!=='+'?'add':l[0]==='-'&&l[1]!=='-'?'del':'')+'">'+esc(l)+'</div>').join(''):'<span class=dim>no change from the shipped prompt (this is the baseline)</span>'}
-const chips=x=>x.gates_failed&&x.gates_failed.length?x.gates_failed.map(g=>'<span class="chip bad">fail '+esc(g)+'</span>').join(''):'<span class="chip ok">all gates pass</span>';
+const JUDGED=['key_correct','single_answer','cold_answerable','tier_match'];
+const chips=x=>{const f=x.gates_failed||[];if(!f.length)return '<span class="chip ok">all gates pass</span>';
+  const skip=f.includes('structure');return f.filter(g=>!(skip&&JUDGED.includes(g))).map(g=>'<span class="chip bad">fail '+esc(g)+'</span>').join('')+(skip?'<span class="chip" title="A malformed question is not sent to the judges; the run counts the judged gates as failed.">judges skipped</span>':'')};
 function trial(r,x,i){
   const key=r.file+'#'+i,o=open.has(key),inp=x.input||{},q=x.stem!==undefined;
-  const plan=q?'t'+x.tier+' · '+esc(x.focus)+' · slot '+x.answer_position:x.candidate?'candidate '+esc(x.candidate):x.repeat!=null?'repeat '+x.repeat:'';
+  const plan=q?'t'+x.tier+' · '+esc(x.focus)+(x.answer_position!=null?' · slot '+x.answer_position:''):x.candidate?'candidate '+esc(x.candidate):x.repeat!=null?'repeat '+x.repeat:'';
   let h='<tr class=t><td><button class=tb type=button data-k="'+esc(key)+'" aria-expanded='+o+'><span aria-hidden=true>'+(o?'▾':'▸')+'</span><span>'+esc(q?x.group:x.id)+'</span></button></td><td><div class=tc>'+plan+'</div></td><td class="n s"><div class=tc>'+fx(x.score??0,2)+'</div></td><td><div class=tc>'+chips(x)+'</div></td></tr>';
   if(!o)return h;
   const rest={...x};for(const n of['id','repeat','score','gates_failed','error','quality','candidate'])delete rest[n];
@@ -295,7 +297,7 @@ function detail(r,d){
    +stat(g('Cost','cost'),usd(r.cost_usd_list_price))+(el!=null?stat(g('Time','time'),t(el)+(r.max_minutes?' <small>of '+r.max_minutes+' min</small>':'')):'')
    +(s.mean_score_finished_only!=null?stat(g('Score, finished only','fin'),fx(s.mean_score_finished_only,2)):'')+(s.mean_score_when_valid!=null?stat(g('Score, valid only','valid'),fx(s.mean_score_when_valid,2)):'')+'</dl>'
    +'<div class=dim style="margin-top:8px">'+(models?'Models · '+models:'')+(r.promptName?'<br>Prompt · <code>'+esc(r.promptName)+'</code>':'')+(splitOf(r)?'<br>Split · '+esc(splitOf(r)):'')+(mk?'<br>Fixture set '+esc(mk.fixtures)+' · prompt '+esc(mk.prompt)+' · code '+esc(mk.code):'')+'</div>'
-   +'<h3>Gate failures '+what('gate')+'</h3><div>'+gf+'</div>'
+   +'<h3>Gate failures '+what('gate')+'</h3><div>'+gf+'</div>'+(s.gate_failures&&s.gate_failures.structure?'<p class=dim style="margin:8px 0 0">'+s.gate_failures.structure+' trial'+(s.gate_failures.structure===1?'':'s')+' failed structure and were never judged. The run still counts each of them as failing the four judged gates, so those counts include them. Open a trial to see the reason.</p>':'')
    +(lon.length?'<h3>Keyed option strictly longest</h3><div>'+lon.map(a=>'<span class=chip>'+a[0]+' '+a[1]+'</span>').join('')+'</div>':'')
    +(sj?'<h3>Second judge agreement</h3><div class=scroll><table><tr><th>gate</th><th class=n>claude pass</th><th class=n>azure pass</th><th class=n>agree</th></tr>'+sj+'</table></div>':'')
    +(p?'<details data-k="'+esc(r.file)+'#diff"'+(open.has(r.file+'#diff')?' open':'')+'><summary>Change under test: '+esc(p.file.split('/').pop())+' · '+p.words+' words (shipped '+p.shipped_words+')</summary><pre>'+diff(p.diff)+'</pre></details>':'')

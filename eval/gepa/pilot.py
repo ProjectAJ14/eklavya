@@ -401,7 +401,7 @@ def cmd_evaluate(args) -> None:
     def one(job):
         ex, r = job
         total, info = run_example(guidance, ex)
-        row = {"id": ex["id"], "group": ex["group"], "repeat": r, "tier": ex["plan"]["tier_to_ask"], "focus": ex["focus"], **info}
+        row = {"id": ex["id"], "group": ex["group"], "repeat": r, "tier": ex["plan"]["tier_to_ask"], "answer_position": ex["plan"]["answer_position"], "focus": ex["focus"], **info}
         with BUDGET._lock:
             BUDGET.done += 1
             BUDGET.trials.append(trial_record(ex, info, repeat=r))
