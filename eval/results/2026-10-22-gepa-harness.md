@@ -76,3 +76,23 @@ Verdict from `report`: **candidate better, +0.059** (the rule needs 0.05), 6 fix
   generator models, and the READMEs' commands pass `--model`. Cost of the extra pair: about $16.
 - The 8-fixture split still has only three repeats per fixture and one generator; a further run on a different day
   could move the mean by more than the margin.
+
+## Update: the second-family judge, first real run
+
+Question pilot, shipped `writing-mcq.md`, test split, 12 examples x 1 repeat, generator `claude-sonnet-5-5`, Claude judge
+`claude-sonnet-5-5`, second judge Azure OpenAI `gpt-5.5-2026-04-24` through the v1 chat completions path
+(`2026-10-22-gepa-question-azure-judge.json`, $5.57 at list price for the Claude side; the Azure calls are not priced here).
+No judge errors.
+
+| Gate | Claude passed | Azure passed | Agree |
+|---|---|---|---|
+| `key_correct` | 12/12 | 11/12 | 11/12 |
+| `single_answer` | 9/12 | 12/12 | 9/12 |
+| `cold_answerable` | 12/12 | 11/12 | 11/12 |
+| `tier_match` | 12/12 | 12/12 | 12/12 |
+
+- The families agree on 43 of 48 verdicts. The gap is `single_answer`: Claude found a defensible second answer in 3
+  questions and Azure in none. That supports the October note's suspicion that this gate partly measures its judge: a
+  question that fails it may be a real problem or one Claude judge's strictness. Twelve questions cannot say which.
+- Where Azure was the stricter judge (one question each on `key_correct` and `cold_answerable`), Claude passed it.
+- Not done: scoring with both judges required to pass, and a run over the full test split. The gates still use the Claude verdicts.
