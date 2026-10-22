@@ -98,7 +98,7 @@ what "better" meant after the fact. The rule is now written here and enforced by
 |---|---|---|---|---|
 | Tutor questions (`pilot.py`) | 5 codebases (60 examples) | 3 | 0.05 mean score | none: no product limit |
 | Prompt feedback | 5 sessions | 3 | 0.10 (the same wording scored 0.602 and 0.441) | 1.25 x shipped words |
-| Concept extraction | 5 fixtures | 3 | 0.05 | the skill file's 1,999-word ceiling |
+| Concept extraction | 8 fixtures | 3 | 0.05 | the skill file's 1,999-word ceiling |
 | Memory observer | 5 batches | 3 | 0.03 (two runs of one prompt differed by 0.003 on the mean) | 1.25 x shipped words |
 | Concept dedup | 5 scenarios | 3 | 0.05 | the skill file's 1,999-word ceiling |
 

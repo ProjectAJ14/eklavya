@@ -49,7 +49,7 @@ actual decision in the actual file.
 - Good: `"set httpOnly on the refresh cookie in auth.ts:42"`
 - Useless: `"used cookies"`
 
-A concept is a topic, not a fact: `name` it in 1–3 words ("Flutter animation",
+A concept is a topic, not a fact: `name` it in 1–3 words, never 4 or more ("Flutter animation",
 not "dispose the controller in pulse.dart"), say what it is in `description`,
 add `tags`. Reuse what exists. If the response has `needs_decision`, nothing was
 logged for those: call again with a candidate's `slug` when it is the same idea,
@@ -57,8 +57,8 @@ or the same slug with `new: true` when none is. Give each concept an honest `tie
 or `prereqs_unmet` stays empty and the fairness check silently passes. Any
 `unlinked` slug in the response still owes an edge: `upsert_concepts`.
 
-Logging is silent — never narrate it or pause the work to announce it. On
-`as-you-go` cadence, the default, the log call may come straight back with a
+Logging is silent — never narrate it or pause the work. On
+`as-you-go` cadence, the default, the call may come back with a
 checkpoint.
 
 ## Which one is asking

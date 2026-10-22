@@ -1,0 +1,33 @@
+{
+ "id": "sql-transaction-transfer",
+ "title": "Move money in one transaction",
+ "source": "app/transfers.py",
+ "kind": "python",
+ "diff": "def transfer(conn, src, dst, cents):\n    with conn:  # commits on success, rolls back on any exception\n        row = conn.execute(\"SELECT balance FROM accounts WHERE id = ?\", (src,)).fetchone()\n        if row[0] < cents:\n            raise InsufficientFunds(src)\n        conn.execute(\"UPDATE accounts SET balance = balance - ? WHERE id = ?\", (cents, src))\n        conn.execute(\"UPDATE accounts SET balance = balance + ? WHERE id = ?\", (cents, dst))\n        conn.execute(\"INSERT INTO ledger (src, dst, cents) VALUES (?, ?, ?)\", (src, dst, cents))",
+ "concepts": [
+  {
+   "slug": "database-transaction-atomicity",
+   "domain": "databases",
+   "tier": 2,
+   "description": "A transaction makes several statements succeed or fail together, so a crash cannot leave money debited but not credited.",
+   "context": "the with conn block in transfers.py rolls back the debit if the credit or ledger insert raises",
+   "prerequisite_of": []
+  },
+  {
+   "slug": "check-then-act-race",
+   "domain": "concurrency",
+   "tier": 3,
+   "description": "Reading a value and then acting on it is a race unless the read and the write are protected together, for example by a lock or a conditional update.",
+   "context": "the balance SELECT before the UPDATE in transfers.py can see a stale balance if another transfer commits between them",
+   "prerequisite_of": []
+  },
+  {
+   "slug": "parameterized-queries",
+   "domain": "security",
+   "tier": 1,
+   "description": "Passing values as bound parameters keeps them out of the SQL text, which prevents injection.",
+   "context": "every execute in transfers.py passes values as a tuple instead of formatting them into the query",
+   "prerequisite_of": []
+  }
+ ]
+}

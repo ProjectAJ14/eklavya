@@ -34,10 +34,10 @@ review and paste.
 
 ## Fixtures and splits
 
-16 fixtures: the original four (`eval/fixtures/*.json`) and twelve in `eval/fixtures/extraction/`, same
+19 fixtures: the original four (`eval/fixtures/*.json`) and fifteen in `eval/fixtures/extraction/`, same
 shape (`id`, `title`, `source`, `diff`, `concepts` with slug, domain, tier, description, context), plus
 a `kind` and, where the profile matters, `mastered`. `eval/fixtures/extraction/splits.json` holds the
-hand-made split: 8 train, 3 val, 5 test. The test split is never shown to the search.
+hand-made split: 8 train, 3 val, 8 test (the last three test fixtures were written after the first test results, so test reaches the 8 the decision rule needs without reshuffling scored ones). The test split is never shown to the search.
 
 | Kind | Fixtures |
 |---|---|
@@ -91,8 +91,8 @@ Changing the rule means re-running the baseline: `report` warns when the scorer 
 
 ## Decision rule
 
-5 test fixtures, 3 repeats each. A difference in mean score under 0.05 is `no difference`, and under 8
-fixtures `report` says `cannot decide`; this split has 5, so it does (see [`../README.md`](../README.md#reading-a-result-all-five-targets)).
+8 test fixtures, 3 repeats each. A difference in mean score under 0.05 is `no difference`, and under 8
+fixtures `report` says `cannot decide`; this split has 8, so it can decide (see [`../README.md`](../README.md#reading-a-result-all-five-targets)).
 The whole skill file is 1,997 of its 1,999 words, so the block has about 2 words of headroom, not the 30
 this README once said; `optimize` tells the reflection model the exact numbers and `summary.json` records
 how many proposals were scored and how many were rejected unscored.

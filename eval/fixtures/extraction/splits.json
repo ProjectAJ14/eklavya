@@ -1,5 +1,5 @@
 {
-  "_note": "Hand-assigned. Test is untouched by the search; train and val are what GEPA sees. Ids without a file here live in eval/fixtures/.",
+  "_note": "Hand-assigned. Test is untouched by the search; train and val are what GEPA sees. Ids without a file here live in eval/fixtures/. The last three test fixtures (ts-zod-boundary-parse, dockerfile-layer-cache, sql-transaction-transfer) were written on 2026-10-22 after the first test results, so test reaches the 8 the decision rule needs without reshuffling fixtures that had been scored.",
   "train": [
     "deterministic-answer-slot",
     "nudge-rate-limit",
@@ -20,6 +20,9 @@
     "ci-cache-and-pipefail",
     "sql-add-column-backfill",
     "react-debounced-search",
-    "mastered-http-caching"
+    "mastered-http-caching",
+    "ts-zod-boundary-parse",
+    "dockerfile-layer-cache",
+    "sql-transaction-transfer"
   ]
 }

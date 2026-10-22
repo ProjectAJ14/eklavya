@@ -276,7 +276,7 @@ precision both ways — strict, and counting judge-confirmed concepts as right.
 ### The grown extraction eval
 
 `npm run eval -- extract` above is the September three-fixture run and stays as it was, so its numbers
-remain comparable. The larger one is `eval/gepa/extraction/`: 16 fixtures split train, val and test,
+remain comparable. The larger one is `eval/gepa/extraction/`: 19 fixtures split train, val and test,
 gates then weighted quality, a second coverage judge, token tracking, and a GEPA search over the
 `log_session_concepts` guidance in `skills/tutor/SKILL.md`. It runs the real `log_session_concepts` and
 `upsert_concepts` handlers, so `matched` and `created` are the shipped matcher's. See its

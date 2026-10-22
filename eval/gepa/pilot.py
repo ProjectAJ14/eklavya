@@ -35,6 +35,7 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import azure
 import decide
 
 HERE = Path(__file__).resolve().parent
@@ -120,6 +121,8 @@ class Budget:
 
 
 BUDGET: Budget | None = None
+# Set by `--azure-judge`: a judge from another model family that re-reads the same prompts (see azure.py).
+AZURE: dict | None = None
 
 
 def claude(prompt: str, kind: str, model: str | None = None) -> str:
@@ -227,7 +230,33 @@ def judge(q: dict, ex: dict) -> dict:
         except Exception as err:  # a judge failure is reported, never silently scored
             parsed = {"_error": str(err)}
         out[kind] = parsed if isinstance(parsed, dict) else {"_error": "unparsable verdict"}
+        if AZURE:
+            out[kind + "-azure"] = azure_verdict(bridge(cmd, body)["prompt"])
     return out
+
+
+def azure_verdict(prompt: str) -> dict:
+    """The same judge prompt, answered by the other model family. A failure is recorded, never scored as a pass."""
+    BUDGET.spend("judge-azure")
+    try:
+        got = azure.ask(prompt, AZURE)
+        with BUDGET._lock:
+            BUDGET.models.setdefault("judge-azure", set()).add(got["model"])
+        parsed = bridge("extract", {"text": got["text"]}).get("value")
+    except BudgetExceeded:
+        raise
+    except Exception as err:
+        BUDGET.errors["judge-azure"] += 1
+        return {"_error": str(err)}
+    return parsed if isinstance(parsed, dict) else {"_error": "unparsable verdict"}
+
+
+def judge_gates(audit: dict, cold: dict) -> dict:
+    """The four gates that depend on a judge, from one judge's two verdicts; None when the judge failed."""
+    if "_error" in audit or "_error" in cold:
+        return {}
+    return {"key_correct": bool(audit.get("correct_is_correct")), "single_answer": audit.get("defensible_distractors") == 0,
+            "cold_answerable": bool(cold.get("answerable_cold")), "tier_match": audit.get("tier_match") == "match"}
 
 
 # ------------------------------------------------------------------- scoring --
@@ -248,6 +277,7 @@ def score_question(q: dict, ex: dict, det: dict, verdict: dict) -> tuple[float, 
         "cold_answerable": bool(cold.get("answerable_cold")) if judged else False,
         "tier_match": audit.get("tier_match") == "match" if judged else False,
     }
+    second = judge_gates(verdict.get("judge-audit-azure", {"_error": "off"}), verdict.get("judge-cold-azure", {"_error": "off"}))
     visible = det["visible_words"]
     balanced = [det["visible_problem"] is None, checks["correct_not_conspicuous"]["ok"]]
     if "description_not_conspicuous" in checks:
@@ -281,6 +311,7 @@ def score_question(q: dict, ex: dict, det: dict, verdict: dict) -> tuple[float, 
         "visible_problem": det["visible_problem"],
         "failed_checks": [f"{c['id']}: {c['detail']}" for c in det["checks"] if not c["ok"]],
         "judge": {k: v for k, v in {**audit, **{"cold_" + a: b for a, b in cold.items()}}.items() if k.endswith("_why") or k.startswith("_") or k in ("tier_match", "unexplained_names", "cold_unexplained_names")},
+        "second_judge": {g: {"claude": gate[g], "azure": v} for g, v in second.items()} or None,
         "stem": q["stem"],
         "options": q["options"],
         "descriptions": q.get("descriptions"),
@@ -389,6 +420,18 @@ def cmd_evaluate(args) -> None:
     print(json.dumps({"summary": result["summary"], "budget": result["budget"], "stopped_early": stopped}, indent=1))
 
 
+def second_judge_summary(trials: list[dict]) -> dict | None:
+    """Per judged gate: how many questions each model family passed and how often they agreed. None when it was off."""
+    rows = [t["second_judge"] for t in trials if t.get("second_judge")]
+    if not rows:
+        return None
+    out = {}
+    for g in ("key_correct", "single_answer", "cold_answerable", "tier_match"):
+        pairs = [r[g] for r in rows if g in r]
+        out[g] = {"of": len(pairs), "claude_pass": sum(p["claude"] for p in pairs), "azure_pass": sum(p["azure"] for p in pairs), "agree": sum(p["claude"] == p["azure"] for p in pairs)}
+    return out
+
+
 def summarise(trials: list[dict]) -> dict:
     n = len(trials)
     gate_fail = Counter(g for t in trials for g in t.get("gates_failed", []))
@@ -410,6 +453,7 @@ def summarise(trials: list[dict]) -> dict:
         "mean_score_when_valid": round(statistics.fmean(t["score"] for t in ok), 4) if ok else None,
         "longest": {"label": rate("label"), "description": rate("description"), "combined": rate("combined")},
         "generation_errors": sum(1 for t in trials if "generation" in t.get("gates_failed", [])),
+        "second_judge": second_judge_summary(trials),
     }
 
 
@@ -437,6 +481,8 @@ def cmd_report(args) -> None:
         print(f"  gate failures: {s['gate_failures']}")
         for k, v in s["longest"].items():
             print(f"  keyed option strictly longest by {k}: {v['keyed_strictly_longest']}/{v['of']}")
+        for g, v in (s.get("second_judge") or {}).items():
+            print(f"  second-family judge, {g}: Claude passed {v['claude_pass']}/{v['of']}, Azure {v['azure_pass']}/{v['of']}, agree {v['agree']}/{v['of']}")
         print(f"  budget: {r['budget']['calls']}  stopped early: {r['stopped_early']}")
         tk = r["budget"].get("tokens")
         print(f"  tokens: {tk['input_total']:,} in ({tk['cache_read']:,} cached) + {tk['output']:,} out, ~${r['budget']['cost_usd_list_price']} at list price" if tk else "  tokens: not recorded (run predates token tracking)")
@@ -518,6 +564,7 @@ def main() -> None:
     o.add_argument("--val", type=int, default=12)
     o.add_argument("--minibatch", type=int, default=3)
     o.add_argument("--seed", type=int, default=0)
+    common.add_argument("--azure-judge", action="store_true", help="also judge with Azure OpenAI (credentials: see azure.py); gates still use the Claude verdicts")
     e = sub.add_parser("evaluate", parents=[common])
     e.add_argument("--prompt", default=str(SEED_FILE))
     e.add_argument("--split", choices=("train", "val", "test"), default="test")
@@ -528,6 +575,11 @@ def main() -> None:
     r.add_argument("baseline")
     r.add_argument("candidate")
     args = p.parse_args()
+    if getattr(args, "azure_judge", False):
+        global AZURE
+        AZURE = azure.settings()
+        if AZURE is None:
+            sys.exit("--azure-judge: set AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY and AZURE_OPENAI_DEPLOYMENT (or ~/.config/eklavya-eval/azure.env)")
     {"optimize": cmd_optimize, "evaluate": cmd_evaluate, "report": cmd_report}[args.cmd](args)
 
 
