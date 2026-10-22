@@ -1,0 +1,5294 @@
+{
+ "prompt": "eval/gepa/runs/ex-main-block.md",
+ "model": "claude-sonnet-5-5",
+ "judges": [
+  "sonnet",
+  "claude-haiku-4-5"
+ ],
+ "split": "test",
+ "repeats": 3,
+ "marker": {
+  "split": "test",
+  "fixtures": "1fdca41216",
+  "prompt": "7ad5bce7d2",
+  "code": "214df72+uncommitted"
+ },
+ "trials": [
+  {
+   "id": "wal-and-busy-retry",
+   "repeat": 0,
+   "score": 0.8583,
+   "gates_failed": [],
+   "quality": {
+    "recall": 0.6666666666666666,
+    "precision": 1.0,
+    "context": 1,
+    "followup": 0.0
+   },
+   "det": {
+    "strict": {
+     "matched": [
+      "wal-journal-mode"
+     ],
+     "missed": [
+      "busy-timeout-versus-retry",
+      "idempotency-and-safe-retries"
+     ],
+     "unlabelled": [
+      "sqlite-busy-timeout",
+      "retry-on-busy",
+      "sqlite-foreign-keys-pragma"
+     ],
+     "recall": 0.3333333333333333,
+     "precision": 0.25
+    },
+    "count_ok": true,
+    "slugs_valid": true,
+    "context_file": true,
+    "contexts_without_file": [],
+    "context_grounded": 1
+   },
+   "judged": {
+    "verdicts": {
+     "sqlite-busy-timeout": {
+      "slug": "sqlite-busy-timeout",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "The pragma line is shown, and the context states the 5s wait before a busy error."
+     },
+     "wal-journal-mode": {
+      "slug": "wal-journal-mode",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "The WAL pragma is set, and the context explains the decision: hooks read while the MCP server writes."
+     },
+     "retry-on-busy": {
+      "slug": "retry-on-busy",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "The context names the function and its behavior: 5 attempts, immediate rethrow of non-busy errors, and safe retry of rolled-back writes."
+     },
+     "sqlite-foreign-keys-pragma": {
+      "slug": "sqlite-foreign-keys-pragma",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "The pragma line is shown, and the context says it enforces referential integrity on every connection."
+     }
+    },
+    "coverage": {
+     "sonnet": 0.6666666666666666,
+     "claude-haiku-4-5": 0.6666666666666666
+    },
+    "covered": {
+     "sonnet": [
+      "wal-journal-mode",
+      "idempotency-and-safe-retries"
+     ],
+     "claude-haiku-4-5": [
+      "wal-journal-mode",
+      "idempotency-and-safe-retries"
+     ]
+    }
+   },
+   "concepts": [
+    {
+     "slug": "sqlite-busy-timeout",
+     "name": "SQLite Busy Timeout",
+     "description": "The busy_timeout pragma makes SQLite wait up to N milliseconds for a lock held by another connection before failing with SQLITE_BUSY, instead of failing immediately.",
+     "tags": [
+      "sqlite",
+      "concurrency",
+      "database"
+     ],
+     "prerequisites": [],
+     "context": "db.pragma('busy_timeout = 5000') in mcp/src/db.ts makes each connection wait up to 5s for a competing writer before raising a busy error"
+    },
+    {
+     "slug": "wal-journal-mode",
+     "name": "WAL Journal Mode",
+     "description": "Write-ahead logging lets readers and one writer work at the same time, because writes go to a separate log file and readers see a consistent snapshot, rather than blocking each other.",
+     "tags": [
+      "sqlite",
+      "concurrency",
+      "database"
+     ],
+     "prerequisites": [],
+     "context": "db.pragma('journal_mode = WAL') in mcp/src/db.ts lets hooks read while the MCP server writes to the same learner database"
+    },
+    {
+     "slug": "retry-on-busy",
+     "name": "Retry On Busy",
+     "description": "Retrying an operation after a transient lock error with a bounded attempt count and a brief pause. It is only safe when the failed attempt left no partial effects, so the operation must be idempotent or have rolled back.",
+     "tags": [
+      "retry",
+      "concurrency",
+      "error-handling"
+     ],
+     "prerequisites": [
+      "sqlite-busy-timeout"
+     ],
+     "context": "retryOnBusy in mcp/src/concurrency.ts runs fn up to 5 times, rethrows non-busy errors at once and the last busy error after the final attempt; its doc comment says a busy transaction has already rolled back, so writes are safe to retry"
+    },
+    {
+     "slug": "sqlite-foreign-keys-pragma",
+     "name": "Foreign Key Enforcement",
+     "description": "SQLite does not enforce foreign key constraints unless PRAGMA foreign_keys is turned on for each connection, so the setting has to be applied every time a connection opens.",
+     "tags": [
+      "sqlite",
+      "integrity",
+      "database"
+     ],
+     "prerequisites": [],
+     "context": "db.pragma('foreign_keys = ON') in mcp/src/db.ts turns on referential integrity for every connection opened by the runtime"
+    }
+   ],
+   "matched": [],
+   "created": [
+    "sqlite-busy-timeout",
+    "wal-journal-mode",
+    "retry-on-busy",
+    "sqlite-foreign-keys-pragma"
+   ],
+   "logged": [
+    "sqlite-busy-timeout",
+    "wal-journal-mode",
+    "retry-on-busy",
+    "sqlite-foreign-keys-pragma"
+   ],
+   "mastered_hit": [],
+   "followup": {
+    "call": {
+     "concepts": [
+      {
+       "slug": "wal-journal-mode",
+       "domain": "databases",
+       "tier": 3
+      },
+      {
+       "slug": "sqlite-foreign-keys-pragma",
+       "domain": "databases",
+       "tier": 2
+      }
+     ],
+     "edges": [
+      {
+       "from": "sqlite-busy-timeout",
+       "to": "wal-journal-mode",
+       "relation": "related_to"
+      },
+      {
+       "from": "sqlite-foreign-keys-pragma",
+       "to": "wal-journal-mode",
+       "relation": "related_to"
+      }
+     ]
+    },
+    "result": {
+     "created": [],
+     "updated": [],
+     "matched": [
+      {
+       "requested": "wal-journal-mode",
+       "resolved": "wal-journal-mode"
+      },
+      {
+       "requested": "sqlite-foreign-keys-pragma",
+       "resolved": "sqlite-foreign-keys-pragma"
+      }
+     ],
+     "rejected": [],
+     "needs_decision": [],
+     "edges_added": 2
+    },
+    "owed": [
+     {
+      "slug": "wal-journal-mode",
+      "domain": true,
+      "tier": true,
+      "edge": false,
+      "stored_domain": "sqlite",
+      "stored_tier": 2,
+      "stored_edge": false
+     },
+     {
+      "slug": "sqlite-foreign-keys-pragma",
+      "domain": true,
+      "tier": true,
+      "edge": false,
+      "stored_domain": "sqlite",
+      "stored_tier": 2,
+      "stored_edge": false
+     }
+    ],
+    "skipped": false
+   }
+  },
+  {
+   "id": "wal-and-busy-retry",
+   "repeat": 1,
+   "score": 0.4,
+   "gates_failed": [
+    "context_file"
+   ],
+   "quality": {
+    "recall": 0.5,
+    "precision": 1.0,
+    "context": 1,
+    "followup": 1.0
+   },
+   "det": {
+    "strict": {
+     "matched": [],
+     "missed": [
+      "wal-journal-mode",
+      "busy-timeout-versus-retry",
+      "idempotency-and-safe-retries"
+     ],
+     "unlabelled": [
+      "sqlite-busy-retry",
+      "sqlite-foreign-keys",
+      "retry-idempotency",
+      "sqlite-wal-mode",
+      "sqlite-busy-timeout"
+     ],
+     "recall": 0,
+     "precision": 0
+    },
+    "count_ok": true,
+    "slugs_valid": true,
+    "context_file": false,
+    "contexts_without_file": [
+     "retry-idempotency"
+    ],
+    "context_grounded": 1
+   },
+   "judged": {
+    "verdicts": {
+     "sqlite-busy-retry": {
+      "slug": "sqlite-busy-retry",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names retryOnBusy and its specific behavior: 5 attempts, brief sleeps, rethrow last or immediately on non-busy."
+     },
+     "sqlite-foreign-keys": {
+      "slug": "sqlite-foreign-keys",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Points to the pragma line and explains it enables enforcement per connection (which SQLite requires)."
+     },
+     "retry-idempotency": {
+      "slug": "retry-idempotency",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the isBusy filter and the decision that non-busy errors like constraint violations are rethrown, matching the code and its comment."
+     },
+     "sqlite-wal-mode": {
+      "slug": "sqlite-wal-mode",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the WAL pragma and why: concurrent readers across hooks, server and CLI during a write."
+     },
+     "sqlite-busy-timeout": {
+      "slug": "sqlite-busy-timeout",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the 5000ms busy_timeout and its relation to retryOnBusy as the inner wait before errors surface."
+     }
+    },
+    "coverage": {
+     "sonnet": 0.3333333333333333,
+     "claude-haiku-4-5": 0.6666666666666666
+    },
+    "covered": {
+     "sonnet": [
+      "wal-journal-mode"
+     ],
+     "claude-haiku-4-5": [
+      "wal-journal-mode",
+      "idempotency-and-safe-retries"
+     ]
+    }
+   },
+   "concepts": [
+    {
+     "slug": "sqlite-busy-retry",
+     "name": "SQLite Busy Retry",
+     "description": "Retrying a database operation when SQLite reports SQLITE_BUSY because another connection holds the lock. A busy transaction has already rolled back, so re-running the whole function is safe for writes as well as reads, but only if fn is the whole transaction.",
+     "tags": [
+      "sqlite",
+      "concurrency",
+      "retry",
+      "resilience"
+     ],
+     "prerequisites": [
+      "sqlite-wal-mode"
+     ],
+     "context": "retryOnBusy in mcp/src/concurrency.ts re-runs fn up to 5 times, sleeping briefly between attempts and rethrowing the last error if every attempt is busy or at once if the error is not busy"
+    },
+    {
+     "slug": "sqlite-foreign-keys",
+     "name": "SQLite Foreign Keys",
+     "description": "SQLite does not enforce foreign key constraints unless the pragma is switched on for each connection, so referential integrity silently depends on setting it every time the database is opened.",
+     "tags": [
+      "sqlite",
+      "foreign-keys",
+      "integrity",
+      "pragma"
+     ],
+     "prerequisites": [],
+     "context": "db.pragma('foreign_keys = ON') in mcp/src/db.ts turns on enforcement for every connection the runtime opens"
+    },
+    {
+     "slug": "retry-idempotency",
+     "name": "Retry Idempotency",
+     "description": "A retry is only safe when repeating the operation cannot apply its effect twice. Rolling back a failed transaction before the retry guarantees nothing partial was kept, and catching only the retryable error keeps real failures from being retried.",
+     "tags": [
+      "retry",
+      "idempotency",
+      "error-handling",
+      "transactions"
+     ],
+     "prerequisites": [],
+     "context": "retryOnBusy catches only errors that isBusy accepts and rethrows all others at once, so a constraint violation is never retried"
+    },
+    {
+     "slug": "sqlite-wal-mode",
+     "name": "SQLite WAL Mode",
+     "description": "Write-ahead logging journal mode in which writers append to a log instead of rewriting the database file, so readers do not block the writer and the writer does not block readers. Only one writer is allowed at a time.",
+     "tags": [
+      "sqlite",
+      "wal",
+      "concurrency",
+      "database"
+     ],
+     "prerequisites": [],
+     "context": "db.pragma('journal_mode = WAL') in mcp/src/db.ts lets the hooks, MCP server and CLI read the same database file while one of them writes",
+     "new": true
+    },
+    {
+     "slug": "sqlite-busy-timeout",
+     "name": "SQLite Busy Timeout",
+     "description": "A per-connection setting that makes SQLite wait up to a set number of milliseconds for a lock to clear before returning SQLITE_BUSY, which smooths over short contention without any application code.",
+     "tags": [
+      "sqlite",
+      "locking",
+      "timeout",
+      "concurrency"
+     ],
+     "prerequisites": [],
+     "context": "db.pragma('busy_timeout = 5000') in mcp/src/db.ts makes each statement wait up to 5 seconds before an error reaches retryOnBusy",
+     "new": true
+    }
+   ],
+   "matched": [],
+   "created": [
+    "sqlite-wal-mode",
+    "sqlite-busy-timeout"
+   ],
+   "logged": [
+    "sqlite-busy-retry",
+    "sqlite-foreign-keys",
+    "retry-idempotency",
+    "sqlite-wal-mode",
+    "sqlite-busy-timeout"
+   ],
+   "mastered_hit": [],
+   "followup": {
+    "call": {
+     "concepts": [
+      {
+       "slug": "sqlite-wal-mode",
+       "name": "SQLite WAL Mode",
+       "tier": 2,
+       "domain": "databases"
+      },
+      {
+       "slug": "sqlite-busy-timeout",
+       "name": "SQLite Busy Timeout",
+       "tier": 2,
+       "domain": "databases"
+      }
+     ],
+     "edges": [
+      {
+       "from": "sqlite-wal-mode",
+       "to": "sqlite-busy-timeout",
+       "relation": "prerequisite_of"
+      },
+      {
+       "from": "sqlite-wal-mode",
+       "to": "sqlite-busy-retry",
+       "relation": "prerequisite_of"
+      }
+     ]
+    },
+    "result": {
+     "created": [],
+     "updated": [],
+     "matched": [
+      {
+       "requested": "sqlite-wal-mode",
+       "resolved": "sqlite-wal-mode"
+      },
+      {
+       "requested": "sqlite-busy-timeout",
+       "resolved": "sqlite-busy-timeout"
+      }
+     ],
+     "rejected": [],
+     "needs_decision": [],
+     "edges_added": 0
+    },
+    "owed": [
+     {
+      "slug": "sqlite-wal-mode",
+      "domain": true,
+      "tier": true,
+      "edge": true,
+      "stored_domain": "sqlite",
+      "stored_tier": 2,
+      "stored_edge": true
+     },
+     {
+      "slug": "sqlite-busy-timeout",
+      "domain": true,
+      "tier": true,
+      "edge": true,
+      "stored_domain": "sqlite",
+      "stored_tier": 2,
+      "stored_edge": true
+     }
+    ],
+    "skipped": false
+   }
+  },
+  {
+   "id": "wal-and-busy-retry",
+   "repeat": 2,
+   "score": 0.0,
+   "gates_failed": [
+    "valid_slugs"
+   ],
+   "error": "tool rejected the call: concepts.2.name: a concept name is 1-3 words; put the detail in description",
+   "concepts": [
+    {
+     "slug": "sqlite-wal-mode",
+     "name": "SQLite WAL Mode",
+     "description": "Write-ahead logging journal mode for SQLite that lets readers and a single writer work concurrently, instead of readers blocking writers as in the default rollback journal.",
+     "tags": [
+      "sqlite",
+      "database",
+      "concurrency"
+     ],
+     "prerequisites": [],
+     "context": "db.pragma('journal_mode = WAL') in mcp/src/db.ts so hooks and the MCP server can read the same database while one of them writes"
+    },
+    {
+     "slug": "sqlite-busy-timeout",
+     "name": "SQLite Busy Timeout",
+     "description": "The busy_timeout pragma makes a connection wait up to N milliseconds for a lock held by another connection before failing with SQLITE_BUSY.",
+     "tags": [
+      "sqlite",
+      "database",
+      "locking"
+     ],
+     "prerequisites": [
+      "sqlite-wal-mode"
+     ],
+     "context": "db.pragma('busy_timeout = 5000') in mcp/src/db.ts waits up to five seconds for a competing writer before surfacing a busy error"
+    },
+    {
+     "slug": "retry-on-transient-error",
+     "name": "Retry On Transient Error",
+     "description": "Re-running an operation that failed for a temporary reason, with a bounded number of attempts, and rethrowing anything that is not that reason or the last error once attempts run out.",
+     "tags": [
+      "resilience",
+      "error-handling",
+      "concurrency"
+     ],
+     "prerequisites": [],
+     "context": "retryOnBusy in mcp/src/concurrency.ts retries up to 5 times, rethrows non-busy errors straight away and throws lastError when attempts are exhausted"
+    },
+    {
+     "slug": "transaction-rollback-idempotence",
+     "name": "Rollback Safe Retry",
+     "description": "A transaction that fails and rolls back leaves no partial effects, so re-running the whole function is safe for writes as well as reads, provided the function is the transaction boundary.",
+     "tags": [
+      "transactions",
+      "sqlite",
+      "correctness"
+     ],
+     "prerequisites": [
+      "retry-on-transient-error"
+     ],
+     "context": "The retryOnBusy doc comment in mcp/src/concurrency.ts claims a busy transaction has already rolled back, which is why write callbacks can be retried"
+    },
+    {
+     "slug": "sqlite-foreign-keys-pragma",
+     "name": "SQLite Foreign Keys",
+     "description": "SQLite does not enforce foreign key constraints unless foreign_keys is switched on for each connection.",
+     "tags": [
+      "sqlite",
+      "database",
+      "integrity"
+     ],
+     "prerequisites": [],
+     "context": "db.pragma('foreign_keys = ON') in mcp/src/db.ts, set per connection so referential integrity is actually enforced"
+    }
+   ]
+  },
+  {
+   "id": "ci-cache-and-pipefail",
+   "repeat": 0,
+   "score": 0.4167,
+   "gates_failed": [
+    "context_decision"
+   ],
+   "quality": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "context": 1,
+    "followup": 1.0
+   },
+   "det": {
+    "strict": {
+     "matched": [
+      "bash-pipefail"
+     ],
+     "missed": [
+      "ci-cache-key",
+      "restore-keys-fallback",
+      "concurrency-cancel-in-progress"
+     ],
+     "unlabelled": [
+      "github-actions-concurrency",
+      "dependency-caching",
+      "npm-ci",
+      "github-actions-workflows"
+     ],
+     "recall": 0.25,
+     "precision": 0.2
+    },
+    "count_ok": true,
+    "slugs_valid": true,
+    "context_file": true,
+    "contexts_without_file": [],
+    "context_grounded": 1
+   },
+   "judged": {
+    "verdicts": {
+     "github-actions-concurrency": {
+      "slug": "github-actions-concurrency",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the group expression and cancel-in-progress and explains the per-branch cancellation effect."
+     },
+     "dependency-caching": {
+      "slug": "dependency-caching",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the cache path, key built from lockfile hash, and restore-keys fallback."
+     },
+     "bash-pipefail": {
+      "slug": "bash-pipefail",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the pipefail line and the tee exit-code masking it prevents."
+     },
+     "npm-ci": {
+      "slug": "npm-ci",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the step and the decision to use npm ci so the lockfile fixes versions."
+     },
+     "github-actions-workflows": {
+      "slug": "github-actions-workflows",
+      "touched": true,
+      "exercised": true,
+      "context_level": 1,
+      "why": "Describes the job and its steps but states no particular decision."
+     }
+    },
+    "coverage": {
+     "sonnet": 1.0,
+     "claude-haiku-4-5": 1.0
+    },
+    "covered": {
+     "sonnet": [
+      "ci-cache-key",
+      "restore-keys-fallback",
+      "concurrency-cancel-in-progress",
+      "bash-pipefail"
+     ],
+     "claude-haiku-4-5": [
+      "ci-cache-key",
+      "restore-keys-fallback",
+      "concurrency-cancel-in-progress",
+      "bash-pipefail"
+     ]
+    }
+   },
+   "concepts": [
+    {
+     "slug": "github-actions-concurrency",
+     "name": "Workflow Concurrency",
+     "description": "A concurrency group allows only one workflow run per key at a time. With cancel-in-progress, a newer run on the same ref cancels the older one, which saves runner minutes and avoids stale results.",
+     "tags": [
+      "github-actions",
+      "ci"
+     ],
+     "prerequisites": [
+      "github-actions-workflows"
+     ],
+     "context": "concurrency group test-${{ github.ref }} with cancel-in-progress: true in .github/workflows/test.yml, so a new push to a branch cancels that branch's older test run"
+    },
+    {
+     "slug": "dependency-caching",
+     "name": "CI Dependency Caching",
+     "description": "A CI cache restores files saved by an earlier run, keyed by a hash of the lockfile. If the exact key misses, restore-keys falls back to the latest partial match. Caching ~/.npm saves the npm download cache, not node_modules.",
+     "tags": [
+      "github-actions",
+      "ci",
+      "npm",
+      "caching"
+     ],
+     "prerequisites": [
+      "github-actions-workflows"
+     ],
+     "context": "actions/cache@v4 in test.yml caches ~/.npm under key npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}, with a restore-keys prefix fallback"
+    },
+    {
+     "slug": "bash-pipefail",
+     "name": "Bash pipefail",
+     "description": "In a bash pipeline the exit status is normally the last command's. set -o pipefail makes it the first non-zero status in the pipeline. With set -e, this lets a failing command before a pipe such as tee still fail the step.",
+     "tags": [
+      "bash",
+      "ci",
+      "error-handling"
+     ],
+     "prerequisites": [],
+     "context": "set -euo pipefail before 'npm test 2>&1 | tee test.log' in test.yml, so a failing npm test fails the job instead of being hidden by tee's exit 0"
+    },
+    {
+     "slug": "npm-ci",
+     "name": "npm ci",
+     "description": "npm ci installs exactly what package-lock.json specifies. It deletes node_modules first and fails if the lockfile and package.json disagree. This makes CI installs reproducible, unlike npm install.",
+     "tags": [
+      "npm",
+      "ci",
+      "reproducibility"
+     ],
+     "prerequisites": [],
+     "context": "npm ci in the 'Install and test' step of test.yml, not npm install, so the lockfile decides the dependency versions",
+     "new": true
+    },
+    {
+     "slug": "github-actions-workflows",
+     "name": "GitHub Actions Workflows",
+     "description": "A workflow is a YAML file of jobs. Each job runs steps on a runner. Steps use prebuilt actions with 'uses' or run shell commands with 'run'.",
+     "tags": [
+      "github-actions",
+      "ci"
+     ],
+     "prerequisites": [],
+     "context": "the test job in .github/workflows/test.yml: checkout, cache, then a bash step on ubuntu-latest",
+     "new": true
+    }
+   ],
+   "matched": [],
+   "created": [
+    "npm-ci",
+    "github-actions-workflows"
+   ],
+   "logged": [
+    "github-actions-concurrency",
+    "dependency-caching",
+    "bash-pipefail",
+    "npm-ci",
+    "github-actions-workflows"
+   ],
+   "mastered_hit": [],
+   "followup": {
+    "call": {
+     "concepts": [
+      {
+       "slug": "npm-ci",
+       "name": "npm ci",
+       "domain": "devops",
+       "tier": 2,
+       "description": "npm ci installs exactly what package-lock.json specifies. It deletes node_modules first and fails if the lockfile and package.json disagree. This makes CI installs reproducible, unlike npm install."
+      },
+      {
+       "slug": "github-actions-workflows",
+       "name": "GitHub Actions Workflows",
+       "domain": "devops",
+       "tier": 1,
+       "description": "A workflow is a YAML file of jobs. Each job runs steps on a runner. Steps use prebuilt actions with 'uses' or run shell commands with 'run'."
+      }
+     ],
+     "edges": [
+      {
+       "from": "github-actions-workflows",
+       "to": "github-actions-concurrency",
+       "relation": "prerequisite_of"
+      },
+      {
+       "from": "github-actions-workflows",
+       "to": "dependency-caching",
+       "relation": "prerequisite_of"
+      },
+      {
+       "from": "npm-ci",
+       "to": "dependency-caching",
+       "relation": "prerequisite_of"
+      }
+     ]
+    },
+    "result": {
+     "created": [],
+     "updated": [],
+     "matched": [
+      {
+       "requested": "npm-ci",
+       "resolved": "npm-ci"
+      },
+      {
+       "requested": "github-actions-workflows",
+       "resolved": "github-actions-workflows"
+      }
+     ],
+     "rejected": [],
+     "needs_decision": [],
+     "edges_added": 1
+    },
+    "owed": [
+     {
+      "slug": "npm-ci",
+      "domain": true,
+      "tier": true,
+      "edge": true,
+      "stored_domain": "npm",
+      "stored_tier": 2,
+      "stored_edge": true
+     },
+     {
+      "slug": "github-actions-workflows",
+      "domain": true,
+      "tier": true,
+      "edge": true,
+      "stored_domain": "github-actions",
+      "stored_tier": 2,
+      "stored_edge": true
+     }
+    ],
+    "skipped": false
+   }
+  },
+  {
+   "id": "ci-cache-and-pipefail",
+   "repeat": 1,
+   "score": 0.4042,
+   "gates_failed": [
+    "context_decision"
+   ],
+   "quality": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "context": 1,
+    "followup": 0.0
+   },
+   "det": {
+    "strict": {
+     "matched": [],
+     "missed": [
+      "ci-cache-key",
+      "restore-keys-fallback",
+      "concurrency-cancel-in-progress",
+      "bash-pipefail"
+     ],
+     "unlabelled": [
+      "github-actions-concurrency",
+      "ci-dependency-caching",
+      "bash-strict-mode-pipefail",
+      "npm-ci-reproducible-install",
+      "github-actions-workflows"
+     ],
+     "recall": 0,
+     "precision": 0
+    },
+    "count_ok": true,
+    "slugs_valid": true,
+    "context_file": true,
+    "contexts_without_file": [],
+    "context_grounded": 1
+   },
+   "judged": {
+    "verdicts": {
+     "github-actions-concurrency": {
+      "slug": "github-actions-concurrency",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Concurrency group keyed on github.ref with cancel-in-progress is present, and the context explains the stale-run cancellation intent."
+     },
+     "ci-dependency-caching": {
+      "slug": "ci-dependency-caching",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "actions/cache on ~/.npm with lockfile-hash key and restore-key fallback is shown and described precisely."
+     },
+     "bash-strict-mode-pipefail": {
+      "slug": "bash-strict-mode-pipefail",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "set -euo pipefail with the tee pipeline is present, and the context states why pipefail matters."
+     },
+     "npm-ci-reproducible-install": {
+      "slug": "npm-ci-reproducible-install",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "npm ci is used in the run step, and the context names the choice over npm install."
+     },
+     "github-actions-workflows": {
+      "slug": "github-actions-workflows",
+      "touched": true,
+      "exercised": true,
+      "context_level": 1,
+      "why": "The workflow file is the code itself, but the context only lists its parts and states no particular decision."
+     }
+    },
+    "coverage": {
+     "sonnet": 1.0,
+     "claude-haiku-4-5": 1.0
+    },
+    "covered": {
+     "sonnet": [
+      "ci-cache-key",
+      "restore-keys-fallback",
+      "concurrency-cancel-in-progress",
+      "bash-pipefail"
+     ],
+     "claude-haiku-4-5": [
+      "ci-cache-key",
+      "restore-keys-fallback",
+      "concurrency-cancel-in-progress",
+      "bash-pipefail"
+     ]
+    }
+   },
+   "concepts": [
+    {
+     "slug": "github-actions-concurrency",
+     "name": "Workflow Concurrency",
+     "description": "A concurrency group in GitHub Actions allows one running workflow per group key; cancel-in-progress cancels the older run when a newer one starts, saving runner minutes on superseded pushes.",
+     "tags": [
+      "github-actions",
+      "ci"
+     ],
+     "prerequisites": [
+      "github-actions-workflows"
+     ],
+     "context": "concurrency group test-${{ github.ref }} with cancel-in-progress: true in .github/workflows/test.yml so a new push to the same ref cancels the stale test run"
+    },
+    {
+     "slug": "ci-dependency-caching",
+     "name": "CI Dependency Caching",
+     "description": "Caching the package manager's download store between CI runs, keyed on a lockfile hash with restore-keys as a prefix fallback, so installs skip re-downloading unchanged dependencies.",
+     "tags": [
+      "github-actions",
+      "caching",
+      "npm"
+     ],
+     "prerequisites": [
+      "github-actions-workflows"
+     ],
+     "context": "actions/cache@v4 on ~/.npm keyed by hashFiles('**/package-lock.json') with an npm-${{ runner.os }}- restore-key in test.yml"
+    },
+    {
+     "slug": "bash-strict-mode-pipefail",
+     "name": "Bash Pipefail",
+     "description": "set -euo pipefail makes a script exit on any error, unset variable, or failure anywhere in a pipeline. Without pipefail a pipeline's exit status is only that of its last command.",
+     "tags": [
+      "bash",
+      "shell",
+      "ci"
+     ],
+     "prerequisites": [],
+     "context": "set -euo pipefail before npm test 2>&1 | tee test.log, so a failing npm test fails the step even though tee succeeds"
+    },
+    {
+     "slug": "npm-ci-reproducible-install",
+     "name": "npm ci",
+     "description": "npm ci installs exactly what package-lock.json specifies, deletes node_modules first and fails if the lockfile and package.json disagree, making CI installs reproducible, unlike npm install.",
+     "tags": [
+      "npm",
+      "ci",
+      "lockfile"
+     ],
+     "prerequisites": [],
+     "context": "npm ci in the Install and test step of test.yml instead of npm install",
+     "new": true
+    },
+    {
+     "slug": "github-actions-workflows",
+     "name": "GitHub Actions Workflows",
+     "description": "A workflow is a YAML file defining jobs that run on runners; each job is a sequence of steps that either use a reusable action or run shell commands.",
+     "tags": [
+      "github-actions",
+      "ci"
+     ],
+     "prerequisites": [],
+     "context": "jobs.test on ubuntu-latest with checkout, cache and a bash run step in .github/workflows/test.yml",
+     "new": true
+    }
+   ],
+   "matched": [],
+   "created": [
+    "npm-ci-reproducible-install",
+    "github-actions-workflows"
+   ],
+   "logged": [
+    "github-actions-concurrency",
+    "ci-dependency-caching",
+    "bash-strict-mode-pipefail",
+    "npm-ci-reproducible-install",
+    "github-actions-workflows"
+   ],
+   "mastered_hit": [],
+   "followup": {
+    "call": {
+     "concepts": [
+      {
+       "slug": "npm-ci-reproducible-install",
+       "tier": 2
+      },
+      {
+       "slug": "github-actions-workflows",
+       "tier": 1
+      }
+     ],
+     "edges": [
+      {
+       "from": "github-actions-workflows",
+       "to": "github-actions-concurrency",
+       "relation": "prerequisite_of"
+      },
+      {
+       "from": "github-actions-workflows",
+       "to": "ci-dependency-caching",
+       "relation": "prerequisite_of"
+      },
+      {
+       "from": "npm-ci-reproducible-install",
+       "to": "ci-dependency-caching",
+       "relation": "prerequisite_of"
+      },
+      {
+       "from": "github-actions-workflows",
+       "to": "bash-strict-mode-pipefail",
+       "relation": "prerequisite_of"
+      }
+     ]
+    },
+    "result": {
+     "created": [],
+     "updated": [],
+     "matched": [
+      {
+       "requested": "npm-ci-reproducible-install",
+       "resolved": "npm-ci-reproducible-install"
+      },
+      {
+       "requested": "github-actions-workflows",
+       "resolved": "github-actions-workflows"
+      }
+     ],
+     "rejected": [],
+     "needs_decision": [],
+     "edges_added": 2
+    },
+    "owed": [
+     {
+      "slug": "npm-ci-reproducible-install",
+      "domain": false,
+      "tier": true,
+      "edge": true,
+      "stored_domain": "npm",
+      "stored_tier": 2,
+      "stored_edge": true
+     },
+     {
+      "slug": "github-actions-workflows",
+      "domain": false,
+      "tier": true,
+      "edge": true,
+      "stored_domain": "github-actions",
+      "stored_tier": 2,
+      "stored_edge": true
+     }
+    ],
+    "skipped": false
+   }
+  },
+  {
+   "id": "ci-cache-and-pipefail",
+   "repeat": 2,
+   "score": 0.4042,
+   "gates_failed": [
+    "context_decision"
+   ],
+   "quality": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "context": 1,
+    "followup": 0.0
+   },
+   "det": {
+    "strict": {
+     "matched": [],
+     "missed": [
+      "ci-cache-key",
+      "restore-keys-fallback",
+      "concurrency-cancel-in-progress",
+      "bash-pipefail"
+     ],
+     "unlabelled": [
+      "github-actions-concurrency",
+      "ci-dependency-caching",
+      "bash-strict-mode",
+      "bash-strict-mode",
+      "npm-ci-reproducible-install",
+      "github-actions-workflows"
+     ],
+     "recall": 0,
+     "precision": 0
+    },
+    "count_ok": true,
+    "slugs_valid": true,
+    "context_file": true,
+    "contexts_without_file": [],
+    "context_grounded": 1
+   },
+   "judged": {
+    "verdicts": {
+     "github-actions-concurrency": {
+      "slug": "github-actions-concurrency",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the group expression and cancel-in-progress setting and the resulting behavior of superseded runs being cancelled."
+     },
+     "ci-dependency-caching": {
+      "slug": "ci-dependency-caching",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Specifies the cached path, the lockfile-hash key, and the restore-keys fallback prefix."
+     },
+     "bash-strict-mode": {
+      "slug": "bash-strict-mode",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the tee pipeline and explains pipefail preventing tee's exit 0 from masking test failures."
+     },
+     "npm-ci-reproducible-install": {
+      "slug": "npm-ci-reproducible-install",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Identifies npm ci chosen over npm install in the specific step, which is the decision made."
+     },
+     "github-actions-workflows": {
+      "slug": "github-actions-workflows",
+      "touched": true,
+      "exercised": true,
+      "context_level": 1,
+      "why": "Describes the job's runner and steps but not a specific decision beyond the structure."
+     }
+    },
+    "coverage": {
+     "sonnet": 1.0,
+     "claude-haiku-4-5": 1.0
+    },
+    "covered": {
+     "sonnet": [
+      "ci-cache-key",
+      "restore-keys-fallback",
+      "concurrency-cancel-in-progress",
+      "bash-pipefail"
+     ],
+     "claude-haiku-4-5": [
+      "ci-cache-key",
+      "restore-keys-fallback",
+      "concurrency-cancel-in-progress",
+      "bash-pipefail"
+     ]
+    }
+   },
+   "concepts": [
+    {
+     "slug": "github-actions-concurrency",
+     "name": "Actions Concurrency",
+     "description": "A concurrency group serializes workflow runs sharing a key; cancel-in-progress cancels the older run when a newer one starts on the same ref, saving runner time and avoiding stale results.",
+     "tags": [
+      "ci",
+      "github-actions"
+     ],
+     "prerequisites": [
+      "github-actions-workflows"
+     ],
+     "context": "concurrency group test-${{ github.ref }} with cancel-in-progress: true in .github/workflows/test.yml, so a new push cancels the superseded test run"
+    },
+    {
+     "slug": "ci-dependency-caching",
+     "name": "CI Dependency Caching",
+     "description": "Caching the package manager's download store between CI runs, keyed by a lockfile hash, with restore-keys as a fallback to the nearest older cache when the exact key misses.",
+     "tags": [
+      "ci",
+      "caching",
+      "npm"
+     ],
+     "prerequisites": [
+      "github-actions-workflows"
+     ],
+     "context": "actions/cache@v4 on ~/.npm keyed by hashFiles('**/package-lock.json') with an npm-${{ runner.os }}- restore-keys prefix in .github/workflows/test.yml"
+    },
+    {
+     "slug": "bash-strict-mode",
+     "name": "Bash Strict Mode",
+     "description": "set -euo pipefail makes a script exit on any error, unset variable, or failure anywhere in a pipeline, instead of silently continuing past it.",
+     "tags": [
+      "bash",
+      "shell",
+      "ci"
+     ],
+     "prerequisites": [],
+     "context": "set -euo pipefail at the top of the Install and test step in .github/workflows/test.yml, so npm ci or npm test failures stop the step"
+    },
+    {
+     "slug": "bash-strict-mode",
+     "name": "Bash Strict Mode",
+     "description": "set -euo pipefail makes a script exit on any error, unset variable, or failure anywhere in a pipeline, instead of silently continuing past it.",
+     "tags": [
+      "bash",
+      "shell",
+      "ci"
+     ],
+     "prerequisites": [],
+     "context": "npm test 2>&1 | tee test.log in .github/workflows/test.yml: pipefail in the same step stops tee's exit 0 from masking failing tests, so the job fails when tests fail"
+    },
+    {
+     "slug": "npm-ci-reproducible-install",
+     "name": "npm ci",
+     "description": "npm ci installs exactly what package-lock.json specifies, deleting node_modules first and failing if the lockfile and package.json disagree, which makes CI installs reproducible.",
+     "tags": [
+      "npm",
+      "ci",
+      "dependencies"
+     ],
+     "prerequisites": [],
+     "new": true,
+     "context": "npm ci rather than npm install in the Install and test step of .github/workflows/test.yml"
+    },
+    {
+     "slug": "github-actions-workflows",
+     "name": "GitHub Actions Workflows",
+     "description": "A workflow is a YAML file defining jobs made of steps that run on a runner, where steps either use a prebuilt action or run a shell command.",
+     "tags": [
+      "ci",
+      "github-actions"
+     ],
+     "prerequisites": [],
+     "new": true,
+     "context": "the test job in .github/workflows/test.yml on ubuntu-latest using actions/checkout@v4 then a bash run step"
+    }
+   ],
+   "matched": [],
+   "created": [
+    "npm-ci-reproducible-install",
+    "github-actions-workflows"
+   ],
+   "logged": [
+    "github-actions-concurrency",
+    "ci-dependency-caching",
+    "bash-strict-mode",
+    "npm-ci-reproducible-install",
+    "github-actions-workflows"
+   ],
+   "mastered_hit": [],
+   "followup": {
+    "call": {
+     "concepts": [
+      {
+       "slug": "npm-ci-reproducible-install",
+       "tier": 2
+      },
+      {
+       "slug": "github-actions-workflows",
+       "tier": 1
+      }
+     ],
+     "edges": [
+      {
+       "from": "github-actions-workflows",
+       "to": "github-actions-concurrency",
+       "relation": "prerequisite_of"
+      },
+      {
+       "from": "github-actions-workflows",
+       "to": "ci-dependency-caching",
+       "relation": "prerequisite_of"
+      },
+      {
+       "from": "npm-ci-reproducible-install",
+       "to": "ci-dependency-caching",
+       "relation": "related_to"
+      }
+     ]
+    },
+    "result": {
+     "created": [],
+     "updated": [],
+     "matched": [
+      {
+       "requested": "npm-ci-reproducible-install",
+       "resolved": "npm-ci-reproducible-install"
+      },
+      {
+       "requested": "github-actions-workflows",
+       "resolved": "github-actions-workflows"
+      }
+     ],
+     "rejected": [],
+     "needs_decision": [],
+     "edges_added": 1
+    },
+    "owed": [
+     {
+      "slug": "npm-ci-reproducible-install",
+      "domain": false,
+      "tier": true,
+      "edge": false,
+      "stored_domain": "npm",
+      "stored_tier": 2,
+      "stored_edge": false
+     },
+     {
+      "slug": "github-actions-workflows",
+      "domain": false,
+      "tier": true,
+      "edge": true,
+      "stored_domain": "ci",
+      "stored_tier": 2,
+      "stored_edge": true
+     }
+    ],
+    "skipped": false
+   }
+  },
+  {
+   "id": "sql-add-column-backfill",
+   "repeat": 0,
+   "score": 0.4167,
+   "gates_failed": [
+    "context_decision"
+   ],
+   "quality": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "context": 1,
+    "followup": 1.0
+   },
+   "det": {
+    "strict": {
+     "matched": [
+      "batched-backfill",
+      "not-valid-constraint"
+     ],
+     "missed": [
+      "expand-contract-migration",
+      "create-index-concurrently"
+     ],
+     "unlabelled": [
+      "postgres-add-column",
+      "column-default-after-backfill",
+      "concurrent-index-build",
+      "transaction-boundaries",
+      "zero-downtime-migration"
+     ],
+     "recall": 0.5,
+     "precision": 0.2857142857142857
+    },
+    "count_ok": true,
+    "slugs_valid": true,
+    "context_file": true,
+    "contexts_without_file": [],
+    "context_grounded": 1
+   },
+   "judged": {
+    "verdicts": {
+     "postgres-add-column": {
+      "slug": "postgres-add-column",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the ADD COLUMN and the decision to keep it nullable without default to avoid rewrite."
+     },
+     "batched-backfill": {
+      "slug": "batched-backfill",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the batched UPDATE with LIMIT 5000 and the repeat-until-zero deploy loop."
+     },
+     "column-default-after-backfill": {
+      "slug": "column-default-after-backfill",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Identifies the SET DEFAULT statement and its placement after the backfill."
+     },
+     "concurrent-index-build": {
+      "slug": "concurrent-index-build",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the CONCURRENTLY index and why it sits outside the transaction."
+     },
+     "not-valid-constraint": {
+      "slug": "not-valid-constraint",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the NOT VALID check plus VALIDATE as a low-lock alternative to SET NOT NULL."
+     },
+     "transaction-boundaries": {
+      "slug": "transaction-boundaries",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "States BEGIN/COMMIT wraps only ADD COLUMN, leaving backfill and index outside."
+     },
+     "zero-downtime-migration": {
+      "slug": "zero-downtime-migration",
+      "touched": true,
+      "exercised": true,
+      "context_level": 1,
+      "why": "Names the file and lists the sequence but is a summary, not a specific decision."
+     }
+    },
+    "coverage": {
+     "sonnet": 1.0,
+     "claude-haiku-4-5": 1.0
+    },
+    "covered": {
+     "sonnet": [
+      "expand-contract-migration",
+      "batched-backfill",
+      "create-index-concurrently",
+      "not-valid-constraint"
+     ],
+     "claude-haiku-4-5": [
+      "expand-contract-migration",
+      "batched-backfill",
+      "create-index-concurrently",
+      "not-valid-constraint"
+     ]
+    }
+   },
+   "concepts": [
+    {
+     "slug": "postgres-add-column",
+     "name": "Add Column",
+     "description": "Adding a nullable column with ALTER TABLE ADD COLUMN is a metadata-only change in Postgres, so it takes a brief lock and does not rewrite the table.",
+     "tags": [
+      "postgres",
+      "migrations",
+      "ddl"
+     ],
+     "prerequisites": [],
+     "context": "ALTER TABLE users ADD COLUMN region text in 0042_users_region.sql, nullable and with no default so it needs no table rewrite"
+    },
+    {
+     "slug": "batched-backfill",
+     "name": "Batched Backfill",
+     "description": "Updating existing rows in bounded batches, repeated until zero rows change, so no single statement holds locks or generates huge WAL on a big table.",
+     "tags": [
+      "postgres",
+      "migrations",
+      "locking"
+     ],
+     "prerequisites": [
+      "postgres-add-column"
+     ],
+     "context": "UPDATE users SET region = 'unknown' WHERE id IN (SELECT id ... WHERE region IS NULL ORDER BY id LIMIT 5000) in 0042_users_region.sql, repeated by the deploy until 0 rows"
+    },
+    {
+     "slug": "column-default-after-backfill",
+     "name": "Default After Backfill",
+     "description": "Setting a column DEFAULT only affects future inserts, not existing rows. Setting it after the backfill keeps new rows non-null while old rows are filled separately.",
+     "tags": [
+      "postgres",
+      "migrations",
+      "defaults"
+     ],
+     "prerequisites": [
+      "postgres-add-column"
+     ],
+     "context": "ALTER TABLE users ALTER COLUMN region SET DEFAULT 'unknown' in 0042_users_region.sql, run after the batched backfill"
+    },
+    {
+     "slug": "concurrent-index-build",
+     "name": "Concurrent Index",
+     "description": "CREATE INDEX CONCURRENTLY builds an index without blocking writes, but cannot run inside a transaction block and can leave an invalid index if it fails.",
+     "tags": [
+      "postgres",
+      "indexes",
+      "locking"
+     ],
+     "prerequisites": [
+      "transaction-boundaries"
+     ],
+     "context": "CREATE INDEX CONCURRENTLY users_region_idx ON users (region) in 0042_users_region.sql, placed after COMMIT because it cannot run in a transaction"
+    },
+    {
+     "slug": "not-valid-constraint",
+     "name": "NOT VALID Constraint",
+     "description": "Adding a CHECK constraint as NOT VALID enforces it on new writes immediately with only a brief lock. VALIDATE CONSTRAINT then scans existing rows under a weaker lock that does not block writes.",
+     "tags": [
+      "postgres",
+      "constraints",
+      "migrations",
+      "locking"
+     ],
+     "prerequisites": [
+      "batched-backfill"
+     ],
+     "context": "ADD CONSTRAINT users_region_set CHECK (region IS NOT NULL) NOT VALID, then VALIDATE CONSTRAINT users_region_set in 0042_users_region.sql, as a low-lock alternative to SET NOT NULL"
+    },
+    {
+     "slug": "transaction-boundaries",
+     "name": "Transaction Boundaries",
+     "description": "Deciding which statements run inside a transaction. Some DDL such as CREATE INDEX CONCURRENTLY is not allowed in one, and long transactions hold locks longer.",
+     "tags": [
+      "postgres",
+      "transactions",
+      "migrations"
+     ],
+     "prerequisites": [],
+     "context": "BEGIN/COMMIT wraps only the ADD COLUMN in 0042_users_region.sql, so the backfill and concurrent index run outside it"
+    },
+    {
+     "slug": "zero-downtime-migration",
+     "new": true,
+     "name": "Zero-Downtime Migration",
+     "description": "Splitting a schema change into small, low-lock, ordered steps (add, backfill, default, index, constrain) so a live table keeps serving reads and writes throughout.",
+     "tags": [
+      "postgres",
+      "migrations",
+      "operations"
+     ],
+     "prerequisites": [
+      "postgres-add-column",
+      "batched-backfill",
+      "not-valid-constraint"
+     ],
+     "context": "The whole 0042_users_region.sql sequence: add nullable column, batch backfill, set default, concurrent index, NOT VALID check then validate"
+    }
+   ],
+   "matched": [],
+   "created": [
+    "zero-downtime-migration"
+   ],
+   "logged": [
+    "postgres-add-column",
+    "batched-backfill",
+    "column-default-after-backfill",
+    "concurrent-index-build",
+    "not-valid-constraint",
+    "transaction-boundaries",
+    "zero-downtime-migration"
+   ],
+   "mastered_hit": [],
+   "followup": {
+    "owed": []
+   }
+  },
+  {
+   "id": "sql-add-column-backfill",
+   "repeat": 1,
+   "score": 0.4125,
+   "gates_failed": [
+    "context_decision"
+   ],
+   "quality": {
+    "recall": 0.875,
+    "precision": 1.0,
+    "context": 1,
+    "followup": 1.0
+   },
+   "det": {
+    "strict": {
+     "matched": [
+      "batched-backfill",
+      "not-valid-constraint"
+     ],
+     "missed": [
+      "expand-contract-migration",
+      "create-index-concurrently"
+     ],
+     "unlabelled": [
+      "postgres-add-column",
+      "concurrent-index",
+      "zero-downtime-migration",
+      "column-default"
+     ],
+     "recall": 0.5,
+     "precision": 0.3333333333333333
+    },
+    "count_ok": true,
+    "slugs_valid": true,
+    "context_file": true,
+    "contexts_without_file": [],
+    "context_grounded": 1
+   },
+   "judged": {
+    "verdicts": {
+     "postgres-add-column": {
+      "slug": "postgres-add-column",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the ADD COLUMN statement and the decision: nullable with no default to avoid a rewrite."
+     },
+     "batched-backfill": {
+      "slug": "batched-backfill",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the batched UPDATE with LIMIT 5000 and the repeat-until-0-rows loop."
+     },
+     "concurrent-index": {
+      "slug": "concurrent-index",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the CONCURRENTLY index and its placement outside the transaction block, which is required."
+     },
+     "not-valid-constraint": {
+      "slug": "not-valid-constraint",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the NOT VALID then VALIDATE two-step on the specific constraint."
+     },
+     "zero-downtime-migration": {
+      "slug": "zero-downtime-migration",
+      "touched": true,
+      "exercised": true,
+      "context_level": 1,
+      "why": "Names the file and goal but not the specific ordering decisions, though the whole file illustrates it."
+     },
+     "column-default": {
+      "slug": "column-default",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the SET DEFAULT statement and why it comes after the backfill."
+     }
+    },
+    "coverage": {
+     "sonnet": 1.0,
+     "claude-haiku-4-5": 0.75
+    },
+    "covered": {
+     "sonnet": [
+      "batched-backfill",
+      "create-index-concurrently",
+      "not-valid-constraint",
+      "expand-contract-migration"
+     ],
+     "claude-haiku-4-5": [
+      "batched-backfill",
+      "create-index-concurrently",
+      "not-valid-constraint"
+     ]
+    }
+   },
+   "concepts": [
+    {
+     "slug": "postgres-add-column",
+     "name": "Add Column",
+     "description": "Adding a nullable column with ALTER TABLE ADD COLUMN is a fast catalog-only change in Postgres, so it takes a brief lock and does not rewrite the table.",
+     "tags": [
+      "postgres",
+      "migrations",
+      "ddl"
+     ],
+     "prerequisites": [],
+     "context": "ALTER TABLE users ADD COLUMN region text in 0042_users_region.sql, nullable and with no default, so it skips a table rewrite"
+    },
+    {
+     "slug": "batched-backfill",
+     "name": "Batched Backfill",
+     "description": "Updating existing rows in small repeated batches so no single transaction holds row locks or generates a huge WAL burst on a large table.",
+     "tags": [
+      "postgres",
+      "migrations",
+      "locking"
+     ],
+     "prerequisites": [
+      "postgres-add-column"
+     ],
+     "context": "UPDATE users SET region = 'unknown' ... LIMIT 5000 in 0042_users_region.sql, repeated by the deploy until it updates 0 rows"
+    },
+    {
+     "slug": "concurrent-index",
+     "name": "Concurrent Index",
+     "description": "CREATE INDEX CONCURRENTLY builds an index without blocking writes, but it cannot run inside a transaction block and can leave an invalid index if it fails.",
+     "tags": [
+      "postgres",
+      "indexes",
+      "locking"
+     ],
+     "prerequisites": [],
+     "context": "CREATE INDEX CONCURRENTLY users_region_idx ON users (region) in 0042_users_region.sql, placed outside the BEGIN/COMMIT block"
+    },
+    {
+     "slug": "not-valid-constraint",
+     "name": "NOT VALID Constraint",
+     "description": "Adding a CHECK constraint as NOT VALID enforces it on new writes right away and skips the full-table scan, and VALIDATE CONSTRAINT then checks old rows under a weaker lock.",
+     "tags": [
+      "postgres",
+      "constraints",
+      "migrations"
+     ],
+     "prerequisites": [
+      "batched-backfill"
+     ],
+     "context": "ADD CONSTRAINT users_region_set CHECK (region IS NOT NULL) NOT VALID, then VALIDATE CONSTRAINT, in 0042_users_region.sql"
+    },
+    {
+     "slug": "zero-downtime-migration",
+     "name": "Zero-Downtime Migration",
+     "description": "Ordering schema changes as add, backfill, default, index and constrain, so each step takes only short or non-blocking locks while the app keeps serving traffic.",
+     "tags": [
+      "postgres",
+      "migrations",
+      "deployment"
+     ],
+     "prerequisites": [
+      "postgres-add-column",
+      "batched-backfill",
+      "concurrent-index",
+      "not-valid-constraint"
+     ],
+     "context": "The step order of 0042_users_region.sql that adds users.region without a long lock on the users table"
+    },
+    {
+     "slug": "column-default",
+     "new": true,
+     "name": "Column Default",
+     "description": "SET DEFAULT changes the value used for future inserts only. It does not touch existing rows, which is why the backfill is still needed.",
+     "tags": [
+      "postgres",
+      "migrations",
+      "ddl"
+     ],
+     "prerequisites": [
+      "postgres-add-column"
+     ],
+     "context": "ALTER COLUMN region SET DEFAULT 'unknown' in 0042_users_region.sql, run after the backfill so new rows are never NULL"
+    }
+   ],
+   "matched": [],
+   "created": [
+    "column-default"
+   ],
+   "logged": [
+    "postgres-add-column",
+    "batched-backfill",
+    "concurrent-index",
+    "not-valid-constraint",
+    "zero-downtime-migration",
+    "column-default"
+   ],
+   "mastered_hit": [],
+   "followup": {
+    "owed": []
+   }
+  },
+  {
+   "id": "sql-add-column-backfill",
+   "repeat": 2,
+   "score": 0.95,
+   "gates_failed": [],
+   "quality": {
+    "recall": 0.75,
+    "precision": 1.0,
+    "context": 1,
+    "followup": 1.0
+   },
+   "det": {
+    "strict": {
+     "matched": [
+      "batched-backfill",
+      "not-valid-constraint"
+     ],
+     "missed": [
+      "expand-contract-migration",
+      "create-index-concurrently"
+     ],
+     "unlabelled": [
+      "table-locks",
+      "add-nullable-column",
+      "concurrent-index",
+      "transactional-ddl",
+      "column-default"
+     ],
+     "recall": 0.5,
+     "precision": 0.2857142857142857
+    },
+    "count_ok": true,
+    "slugs_valid": true,
+    "context_file": true,
+    "contexts_without_file": [],
+    "context_grounded": 1
+   },
+   "judged": {
+    "verdicts": {
+     "table-locks": {
+      "slug": "table-locks",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the batched UPDATE and CONCURRENTLY index as lock-avoidance decisions across the migration."
+     },
+     "add-nullable-column": {
+      "slug": "add-nullable-column",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the ADD COLUMN statement and the decision to add it nullable with no default for a metadata-only change."
+     },
+     "batched-backfill": {
+      "slug": "batched-backfill",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Cites the exact batched UPDATE, the 5000 limit, and the repeat-until-0-rows loop."
+     },
+     "concurrent-index": {
+      "slug": "concurrent-index",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the index statement and why it sits outside the transaction block."
+     },
+     "not-valid-constraint": {
+      "slug": "not-valid-constraint",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the NOT VALID then VALIDATE pattern and the lock it avoids."
+     },
+     "transactional-ddl": {
+      "slug": "transactional-ddl",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Identifies that only ADD COLUMN is in BEGIN/COMMIT and the index is deliberately outside."
+     },
+     "column-default": {
+      "slug": "column-default",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the SET DEFAULT statement and its placement after the backfill, with the reason."
+     }
+    },
+    "coverage": {
+     "sonnet": 0.75,
+     "claude-haiku-4-5": 0.75
+    },
+    "covered": {
+     "sonnet": [
+      "batched-backfill",
+      "create-index-concurrently",
+      "not-valid-constraint"
+     ],
+     "claude-haiku-4-5": [
+      "batched-backfill",
+      "create-index-concurrently",
+      "not-valid-constraint"
+     ]
+    }
+   },
+   "concepts": [
+    {
+     "slug": "table-locks",
+     "name": "Table Locks",
+     "description": "Postgres DDL and DML take locks of different strength on a table. Long-held strong locks block reads and writes, so migrations are designed to hold them briefly.",
+     "tags": [
+      "postgres",
+      "locking",
+      "migrations"
+     ],
+     "prerequisites": [],
+     "context": "Every step in 0042_users_region.sql is shaped to avoid holding a lock on the whole users table, for example the batched UPDATE and CREATE INDEX CONCURRENTLY."
+    },
+    {
+     "slug": "add-nullable-column",
+     "name": "Add Nullable Column",
+     "description": "Adding a nullable column with no default only changes the catalog, so it is fast and holds its lock very briefly. Adding a NOT NULL column or a volatile default can rewrite the table.",
+     "tags": [
+      "postgres",
+      "schema-change",
+      "migrations"
+     ],
+     "prerequisites": [
+      "table-locks",
+      "transactional-ddl"
+     ],
+     "context": "ALTER TABLE users ADD COLUMN region text in 0042_users_region.sql adds the column nullable with no default, so the ALTER stays metadata-only and the table is not rewritten."
+    },
+    {
+     "slug": "batched-backfill",
+     "name": "Batched Backfill",
+     "description": "A large UPDATE is split into bounded batches that are run repeatedly until none are left. Each batch is a short transaction, so locks, WAL volume and replica lag stay small.",
+     "tags": [
+      "postgres",
+      "backfill",
+      "migrations"
+     ],
+     "prerequisites": [
+      "table-locks"
+     ],
+     "context": "The UPDATE ... WHERE id IN (SELECT id ... WHERE region IS NULL ORDER BY id LIMIT 5000) in 0042_users_region.sql fills 5000 rows per statement. The deploy repeats it until it updates 0 rows."
+    },
+    {
+     "slug": "concurrent-index",
+     "name": "Concurrent Index",
+     "description": "CREATE INDEX CONCURRENTLY builds an index without blocking writes, but it takes longer, cannot run inside a transaction, and can leave an invalid index behind if it fails.",
+     "tags": [
+      "postgres",
+      "indexes",
+      "migrations"
+     ],
+     "prerequisites": [
+      "table-locks",
+      "transactional-ddl"
+     ],
+     "context": "CREATE INDEX CONCURRENTLY users_region_idx ON users (region) in 0042_users_region.sql is outside the BEGIN/COMMIT block, because Postgres rejects a concurrent index build inside a transaction."
+    },
+    {
+     "slug": "not-valid-constraint",
+     "name": "NOT VALID Constraint",
+     "description": "Adding a CHECK constraint as NOT VALID enforces it on new writes without scanning existing rows. A separate VALIDATE CONSTRAINT then checks old rows under a weaker lock that does not block writes.",
+     "tags": [
+      "postgres",
+      "constraints",
+      "migrations"
+     ],
+     "prerequisites": [
+      "table-locks",
+      "batched-backfill"
+     ],
+     "context": "ADD CONSTRAINT users_region_set CHECK (region IS NOT NULL) NOT VALID followed by VALIDATE CONSTRAINT in 0042_users_region.sql avoids the long full-table scan lock that ADD CONSTRAINT or SET NOT NULL would take."
+    },
+    {
+     "slug": "transactional-ddl",
+     "new": true,
+     "name": "Transactional DDL",
+     "description": "Postgres runs most schema changes inside a transaction, so they commit or roll back together. A few commands, such as CREATE INDEX CONCURRENTLY, cannot run inside a transaction block.",
+     "tags": [
+      "postgres",
+      "transactions",
+      "migrations"
+     ],
+     "prerequisites": [],
+     "context": "In 0042_users_region.sql, only the ALTER TABLE ADD COLUMN is wrapped in BEGIN/COMMIT. The concurrent index is deliberately left outside the transaction."
+    },
+    {
+     "slug": "column-default",
+     "new": true,
+     "name": "Column Default",
+     "description": "A column DEFAULT applies only to rows inserted after it is set. It does not change existing rows, so it is set after the backfill and keeps new writes from adding more NULLs.",
+     "tags": [
+      "postgres",
+      "schema-change",
+      "defaults"
+     ],
+     "prerequisites": [
+      "add-nullable-column"
+     ],
+     "context": "ALTER COLUMN region SET DEFAULT 'unknown' in 0042_users_region.sql comes after the backfill, so rows inserted during the migration get a value while old rows are filled by the batched UPDATE."
+    }
+   ],
+   "matched": [],
+   "created": [
+    "transactional-ddl",
+    "column-default"
+   ],
+   "logged": [
+    "table-locks",
+    "add-nullable-column",
+    "batched-backfill",
+    "concurrent-index",
+    "not-valid-constraint",
+    "transactional-ddl",
+    "column-default"
+   ],
+   "mastered_hit": [],
+   "followup": {
+    "call": {
+     "concepts": [
+      {
+       "slug": "transactional-ddl",
+       "name": "Transactional DDL",
+       "domain": "postgres",
+       "tier": 2,
+       "description": "Postgres runs most schema changes inside a transaction, so they commit or roll back together. A few commands, such as CREATE INDEX CONCURRENTLY, cannot run inside a transaction block."
+      }
+     ],
+     "edges": [
+      {
+       "from": "table-locks",
+       "to": "transactional-ddl",
+       "relation": "prerequisite_of"
+      }
+     ]
+    },
+    "result": {
+     "created": [],
+     "updated": [],
+     "matched": [
+      {
+       "requested": "transactional-ddl",
+       "resolved": "transactional-ddl"
+      }
+     ],
+     "rejected": [],
+     "needs_decision": [],
+     "edges_added": 1
+    },
+    "owed": [
+     {
+      "slug": "transactional-ddl",
+      "domain": true,
+      "tier": true,
+      "edge": true,
+      "stored_domain": "postgres",
+      "stored_tier": 2,
+      "stored_edge": true
+     }
+    ],
+    "skipped": false
+   }
+  },
+  {
+   "id": "react-debounced-search",
+   "repeat": 0,
+   "score": 0.4167,
+   "gates_failed": [
+    "context_decision"
+   ],
+   "quality": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "context": 1,
+    "followup": 1.0
+   },
+   "det": {
+    "strict": {
+     "matched": [],
+     "missed": [
+      "debounce",
+      "useeffect-cleanup",
+      "stale-response-race",
+      "abortcontroller"
+     ],
+     "unlabelled": [
+      "react-useeffect-cleanup",
+      "debouncing",
+      "abortcontroller-fetch-cancellation",
+      "react-controlled-input",
+      "react-race-conditions",
+      "react-useeffect-deps",
+      "url-encoding",
+      "abortcontroller-fetch-cancellation"
+     ],
+     "recall": 0,
+     "precision": 0
+    },
+    "count_ok": true,
+    "slugs_valid": true,
+    "context_file": true,
+    "contexts_without_file": [],
+    "context_grounded": 1
+   },
+   "judged": {
+    "verdicts": {
+     "react-useeffect-cleanup": {
+      "slug": "react-useeffect-cleanup",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the cleanup's clearTimeout and abort calls and the per-keystroke cancellation purpose."
+     },
+     "debouncing": {
+      "slug": "debouncing",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Identifies the 250ms setTimeout cleared on each query change so only the last pause fetches."
+     },
+     "abortcontroller-fetch-cancellation": {
+      "slug": "abortcontroller-fetch-cancellation",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Duplicate entry; same accurate, specific description of signal use and AbortError handling."
+     },
+     "react-controlled-input": {
+      "slug": "react-controlled-input",
+      "touched": true,
+      "exercised": true,
+      "context_level": 1,
+      "why": "Points to the input bound to useState but states little decision beyond the pattern; code does show it."
+     },
+     "react-race-conditions": {
+      "slug": "react-race-conditions",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Explains the abort preventing a slow 'ab' response from overriding 'abc'."
+     },
+     "react-useeffect-deps": {
+      "slug": "react-useeffect-deps",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the dependency array and the consequence of an unmemoized onResults."
+     },
+     "url-encoding": {
+      "slug": "url-encoding",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names encodeURIComponent in the URL and the 'a&b' case it protects."
+     }
+    },
+    "coverage": {
+     "sonnet": 1.0,
+     "claude-haiku-4-5": 1.0
+    },
+    "covered": {
+     "sonnet": [
+      "debounce",
+      "useeffect-cleanup",
+      "stale-response-race",
+      "abortcontroller"
+     ],
+     "claude-haiku-4-5": [
+      "debounce",
+      "useeffect-cleanup",
+      "stale-response-race",
+      "abortcontroller"
+     ]
+    }
+   },
+   "concepts": [
+    {
+     "slug": "react-useeffect-cleanup",
+     "name": "useEffect Cleanup",
+     "description": "A function returned from useEffect that React runs before the next effect and on unmount, used to cancel timers, subscriptions and in-flight work so stale effects cannot fire.",
+     "tags": [
+      "react",
+      "hooks",
+      "side-effects"
+     ],
+     "prerequisites": [
+      "react-usestate"
+     ],
+     "context": "SearchBox.tsx returns a cleanup that calls clearTimeout(timer) and controller.abort(), so each keystroke cancels the previous pending search"
+    },
+    {
+     "slug": "debouncing",
+     "name": "Debouncing",
+     "description": "Delaying an action until input has stopped for a set interval, so rapid repeated events trigger only one call instead of one per event.",
+     "tags": [
+      "performance",
+      "ux",
+      "timers"
+     ],
+     "prerequisites": [
+      "react-useeffect-cleanup"
+     ],
+     "context": "SearchBox.tsx wraps the fetch in a 250ms setTimeout that the effect cleanup clears on every query change, so only the last pause in typing hits /api/search"
+    },
+    {
+     "slug": "abortcontroller-fetch-cancellation",
+     "name": "AbortController",
+     "description": "A web API whose signal can be passed to fetch to cancel an in-flight request; the aborted fetch rejects with an AbortError that callers must distinguish from real failures.",
+     "tags": [
+      "fetch",
+      "web-api",
+      "cancellation",
+      "async"
+     ],
+     "prerequisites": [
+      "javascript-promises"
+     ],
+     "context": "SearchBox.tsx passes controller.signal to fetch and the catch block swallows only err.name === 'AbortError', rethrowing real network errors"
+    },
+    {
+     "slug": "react-controlled-input",
+     "name": "Controlled Input",
+     "description": "A form input whose value is held in React state and updated through onChange, making state the single source of truth for what the field shows.",
+     "tags": [
+      "react",
+      "forms",
+      "state"
+     ],
+     "prerequisites": [
+      "react-usestate"
+     ],
+     "context": "SearchBox.tsx renders <input value={query} onChange={(e) => setQuery(e.target.value)} /> driven by useState"
+    },
+    {
+     "slug": "react-race-conditions",
+     "name": "Async race conditions",
+     "description": "Out-of-order responses overwriting newer data, and why cleanup or an abort signal is the fix.",
+     "tags": [
+      "async",
+      "race-condition",
+      "correctness"
+     ],
+     "prerequisites": [
+      "abortcontroller-fetch-cancellation"
+     ],
+     "context": "SearchBox.tsx aborts the previous request in cleanup so a slow response for 'ab' cannot call onResults after the response for 'abc'"
+    },
+    {
+     "slug": "react-useeffect-deps",
+     "name": "useEffect dependencies",
+     "description": "The dependency array is a correctness contract, not a performance knob.",
+     "tags": [
+      "react",
+      "hooks",
+      "dependencies"
+     ],
+     "prerequisites": [
+      "react-useeffect"
+     ],
+     "context": "SearchBox.tsx lists [query, onResults]; if the parent passes an unmemoized onResults, the effect re-fires and re-debounces on every parent render"
+    },
+    {
+     "slug": "url-encoding",
+     "new": true,
+     "name": "URL Encoding",
+     "description": "Percent-encoding user-supplied text before placing it in a URL query string so reserved characters like & and # cannot alter the request's structure.",
+     "tags": [
+      "http",
+      "web",
+      "security"
+     ],
+     "prerequisites": [],
+     "context": "SearchBox.tsx builds `/api/search?q=${encodeURIComponent(query)}` so a query like 'a&b' is sent as one parameter value"
+    },
+    {
+     "slug": "abortcontroller-fetch-cancellation",
+     "name": "AbortController",
+     "description": "A web API whose signal can be passed to fetch to cancel an in-flight request; the aborted fetch rejects with an AbortError that callers must distinguish from real failures.",
+     "tags": [
+      "fetch",
+      "web-api",
+      "cancellation",
+      "async"
+     ],
+     "prerequisites": [
+      "javascript-promises"
+     ],
+     "context": "SearchBox.tsx passes controller.signal to fetch and the catch block swallows only err.name === 'AbortError', rethrowing real network errors"
+    }
+   ],
+   "matched": [
+    {
+     "requested": "react-controlled-input",
+     "resolved": "react-controlled-inputs"
+    }
+   ],
+   "created": [
+    "url-encoding"
+   ],
+   "logged": [
+    "react-useeffect-cleanup",
+    "debouncing",
+    "abortcontroller-fetch-cancellation",
+    "react-controlled-inputs",
+    "react-race-conditions",
+    "react-useeffect-deps",
+    "url-encoding"
+   ],
+   "mastered_hit": [],
+   "followup": {
+    "call": {
+     "concepts": [
+      {
+       "slug": "url-encoding",
+       "name": "URL Encoding",
+       "domain": "web",
+       "tier": 2,
+       "description": "Percent-encoding user-supplied text before placing it in a URL query string so reserved characters like & and # cannot alter the request's structure."
+      }
+     ],
+     "edges": [
+      {
+       "from": "http-requests",
+       "to": "url-encoding",
+       "relation": "prerequisite_of"
+      }
+     ]
+    },
+    "result": {
+     "created": [],
+     "updated": [],
+     "matched": [
+      {
+       "requested": "url-encoding",
+       "resolved": "url-encoding"
+      }
+     ],
+     "rejected": [],
+     "needs_decision": [],
+     "edges_added": 0
+    },
+    "owed": [
+     {
+      "slug": "url-encoding",
+      "domain": true,
+      "tier": true,
+      "edge": true,
+      "stored_domain": "http",
+      "stored_tier": 2,
+      "stored_edge": false
+     }
+    ],
+    "skipped": false
+   }
+  },
+  {
+   "id": "react-debounced-search",
+   "repeat": 1,
+   "score": 0.4167,
+   "gates_failed": [
+    "context_decision"
+   ],
+   "quality": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "context": 1,
+    "followup": 1.0
+   },
+   "det": {
+    "strict": {
+     "matched": [
+      "debounce"
+     ],
+     "missed": [
+      "useeffect-cleanup",
+      "stale-response-race",
+      "abortcontroller"
+     ],
+     "unlabelled": [
+      "react-useeffect-cleanup",
+      "abort-controller",
+      "react-controlled-input",
+      "react-race-conditions",
+      "react-useeffect-deps",
+      "url-encoding"
+     ],
+     "recall": 0.25,
+     "precision": 0.14285714285714285
+    },
+    "count_ok": true,
+    "slugs_valid": true,
+    "context_file": true,
+    "contexts_without_file": [],
+    "context_grounded": 1
+   },
+   "judged": {
+    "verdicts": {
+     "debounce": {
+      "slug": "debounce",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "The 250ms setTimeout cleared on each query change is the debounce, and the context says so."
+     },
+     "react-useeffect-cleanup": {
+      "slug": "react-useeffect-cleanup",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "The cleanup clears the timer and aborts the controller, and the context names both actions and the dependencies that trigger them."
+     },
+     "abort-controller": {
+      "slug": "abort-controller",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "The code aborts the stale fetch in cleanup and ignores AbortError in the catch, as the context describes."
+     },
+     "react-controlled-input": {
+      "slug": "react-controlled-input",
+      "touched": true,
+      "exercised": true,
+      "context_level": 1,
+      "why": "The input's value and onChange are in the code, but the context only describes the wiring and gives no decision."
+     },
+     "react-race-conditions": {
+      "slug": "react-race-conditions",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Aborting the previous fetch stops an out-of-order 'ab' response from overwriting the 'abc' one, and the context gives that scenario."
+     },
+     "react-useeffect-deps": {
+      "slug": "react-useeffect-deps",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "The [query, onResults] dependency array is in the code, and the context explains the refetch risk from an unmemoized callback."
+     },
+     "url-encoding": {
+      "slug": "url-encoding",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "encodeURIComponent on the query is in the fetch URL, and the context says it protects against characters like &."
+     }
+    },
+    "coverage": {
+     "sonnet": 1.0,
+     "claude-haiku-4-5": 1.0
+    },
+    "covered": {
+     "sonnet": [
+      "debounce",
+      "useeffect-cleanup",
+      "stale-response-race",
+      "abortcontroller"
+     ],
+     "claude-haiku-4-5": [
+      "debounce",
+      "useeffect-cleanup",
+      "stale-response-race",
+      "abortcontroller"
+     ]
+    }
+   },
+   "concepts": [
+    {
+     "slug": "debounce",
+     "name": "Debounce",
+     "description": "Delay running an action until input has been quiet for a set time, so rapid events like keystrokes trigger one call instead of many.",
+     "tags": [
+      "react",
+      "performance",
+      "input"
+     ],
+     "prerequisites": [
+      "javascript-timers"
+     ],
+     "context": "250ms setTimeout in the useEffect in web/src/SearchBox.tsx, cleared on each query change so only the last keystroke fetches"
+    },
+    {
+     "slug": "react-useeffect-cleanup",
+     "name": "Effect Cleanup",
+     "description": "A function returned from useEffect that React runs before the next effect and on unmount, used to cancel timers, requests and subscriptions.",
+     "tags": [
+      "react",
+      "hooks",
+      "lifecycle"
+     ],
+     "prerequisites": [
+      "react-useeffect"
+     ],
+     "context": "The cleanup in SearchBox.tsx clears the timer and aborts the controller whenever query or onResults changes"
+    },
+    {
+     "slug": "abort-controller",
+     "name": "AbortController",
+     "description": "A web API for cancelling in-flight fetch requests via a signal. An aborted fetch rejects with an AbortError.",
+     "tags": [
+      "fetch",
+      "web-api",
+      "cancellation"
+     ],
+     "prerequisites": [
+      "fetch-api"
+     ],
+     "context": "controller.abort() in the SearchBox.tsx cleanup cancels the stale /api/search request, and the catch ignores the AbortError"
+    },
+    {
+     "slug": "react-controlled-input",
+     "name": "Controlled Input",
+     "description": "A form input whose value is held in React state and updated through onChange, making state the single source of truth.",
+     "tags": [
+      "react",
+      "forms",
+      "state"
+     ],
+     "prerequisites": [
+      "react-usestate"
+     ],
+     "context": "The input in SearchBox.tsx takes value={query} and updates it via setQuery in onChange"
+    },
+    {
+     "slug": "react-race-conditions",
+     "description": "Out-of-order responses overwriting newer data, and why cleanup or an abort signal is the fix.",
+     "tags": [
+      "async",
+      "concurrency",
+      "react"
+     ],
+     "prerequisites": [
+      "abort-controller",
+      "react-useeffect-cleanup"
+     ],
+     "context": "Aborting the previous fetch in SearchBox.tsx keeps a slow response for 'ab' from calling onResults after the one for 'abc'"
+    },
+    {
+     "slug": "react-useeffect-deps",
+     "description": "The dependency array is a correctness contract: any prop or state the effect reads must be listed, and an unstable reference causes extra re-runs.",
+     "tags": [
+      "react",
+      "hooks"
+     ],
+     "prerequisites": [
+      "react-useeffect"
+     ],
+     "context": "[query, onResults] in SearchBox.tsx: an unmemoized onResults from the parent would re-run the effect and refetch on every parent render"
+    },
+    {
+     "slug": "url-encoding",
+     "new": true,
+     "name": "URL Encoding",
+     "description": "Percent-encoding user input before placing it in a URL so reserved characters like & and # cannot change the meaning of the query string.",
+     "tags": [
+      "http",
+      "security",
+      "web"
+     ],
+     "prerequisites": [],
+     "context": "encodeURIComponent(query) in the fetch URL in SearchBox.tsx keeps characters like & from breaking the q parameter"
+    }
+   ],
+   "matched": [
+    {
+     "requested": "react-controlled-input",
+     "resolved": "react-controlled-inputs"
+    }
+   ],
+   "created": [
+    "url-encoding"
+   ],
+   "logged": [
+    "debounce",
+    "react-useeffect-cleanup",
+    "abort-controller",
+    "react-controlled-inputs",
+    "react-race-conditions",
+    "react-useeffect-deps",
+    "url-encoding"
+   ],
+   "mastered_hit": [],
+   "followup": {
+    "call": {
+     "concepts": [
+      {
+       "slug": "url-encoding",
+       "name": "URL Encoding",
+       "domain": "web",
+       "tier": 2,
+       "description": "Percent-encoding user input before placing it in a URL so reserved characters like & and # cannot change the meaning of the query string."
+      }
+     ],
+     "edges": [
+      {
+       "from": "http-basics",
+       "to": "url-encoding",
+       "relation": "prerequisite_of"
+      }
+     ]
+    },
+    "result": {
+     "created": [],
+     "updated": [],
+     "matched": [
+      {
+       "requested": "url-encoding",
+       "resolved": "url-encoding"
+      }
+     ],
+     "rejected": [],
+     "needs_decision": [],
+     "edges_added": 0
+    },
+    "owed": [
+     {
+      "slug": "url-encoding",
+      "domain": true,
+      "tier": true,
+      "edge": true,
+      "stored_domain": "http",
+      "stored_tier": 2,
+      "stored_edge": false
+     }
+    ],
+    "skipped": false
+   }
+  },
+  {
+   "id": "react-debounced-search",
+   "repeat": 2,
+   "score": 0.4167,
+   "gates_failed": [
+    "context_decision"
+   ],
+   "quality": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "context": 1,
+    "followup": 1.0
+   },
+   "det": {
+    "strict": {
+     "matched": [
+      "debounce"
+     ],
+     "missed": [
+      "useeffect-cleanup",
+      "stale-response-race",
+      "abortcontroller"
+     ],
+     "unlabelled": [
+      "react-useeffect-cleanup",
+      "abortcontroller-fetch-cancellation",
+      "react-controlled-input",
+      "react-useeffect",
+      "url-encoding-query-params",
+      "react-race-conditions",
+      "react-useeffect-deps"
+     ],
+     "recall": 0.25,
+     "precision": 0.125
+    },
+    "count_ok": true,
+    "slugs_valid": true,
+    "context_file": true,
+    "contexts_without_file": [],
+    "context_grounded": 1
+   },
+   "judged": {
+    "verdicts": {
+     "react-useeffect-cleanup": {
+      "slug": "react-useeffect-cleanup",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Cleanup returned from the effect clears the timer and aborts the fetch, and the context says so."
+     },
+     "debounce": {
+      "slug": "debounce",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "250ms setTimeout in the effect delays the fetch until typing pauses."
+     },
+     "abortcontroller-fetch-cancellation": {
+      "slug": "abortcontroller-fetch-cancellation",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Signal passed to fetch and the catch ignores AbortError while rethrowing others."
+     },
+     "react-controlled-input": {
+      "slug": "react-controlled-input",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Input value is bound to query state and updated via setQuery in onChange."
+     },
+     "react-useeffect": {
+      "slug": "react-useeffect",
+      "touched": true,
+      "exercised": true,
+      "context_level": 1,
+      "why": "The effect keyed on query does the fetching, but the context states little beyond that."
+     },
+     "url-encoding-query-params": {
+      "slug": "url-encoding-query-params",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "encodeURIComponent on the query in the URL, with the reason given."
+     },
+     "react-race-conditions": {
+      "slug": "react-race-conditions",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Aborting in cleanup prevents stale responses from calling onResults."
+     },
+     "react-useeffect-deps": {
+      "slug": "react-useeffect-deps",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "The [query, onResults] deps are named, along with the consequence of an unstable inline callback."
+     }
+    },
+    "coverage": {
+     "sonnet": 1.0,
+     "claude-haiku-4-5": 1.0
+    },
+    "covered": {
+     "sonnet": [
+      "debounce",
+      "useeffect-cleanup",
+      "stale-response-race",
+      "abortcontroller"
+     ],
+     "claude-haiku-4-5": [
+      "debounce",
+      "useeffect-cleanup",
+      "stale-response-race",
+      "abortcontroller"
+     ]
+    }
+   },
+   "concepts": [
+    {
+     "slug": "react-useeffect-cleanup",
+     "name": "Effect Cleanup",
+     "description": "A React useEffect can return a cleanup function that runs before the next effect and on unmount, undoing the previous run's side effects such as timers, subscriptions and in-flight requests.",
+     "tags": [
+      "react",
+      "hooks",
+      "side-effects"
+     ],
+     "prerequisites": [
+      "react-useeffect"
+     ],
+     "context": "SearchBox.tsx returns a cleanup from the useEffect that calls clearTimeout(timer) and controller.abort(), so each keystroke cancels the previous pending search"
+    },
+    {
+     "slug": "debounce",
+     "name": "Debouncing",
+     "description": "Delaying an action until input has stopped for a set interval, so rapid repeated events trigger one call instead of many.",
+     "tags": [
+      "performance",
+      "events",
+      "ux"
+     ],
+     "prerequisites": [
+      "javascript-timers"
+     ],
+     "context": "SearchBox.tsx wraps the fetch in a 250ms setTimeout inside useEffect, so /api/search is only called after the user pauses typing"
+    },
+    {
+     "slug": "abortcontroller-fetch-cancellation",
+     "name": "Request Cancellation",
+     "description": "An AbortController's signal can be passed to fetch to cancel an in-flight request. The pending promise rejects with an AbortError, which callers must tell apart from real failures.",
+     "tags": [
+      "fetch",
+      "async",
+      "web-api"
+     ],
+     "prerequisites": [
+      "javascript-promises"
+     ],
+     "context": "SearchBox.tsx passes controller.signal to fetch and the catch block ignores err.name === 'AbortError' while rethrowing other errors"
+    },
+    {
+     "slug": "react-controlled-input",
+     "name": "Controlled Input",
+     "description": "A controlled input takes its value from React state and updates that state in onChange, so React state is the single source of truth for what the field shows.",
+     "tags": [
+      "react",
+      "forms",
+      "state"
+     ],
+     "prerequisites": [
+      "react-usestate"
+     ],
+     "context": "SearchBox.tsx binds the input's value to the query state and updates it with setQuery in onChange"
+    },
+    {
+     "slug": "react-useeffect",
+     "name": "useEffect",
+     "description": "React's hook for running side effects after render, such as network calls and timers, and for synchronizing a component with something outside React.",
+     "tags": [
+      "react",
+      "hooks",
+      "side-effects"
+     ],
+     "prerequisites": [],
+     "context": "SearchBox.tsx uses useEffect keyed on query to fetch search results after the input changes"
+    },
+    {
+     "slug": "url-encoding-query-params",
+     "name": "URL Encoding",
+     "description": "User input placed in a URL query string must be percent-encoded, for example with encodeURIComponent, so reserved characters like & and # cannot change the URL's structure.",
+     "tags": [
+      "http",
+      "security",
+      "web-api"
+     ],
+     "prerequisites": [],
+     "context": "SearchBox.tsx builds /api/search?q= with encodeURIComponent(query) so characters such as & or # in the search text cannot break or inject query parameters"
+    },
+    {
+     "slug": "react-race-conditions",
+     "description": "Out-of-order responses overwriting newer data, and why cleanup or an abort signal is the fix.",
+     "context": "SearchBox.tsx aborts the previous request in the effect cleanup, so a slow response for an old query cannot call onResults after a newer query was typed",
+     "prerequisites": [
+      "react-useeffect-cleanup"
+     ]
+    },
+    {
+     "slug": "react-useeffect-deps",
+     "description": "The dependency array is a correctness contract, not a performance knob.",
+     "context": "SearchBox.tsx depends on [query, onResults]; if the parent passes an inline onResults, every parent render restarts the debounce timer and aborts the request",
+     "prerequisites": [
+      "react-useeffect"
+     ]
+    }
+   ],
+   "matched": [
+    {
+     "requested": "react-controlled-input",
+     "resolved": "react-controlled-inputs"
+    }
+   ],
+   "created": [],
+   "logged": [
+    "react-useeffect-cleanup",
+    "debounce",
+    "abortcontroller-fetch-cancellation",
+    "react-controlled-inputs",
+    "react-useeffect",
+    "url-encoding-query-params",
+    "react-race-conditions",
+    "react-useeffect-deps"
+   ],
+   "mastered_hit": [],
+   "followup": {
+    "owed": []
+   }
+  },
+  {
+   "id": "mastered-http-caching",
+   "repeat": 0,
+   "score": 1.0,
+   "gates_failed": [],
+   "quality": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "context": 1,
+    "followup": 1.0
+   },
+   "det": {
+    "strict": {
+     "matched": [
+      "stale-while-revalidate",
+      "vary-header"
+     ],
+     "missed": [
+      "etag-conditional-request"
+     ],
+     "unlabelled": [
+      "http-etag-conditional-requests",
+      "shared-cache-directives",
+      "http-etag-conditional-requests"
+     ],
+     "recall": 0.6666666666666666,
+     "precision": 0.4
+    },
+    "count_ok": true,
+    "slugs_valid": true,
+    "context_file": true,
+    "contexts_without_file": [],
+    "context_grounded": 1
+   },
+   "judged": {
+    "verdicts": {
+     "http-etag-conditional-requests": {
+      "slug": "http-etag-conditional-requests",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "ETag from hashed JSON and If-None-Match returning 304 are implemented and the decision is named."
+     },
+     "stale-while-revalidate": {
+      "slug": "stale-while-revalidate",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "The Cache-Control header sets stale-while-revalidate=300 beyond max-age=60, and the context explains the effect."
+     },
+     "vary-header": {
+      "slug": "vary-header",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Vary: Accept-Language is set and the context says why, preventing cross-language CDN cache mixups."
+     },
+     "shared-cache-directives": {
+      "slug": "shared-cache-directives",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "'public' in Cache-Control is used and the context explains the rationale of non-user-specific payload."
+     }
+    },
+    "coverage": {
+     "sonnet": 1.0,
+     "claude-haiku-4-5": 1.0
+    },
+    "covered": {
+     "sonnet": [
+      "etag-conditional-request",
+      "stale-while-revalidate",
+      "vary-header"
+     ],
+     "claude-haiku-4-5": [
+      "etag-conditional-request",
+      "stale-while-revalidate",
+      "vary-header"
+     ]
+    }
+   },
+   "concepts": [
+    {
+     "slug": "http-etag-conditional-requests",
+     "name": "ETag Conditional Requests",
+     "description": "Server sends a validator (ETag) with the response; the client echoes it in If-None-Match and the server answers 304 Not Modified with no body when the representation is unchanged.",
+     "tags": [
+      "http",
+      "caching",
+      "etag",
+      "304"
+     ],
+     "prerequisites": [
+      "cache-control-headers"
+     ],
+     "context": "catalog.ts: hash of JSON.stringify(catalog) becomes the ETag, and a matching If-None-Match returns res.status(304).end() instead of res.json(catalog)"
+    },
+    {
+     "slug": "stale-while-revalidate",
+     "name": "Stale While Revalidate",
+     "description": "Cache-Control extension that lets a cache serve a stale response for a set window after max-age expires while it refetches a fresh copy in the background.",
+     "tags": [
+      "http",
+      "caching",
+      "cache-control",
+      "freshness"
+     ],
+     "prerequisites": [
+      "cache-control-headers"
+     ],
+     "context": "catalog.ts: Cache-Control 'public, max-age=60, stale-while-revalidate=300' serves a stale catalog for up to 5 minutes past the 60s freshness window"
+    },
+    {
+     "slug": "vary-header",
+     "name": "Vary Header",
+     "description": "Response header naming the request headers that select which cached variant applies, so shared caches key entries on those headers as well as the URL.",
+     "tags": [
+      "http",
+      "caching",
+      "vary",
+      "content-negotiation"
+     ],
+     "prerequisites": [
+      "cache-control-headers"
+     ],
+     "context": "catalog.ts: res.set('Vary', 'Accept-Language') stops a CDN serving one language's catalog to a client asking for another"
+    },
+    {
+     "slug": "shared-cache-directives",
+     "name": "Public Cache Directive",
+     "description": "The public directive allows shared caches such as CDNs and proxies to store the response, versus private, which restricts storage to the end user's browser.",
+     "tags": [
+      "http",
+      "caching",
+      "cdn",
+      "cache-control"
+     ],
+     "prerequisites": [
+      "cache-control-headers"
+     ],
+     "context": "catalog.ts: 'public' in Cache-Control makes the /catalog response storable by shared caches, which is safe only because the payload is not user-specific"
+    },
+    {
+     "slug": "http-etag-conditional-requests",
+     "description": "Server sends a validator (ETag) with the response; the client echoes it in If-None-Match and the server answers 304 Not Modified with no body when the representation is unchanged. The validator can be a hash of the serialized body, so the tag changes exactly when the content does; the cost is that the body is built on every request.",
+     "tags": [
+      "http",
+      "caching",
+      "etag",
+      "304",
+      "hashing"
+     ],
+     "prerequisites": [
+      "cache-control-headers"
+     ],
+     "context": "catalog.ts: hash of JSON.stringify(catalog) becomes the ETag, and a matching If-None-Match returns res.status(304).end(). loadCatalog() and the hash run before the comparison, so a 304 saves bandwidth but not server work"
+    }
+   ],
+   "matched": [],
+   "created": [],
+   "logged": [
+    "http-etag-conditional-requests",
+    "stale-while-revalidate",
+    "vary-header",
+    "shared-cache-directives"
+   ],
+   "mastered_hit": [],
+   "followup": {
+    "owed": []
+   }
+  },
+  {
+   "id": "mastered-http-caching",
+   "repeat": 1,
+   "score": 0.4125,
+   "gates_failed": [
+    "context_decision"
+   ],
+   "quality": {
+    "recall": 1.0,
+    "precision": 0.8333333333333334,
+    "context": 1,
+    "followup": 1.0
+   },
+   "det": {
+    "strict": {
+     "matched": [
+      "stale-while-revalidate",
+      "vary-header"
+     ],
+     "missed": [
+      "etag-conditional-request"
+     ],
+     "unlabelled": [
+      "http-etag-conditional-requests",
+      "shared-cache-directives",
+      "express-routing",
+      "content-hash-validators"
+     ],
+     "recall": 0.6666666666666666,
+     "precision": 0.3333333333333333
+    },
+    "count_ok": true,
+    "slugs_valid": true,
+    "context_file": true,
+    "contexts_without_file": [],
+    "context_grounded": 1
+   },
+   "judged": {
+    "verdicts": {
+     "http-etag-conditional-requests": {
+      "slug": "http-etag-conditional-requests",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the hashed quoted ETag, header set, and 304 on If-None-Match match."
+     },
+     "stale-while-revalidate": {
+      "slug": "stale-while-revalidate",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Cites the exact directive values: 60s fresh plus 300s stale window."
+     },
+     "vary-header": {
+      "slug": "vary-header",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names Vary: Accept-Language and why it prevents cross-language cache mixups."
+     },
+     "shared-cache-directives": {
+      "slug": "shared-cache-directives",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Identifies 'public' on the route and its effect of allowing CDN caching."
+     },
+     "express-routing": {
+      "slug": "express-routing",
+      "touched": true,
+      "exercised": false,
+      "context_level": 1,
+      "why": "Route is a basic handler; the code teaches little about routing itself, and the context just describes the flow."
+     },
+     "content-hash-validators": {
+      "slug": "content-hash-validators",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Notes the hash is computed on every request after loadCatalog, so 304 saves bandwidth not work."
+     }
+    },
+    "coverage": {
+     "sonnet": 1.0,
+     "claude-haiku-4-5": 1.0
+    },
+    "covered": {
+     "sonnet": [
+      "etag-conditional-request",
+      "stale-while-revalidate",
+      "vary-header"
+     ],
+     "claude-haiku-4-5": [
+      "etag-conditional-request",
+      "stale-while-revalidate",
+      "vary-header"
+     ]
+    }
+   },
+   "concepts": [
+    {
+     "slug": "http-etag-conditional-requests",
+     "name": "ETag Conditional Requests",
+     "description": "An ETag is a validator for a response's content. The client sends it back in If-None-Match, and the server answers 304 Not Modified with no body when it still matches, saving bandwidth.",
+     "tags": [
+      "http",
+      "caching",
+      "etag",
+      "304"
+     ],
+     "prerequisites": [
+      "cache-control-headers"
+     ],
+     "context": "catalog.ts: hash the JSON catalog into a quoted ETag, set it, and return 304 when If-None-Match equals it"
+    },
+    {
+     "slug": "stale-while-revalidate",
+     "name": "Stale While Revalidate",
+     "description": "A Cache-Control extension that lets a cache serve an expired response immediately while it refetches a fresh copy in the background, trading brief staleness for lower latency.",
+     "tags": [
+      "http",
+      "caching",
+      "cache-control",
+      "latency"
+     ],
+     "prerequisites": [
+      "cache-control-headers"
+     ],
+     "context": "catalog.ts: 'public, max-age=60, stale-while-revalidate=300' serves a stale catalog for up to 5 minutes after the 60s freshness window"
+    },
+    {
+     "slug": "vary-header",
+     "name": "Vary Header",
+     "description": "The Vary response header names the request headers that change the response, so caches key stored copies on them and do not serve one variant to a client who needs another.",
+     "tags": [
+      "http",
+      "caching",
+      "vary",
+      "content-negotiation"
+     ],
+     "prerequisites": [
+      "cache-control-headers"
+     ],
+     "context": "catalog.ts: 'Vary: Accept-Language' keeps shared caches from serving one language's catalog to another language's client"
+    },
+    {
+     "slug": "shared-cache-directives",
+     "name": "Public Cache Directive",
+     "description": "The public directive allows shared caches such as CDNs and proxies to store a response, not only the browser, which makes the Vary and validator choices matter for every user.",
+     "tags": [
+      "http",
+      "caching",
+      "cdn",
+      "public"
+     ],
+     "prerequisites": [
+      "cache-control-headers"
+     ],
+     "context": "catalog.ts: 'public' on /catalog lets a CDN cache and serve the response to many users"
+    },
+    {
+     "slug": "express-routing",
+     "context": "catalog.ts: router.get('/catalog') sets headers, short-circuits with 304 and return, otherwise sends res.json(catalog)"
+    },
+    {
+     "slug": "content-hash-validators",
+     "new": true,
+     "name": "Content Hash Validators",
+     "description": "Deriving a validator from a hash of the serialized body means the tag changes exactly when the content does, though the server still pays to load and serialize the data on every request.",
+     "tags": [
+      "hashing",
+      "caching",
+      "etag",
+      "performance"
+     ],
+     "prerequisites": [
+      "http-etag-conditional-requests"
+     ],
+     "context": "catalog.ts: hash(JSON.stringify(catalog)) after loadCatalog() on every request, so a 304 saves bandwidth but not server work"
+    }
+   ],
+   "matched": [],
+   "created": [
+    "content-hash-validators"
+   ],
+   "logged": [
+    "http-etag-conditional-requests",
+    "stale-while-revalidate",
+    "vary-header",
+    "shared-cache-directives",
+    "express-routing",
+    "content-hash-validators"
+   ],
+   "mastered_hit": [],
+   "followup": {
+    "owed": []
+   }
+  },
+  {
+   "id": "mastered-http-caching",
+   "repeat": 2,
+   "score": 1.0,
+   "gates_failed": [],
+   "quality": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "context": 1,
+    "followup": 1.0
+   },
+   "det": {
+    "strict": {
+     "matched": [
+      "stale-while-revalidate",
+      "etag-conditional-request",
+      "vary-header"
+     ],
+     "missed": [],
+     "unlabelled": [
+      "public-shared-cache",
+      "express-routing"
+     ],
+     "recall": 1,
+     "precision": 0.6
+    },
+    "count_ok": true,
+    "slugs_valid": true,
+    "context_file": true,
+    "contexts_without_file": [],
+    "context_grounded": 1
+   },
+   "judged": {
+    "verdicts": {
+     "stale-while-revalidate": {
+      "slug": "stale-while-revalidate",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "The code sets stale-while-revalidate=300 with max-age=60, and the context names both values and the route."
+     },
+     "etag-conditional-requests": {
+      "slug": "etag-conditional-requests",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "The code hashes the serialized catalog into an ETag and returns 304 when If-None-Match matches, as the context says."
+     },
+     "vary-header": {
+      "slug": "vary-header",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "The code sets Vary: Accept-Language, and the context gives the reason (per-language CDN caching)."
+     },
+     "public-shared-cache": {
+      "slug": "public-shared-cache",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "The code sets Cache-Control: public, and the context explains it makes the response CDN-storable."
+     },
+     "express-routing": {
+      "slug": "express-routing",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "The code is an Express router.get handler, and the context describes its flow (headers, 304 short-circuit, else JSON)."
+     }
+    },
+    "coverage": {
+     "sonnet": 1.0,
+     "claude-haiku-4-5": 1.0
+    },
+    "covered": {
+     "sonnet": [
+      "etag-conditional-request",
+      "stale-while-revalidate",
+      "vary-header"
+     ],
+     "claude-haiku-4-5": [
+      "etag-conditional-request",
+      "stale-while-revalidate",
+      "vary-header"
+     ]
+    }
+   },
+   "concepts": [
+    {
+     "slug": "stale-while-revalidate",
+     "name": "Stale While Revalidate",
+     "description": "Cache-Control extension letting a cache serve a stale response for a set window while it refetches in the background, trading freshness for latency.",
+     "tags": [
+      "http",
+      "caching",
+      "cache-control"
+     ],
+     "prerequisites": [
+      "cache-control-headers"
+     ],
+     "context": "stale-while-revalidate=300 alongside max-age=60 on the /catalog response in server/routes/catalog.ts"
+    },
+    {
+     "slug": "etag-conditional-requests",
+     "name": "ETag Conditional Requests",
+     "description": "Validator-based revalidation: the server sends an ETag, the client echoes it in If-None-Match, and an unchanged resource gets a bodyless 304 Not Modified.",
+     "tags": [
+      "http",
+      "caching",
+      "etag",
+      "304"
+     ],
+     "prerequisites": [
+      "cache-control-headers"
+     ],
+     "context": "ETag from a hash of the serialized catalog; If-None-Match equality check returns 304 in server/routes/catalog.ts"
+    },
+    {
+     "slug": "vary-header",
+     "name": "Vary Header",
+     "description": "Response header naming the request headers that select a representation, so shared caches key stored responses on them and don't serve the wrong variant.",
+     "tags": [
+      "http",
+      "caching",
+      "vary",
+      "content-negotiation"
+     ],
+     "prerequisites": [
+      "cache-control-headers"
+     ],
+     "context": "Vary: Accept-Language on /catalog so a CDN caches per language in server/routes/catalog.ts"
+    },
+    {
+     "slug": "public-shared-cache",
+     "name": "Public Shared Caching",
+     "description": "The public directive allows shared caches such as CDNs and proxies to store a response, as opposed to private, which limits storage to the user's own browser.",
+     "tags": [
+      "http",
+      "caching",
+      "cdn",
+      "security"
+     ],
+     "prerequisites": [
+      "cache-control-headers"
+     ],
+     "context": "Cache-Control: public on /catalog marks the response safe for CDN storage in server/routes/catalog.ts"
+    },
+    {
+     "slug": "express-routing",
+     "name": "Routing",
+     "description": "Matching method and path to a handler, including how route order decides ambiguity.",
+     "tags": [
+      "express",
+      "node",
+      "http",
+      "routing"
+     ],
+     "prerequisites": [],
+     "context": "router.get('/catalog') handler sets headers, short-circuits with res.status(304).end(), else res.json(catalog) in server/routes/catalog.ts"
+    }
+   ],
+   "matched": [],
+   "created": [],
+   "logged": [
+    "stale-while-revalidate",
+    "etag-conditional-requests",
+    "vary-header",
+    "public-shared-cache",
+    "express-routing"
+   ],
+   "mastered_hit": [],
+   "followup": {
+    "owed": []
+   }
+  },
+  {
+   "id": "ts-zod-boundary-parse",
+   "repeat": 0,
+   "score": 0.4056,
+   "gates_failed": [
+    "context_decision"
+   ],
+   "quality": {
+    "recall": 0.6666666666666666,
+    "precision": 1.0,
+    "context": 1,
+    "followup": 1.0
+   },
+   "det": {
+    "strict": {
+     "matched": [],
+     "missed": [
+      "runtime-schema-validation",
+      "infer-type-from-schema",
+      "validate-at-trust-boundary"
+     ],
+     "unlabelled": [
+      "schema-validation",
+      "safe-parse",
+      "inferred-types",
+      "http-status-codes",
+      "fetch-api-handlers",
+      "error-response-shape"
+     ],
+     "recall": 0,
+     "precision": 0
+    },
+    "count_ok": true,
+    "slugs_valid": true,
+    "context_file": true,
+    "contexts_without_file": [],
+    "context_grounded": 1
+   },
+   "judged": {
+    "verdicts": {
+     "schema-validation": {
+      "slug": "schema-validation",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names OrderBody and the specific constraints (non-empty sku, integer 1\u2013100 quantity) defined there."
+     },
+     "safe-parse": {
+      "slug": "safe-parse",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names createOrder and the decision to branch on parsed.success instead of try/catch around parse."
+     },
+     "inferred-types": {
+      "slug": "inferred-types",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Points to the z.infer line and the shared name for schema value and type."
+     },
+     "http-status-codes": {
+      "slug": "http-status-codes",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "States 400 with field errors for invalid input and 201 with the order on success."
+     },
+     "fetch-api-handlers": {
+      "slug": "fetch-api-handlers",
+      "touched": true,
+      "exercised": true,
+      "context_level": 1,
+      "why": "Names the handler signature and req.json/Response.json usage but not a particular decision."
+     },
+     "error-response-shape": {
+      "slug": "error-response-shape",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Identifies flatten().fieldErrors and how it maps failing fields to message lists."
+     }
+    },
+    "coverage": {
+     "sonnet": 0.6666666666666666,
+     "claude-haiku-4-5": 0.6666666666666666
+    },
+    "covered": {
+     "sonnet": [
+      "runtime-schema-validation",
+      "infer-type-from-schema"
+     ],
+     "claude-haiku-4-5": [
+      "runtime-schema-validation",
+      "infer-type-from-schema"
+     ]
+    }
+   },
+   "concepts": [
+    {
+     "slug": "schema-validation",
+     "name": "Schema Validation",
+     "description": "Checking untrusted input against a declared schema at the trust boundary, so handlers only see data of a known shape and range.",
+     "tags": [
+      "validation",
+      "zod",
+      "api"
+     ],
+     "prerequisites": [
+      "typescript-types"
+     ],
+     "context": "OrderBody in src/routes/orders.ts:3 requires a non-empty sku and an integer quantity from 1 to 100 before createOrder touches the request"
+    },
+    {
+     "slug": "safe-parse",
+     "name": "Zod safeParse",
+     "description": "safeParse returns a result object with success and data or error instead of throwing, so the caller handles invalid input as a normal branch.",
+     "tags": [
+      "zod",
+      "error-handling"
+     ],
+     "prerequisites": [
+      "schema-validation"
+     ],
+     "context": "createOrder in src/routes/orders.ts:11 branches on parsed.success rather than wrapping OrderBody.parse in try/catch"
+    },
+    {
+     "slug": "inferred-types",
+     "name": "Schema-Inferred Types",
+     "description": "Deriving a static TypeScript type from a runtime schema with z.infer, so the type and the validator cannot drift apart.",
+     "tags": [
+      "typescript",
+      "zod"
+     ],
+     "prerequisites": [
+      "typescript-types"
+     ],
+     "context": "type OrderBody = z.infer<typeof OrderBody> in src/routes/orders.ts:7 shares one name for the schema value and its type"
+    },
+    {
+     "slug": "http-status-codes",
+     "name": "HTTP Status Codes",
+     "description": "Choosing status codes that tell the client whose fault a failure is and what succeeded: 400 for bad input, 201 for a created resource.",
+     "tags": [
+      "http",
+      "api"
+     ],
+     "prerequisites": [],
+     "context": "createOrder in src/routes/orders.ts returns 400 with field errors on invalid bodies and 201 with the order on success"
+    },
+    {
+     "slug": "fetch-api-handlers",
+     "name": "Fetch API Handlers",
+     "description": "Writing request handlers against the web-standard Request and Response objects, including awaiting req.json() and building Response.json.",
+     "tags": [
+      "web-standards",
+      "api"
+     ],
+     "prerequisites": [
+      "async-await"
+     ],
+     "context": "createOrder(req: Request): Promise<Response> in src/routes/orders.ts:10 reads the body with await req.json() and replies via Response.json"
+    },
+    {
+     "slug": "error-response-shape",
+     "new": true,
+     "name": "Error Response Shape",
+     "description": "Returning validation failures in a structured per-field format so clients can show each error next to its input.",
+     "tags": [
+      "api",
+      "validation"
+     ],
+     "prerequisites": [
+      "http-status-codes"
+     ],
+     "context": "parsed.error.flatten().fieldErrors in src/routes/orders.ts:13 maps each failing field such as quantity to its list of messages"
+    }
+   ],
+   "matched": [],
+   "created": [
+    "error-response-shape"
+   ],
+   "logged": [
+    "schema-validation",
+    "safe-parse",
+    "inferred-types",
+    "http-status-codes",
+    "fetch-api-handlers",
+    "error-response-shape"
+   ],
+   "mastered_hit": [],
+   "followup": {
+    "owed": []
+   }
+  },
+  {
+   "id": "ts-zod-boundary-parse",
+   "repeat": 1,
+   "score": 0.3289,
+   "gates_failed": [
+    "context_file",
+    "context_decision"
+   ],
+   "quality": {
+    "recall": 0.8333333333333333,
+    "precision": 1.0,
+    "context": 1,
+    "followup": 1.0
+   },
+   "det": {
+    "strict": {
+     "matched": [],
+     "missed": [
+      "runtime-schema-validation",
+      "infer-type-from-schema",
+      "validate-at-trust-boundary"
+     ],
+     "unlabelled": [
+      "schema-validation",
+      "safe-parse",
+      "type-inference-from-schema",
+      "http-status-codes",
+      "http-request-handling",
+      "validation-error-responses"
+     ],
+     "recall": 0,
+     "precision": 0
+    },
+    "count_ok": true,
+    "slugs_valid": true,
+    "context_file": false,
+    "contexts_without_file": [
+     "http-status-codes",
+     "validation-error-responses"
+    ],
+    "context_grounded": 1
+   },
+   "judged": {
+    "verdicts": {
+     "schema-validation": {
+      "slug": "schema-validation",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the schema and its specific constraints and that it runs before placeOrder."
+     },
+     "safe-parse": {
+      "slug": "safe-parse",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the safeParse call, the early-return branch, and that data is used only after the check."
+     },
+     "type-inference-from-schema": {
+      "slug": "type-inference-from-schema",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Identifies the z.infer type sharing the schema's name and being derived rather than hand-written."
+     },
+     "http-status-codes": {
+      "slug": "http-status-codes",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "States 400 for invalid bodies and 201 for created orders in createOrder."
+     },
+     "http-request-handling": {
+      "slug": "http-request-handling",
+      "touched": true,
+      "exercised": true,
+      "context_level": 1,
+      "why": "Names the handler signature and calls but describes usage more than a decision."
+     },
+     "validation-error-responses": {
+      "slug": "validation-error-responses",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the flatten().fieldErrors expression and the resulting map shape in the 400 body."
+     }
+    },
+    "coverage": {
+     "sonnet": 0.6666666666666666,
+     "claude-haiku-4-5": 1.0
+    },
+    "covered": {
+     "sonnet": [
+      "runtime-schema-validation",
+      "infer-type-from-schema"
+     ],
+     "claude-haiku-4-5": [
+      "runtime-schema-validation",
+      "infer-type-from-schema",
+      "validate-at-trust-boundary"
+     ]
+    }
+   },
+   "concepts": [
+    {
+     "slug": "schema-validation",
+     "name": "Schema Validation",
+     "description": "Checking untrusted input against a declared schema at the boundary, so handlers only see data of the expected shape and constraints.",
+     "tags": [
+      "validation",
+      "api",
+      "zod"
+     ],
+     "prerequisites": [
+      "http-request-handling"
+     ],
+     "context": "OrderBody z.object in src/routes/orders.ts requires sku min(1) and quantity as a positive int capped at 100, checked before placeOrder runs"
+    },
+    {
+     "slug": "safe-parse",
+     "name": "Safe Parse",
+     "description": "Using a non-throwing parse that returns a success/failure result, so invalid input becomes a handled branch instead of an exception.",
+     "tags": [
+      "error-handling",
+      "zod",
+      "validation"
+     ],
+     "prerequisites": [
+      "schema-validation"
+     ],
+     "context": "OrderBody.safeParse(await req.json()) in createOrder returns a result object; the !parsed.success branch returns early, and parsed.data is only used after it"
+    },
+    {
+     "slug": "type-inference-from-schema",
+     "name": "Schema Type Inference",
+     "description": "Deriving the static TypeScript type from the runtime schema, so the type and the validation rules cannot drift apart.",
+     "tags": [
+      "typescript",
+      "zod",
+      "types"
+     ],
+     "prerequisites": [
+      "schema-validation"
+     ],
+     "context": "type OrderBody = z.infer<typeof OrderBody> in src/routes/orders.ts shares its name with the schema const and is derived from it rather than written by hand"
+    },
+    {
+     "slug": "http-status-codes",
+     "name": "HTTP Status Codes",
+     "description": "Choosing response codes that tell the client what happened: 400 for a bad request body, 201 for a created resource.",
+     "tags": [
+      "http",
+      "api",
+      "rest"
+     ],
+     "prerequisites": [
+      "http-request-handling"
+     ],
+     "context": "createOrder returns status 400 with field errors for invalid bodies and 201 with the order for a successful placeOrder"
+    },
+    {
+     "slug": "http-request-handling",
+     "name": "HTTP Request Handling",
+     "description": "Reading a request and building a response with the web-standard Request and Response objects in an async handler.",
+     "tags": [
+      "http",
+      "fetch-api",
+      "async"
+     ],
+     "prerequisites": [],
+     "context": "createOrder(req: Request): Promise<Response> reads the body with await req.json() and builds replies with Response.json in src/routes/orders.ts"
+    },
+    {
+     "slug": "validation-error-responses",
+     "new": true,
+     "name": "Validation Error Responses",
+     "description": "Shaping validation failures into a per-field error map the client can show next to each input, rather than a single opaque message.",
+     "tags": [
+      "api",
+      "error-handling",
+      "zod"
+     ],
+     "prerequisites": [
+      "safe-parse",
+      "http-status-codes"
+     ],
+     "context": "parsed.error.flatten().fieldErrors in createOrder turns the Zod error into a map such as { quantity: [...] } sent in the 400 body"
+    }
+   ],
+   "matched": [],
+   "created": [
+    "validation-error-responses"
+   ],
+   "logged": [
+    "schema-validation",
+    "safe-parse",
+    "type-inference-from-schema",
+    "http-status-codes",
+    "http-request-handling",
+    "validation-error-responses"
+   ],
+   "mastered_hit": [],
+   "followup": {
+    "owed": []
+   }
+  },
+  {
+   "id": "ts-zod-boundary-parse",
+   "repeat": 2,
+   "score": 0.4167,
+   "gates_failed": [
+    "context_file"
+   ],
+   "quality": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "context": 1,
+    "followup": 1.0
+   },
+   "det": {
+    "strict": {
+     "matched": [],
+     "missed": [
+      "runtime-schema-validation",
+      "infer-type-from-schema",
+      "validate-at-trust-boundary"
+     ],
+     "unlabelled": [
+      "schema-validation",
+      "zod-safe-parse",
+      "type-inference-from-schema",
+      "field-error-responses",
+      "http-request-response",
+      "input-trust-boundary",
+      "http-status-codes"
+     ],
+     "recall": 0,
+     "precision": 0
+    },
+    "count_ok": true,
+    "slugs_valid": true,
+    "context_file": false,
+    "contexts_without_file": [
+     "field-error-responses",
+     "http-status-codes"
+    ],
+    "context_grounded": 1
+   },
+   "judged": {
+    "verdicts": {
+     "schema-validation": {
+      "slug": "schema-validation",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names OrderBody and the specific rules (non-empty sku, integer quantity 1\u2013100) enforced before placeOrder."
+     },
+     "zod-safe-parse": {
+      "slug": "zod-safe-parse",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the safeParse call, the 400 on failure, and data used only on success."
+     },
+     "type-inference-from-schema": {
+      "slug": "type-inference-from-schema",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Identifies z.infer type sharing a name with the schema const, a real code decision."
+     },
+     "field-error-responses": {
+      "slug": "field-error-responses",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Points to flatten().fieldErrors in the 400 response and its shape for form fields."
+     },
+     "http-request-response": {
+      "slug": "http-request-response",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the standard Request/Response usage with req.json() and Response.json with status."
+     },
+     "input-trust-boundary": {
+      "slug": "input-trust-boundary",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Explains that unchecked req.json() is validated and only parsed.data reaches placeOrder, with the max cap."
+     },
+     "http-status-codes": {
+      "slug": "http-status-codes",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names 400 for invalid bodies and 201 after creation in createOrder."
+     }
+    },
+    "coverage": {
+     "sonnet": 1.0,
+     "claude-haiku-4-5": 1.0
+    },
+    "covered": {
+     "sonnet": [
+      "runtime-schema-validation",
+      "infer-type-from-schema",
+      "validate-at-trust-boundary"
+     ],
+     "claude-haiku-4-5": [
+      "runtime-schema-validation",
+      "infer-type-from-schema",
+      "validate-at-trust-boundary"
+     ]
+    }
+   },
+   "concepts": [
+    {
+     "slug": "schema-validation",
+     "name": "Schema Validation",
+     "description": "Declaring the shape and constraints of untrusted input as a schema and checking data against it at runtime before the rest of the code uses it.",
+     "tags": [
+      "validation",
+      "zod",
+      "api"
+     ],
+     "prerequisites": [
+      "http-request-response"
+     ],
+     "context": "OrderBody in src/routes/orders.ts checks sku is a non-empty string and quantity is an integer from 1 to 100 before createOrder calls placeOrder"
+    },
+    {
+     "slug": "zod-safe-parse",
+     "name": "Zod safeParse",
+     "description": "safeParse returns a result object with success true plus data, or success false plus error, instead of throwing, so the caller branches explicitly on bad input.",
+     "tags": [
+      "zod",
+      "error-handling",
+      "typescript"
+     ],
+     "prerequisites": [
+      "schema-validation"
+     ],
+     "context": "createOrder calls OrderBody.safeParse(await req.json()) and returns a 400 when parsed.success is false, using parsed.data only on the success path"
+    },
+    {
+     "slug": "type-inference-from-schema",
+     "name": "Schema Type Inference",
+     "description": "Deriving a static TypeScript type from a runtime schema with z.infer, so the type and the validator come from one definition and cannot drift apart.",
+     "tags": [
+      "typescript",
+      "zod",
+      "types"
+     ],
+     "prerequisites": [
+      "schema-validation"
+     ],
+     "context": "type OrderBody = z.infer<typeof OrderBody> in src/routes/orders.ts shares a name with the schema const, so one identifier serves as both value and type"
+    },
+    {
+     "slug": "field-error-responses",
+     "name": "Field Error Responses",
+     "description": "Returning validation failures as a map from field name to messages, so a client can show each error beside the input that caused it.",
+     "tags": [
+      "api",
+      "validation",
+      "ux"
+     ],
+     "prerequisites": [
+      "schema-validation",
+      "http-status-codes"
+     ],
+     "context": "parsed.error.flatten().fieldErrors in createOrder's 400 response gives the client { quantity: [...] } to attach to the form field"
+    },
+    {
+     "slug": "http-request-response",
+     "name": "Request and Response",
+     "description": "The web-standard Request and Response objects: reading a body as JSON from a request and building a response with a status code.",
+     "tags": [
+      "http",
+      "fetch-api",
+      "typescript"
+     ],
+     "prerequisites": [],
+     "context": "createOrder takes a standard Request, reads it with req.json(), and builds replies with Response.json(body, { status })"
+    },
+    {
+     "slug": "input-trust-boundary",
+     "name": "Trust Boundary Validation",
+     "description": "Treating data from outside the process as untrusted and validating it once at the edge, so inner code works with checked, typed values.",
+     "tags": [
+      "security",
+      "validation",
+      "architecture"
+     ],
+     "prerequisites": [
+      "schema-validation"
+     ],
+     "context": "req.json() returns unchecked data, and only parsed.data, which passed OrderBody, reaches placeOrder; the max(100) cap bounds the order size at that edge"
+    },
+    {
+     "slug": "http-status-codes",
+     "new": true,
+     "name": "HTTP Status Codes",
+     "domain": "http",
+     "tier": 1,
+     "description": "Choosing status codes that tell the client what happened: 4xx when the client sent a bad request, 2xx for success, with 201 meaning a new resource was created.",
+     "tags": [
+      "http",
+      "api",
+      "rest"
+     ],
+     "prerequisites": [
+      "http-request-response"
+     ],
+     "context": "createOrder returns 400 for invalid bodies and 201 after placeOrder creates the order"
+    }
+   ],
+   "matched": [],
+   "created": [
+    "http-status-codes"
+   ],
+   "logged": [
+    "schema-validation",
+    "zod-safe-parse",
+    "type-inference-from-schema",
+    "field-error-responses",
+    "http-request-response",
+    "input-trust-boundary",
+    "http-status-codes"
+   ],
+   "mastered_hit": [],
+   "followup": {
+    "owed": []
+   }
+  },
+  {
+   "id": "dockerfile-layer-cache",
+   "repeat": 0,
+   "score": 0.4006,
+   "gates_failed": [
+    "context_decision"
+   ],
+   "quality": {
+    "recall": 1.0,
+    "precision": 0.8571428571428571,
+    "context": 1,
+    "followup": 0.0
+   },
+   "det": {
+    "strict": {
+     "matched": [
+      "docker-layer-caching",
+      "non-root-container-user"
+     ],
+     "missed": [
+      "multi-stage-build"
+     ],
+     "unlabelled": [
+      "docker-multi-stage-build",
+      "npm-ci-reproducible-install",
+      "docker-exec-form-cmd",
+      "node-env-vars",
+      "docker-images"
+     ],
+     "recall": 0.6666666666666666,
+     "precision": 0.2857142857142857
+    },
+    "count_ok": true,
+    "slugs_valid": true,
+    "context_file": true,
+    "contexts_without_file": [],
+    "context_grounded": 1
+   },
+   "judged": {
+    "verdicts": {
+     "docker-multi-stage-build": {
+      "slug": "docker-multi-stage-build",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Two FROM stages with COPY --from=build of dist and node_modules is a clear multi-stage build, and the context names that decision."
+     },
+     "docker-layer-caching": {
+      "slug": "docker-layer-caching",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Copying manifests and running npm ci before COPY . . is the classic cache-ordering pattern, and the context explains it."
+     },
+     "npm-ci-reproducible-install": {
+      "slug": "npm-ci-reproducible-install",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Line 4 runs npm ci with the lockfile copied, and the context states the reason for choosing it over npm install."
+     },
+     "container-non-root-user": {
+      "slug": "container-non-root-user",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "USER node before CMD drops root privileges, and the context names the line and the built-in user."
+     },
+     "docker-exec-form-cmd": {
+      "slug": "docker-exec-form-cmd",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "CMD uses JSON exec form, and the context names the line and contrasts it with shell form."
+     },
+     "node-env-vars": {
+      "slug": "node-env-vars",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "ENV NODE_ENV=production is set in the runtime stage, and the context names the line and the stage."
+     },
+     "docker-images": {
+      "slug": "docker-images",
+      "touched": true,
+      "exercised": false,
+      "context_level": 1,
+      "why": "The base image is used, but picking node:22-slim is a basic choice that teaches little, and the context only names the file."
+     }
+    },
+    "coverage": {
+     "sonnet": 1.0,
+     "claude-haiku-4-5": 1.0
+    },
+    "covered": {
+     "sonnet": [
+      "docker-layer-caching",
+      "multi-stage-build",
+      "non-root-container-user"
+     ],
+     "claude-haiku-4-5": [
+      "docker-layer-caching",
+      "multi-stage-build",
+      "non-root-container-user"
+     ]
+    }
+   },
+   "concepts": [
+    {
+     "slug": "docker-multi-stage-build",
+     "name": "Multi-Stage Build",
+     "description": "Using several FROM stages in one Dockerfile so build tooling and source stay in an early stage and only the needed artifacts are copied into a small final image.",
+     "tags": [
+      "docker",
+      "build",
+      "images"
+     ],
+     "prerequisites": [
+      "docker-images"
+     ],
+     "context": "Dockerfile:1-14 builds in a `build` stage, then the final node:22-slim stage copies only dist and node_modules via COPY --from=build"
+    },
+    {
+     "slug": "docker-layer-caching",
+     "name": "Layer Caching",
+     "description": "Docker caches each instruction's layer and reuses it until that instruction or its inputs change, so instruction order decides how much is rebuilt.",
+     "tags": [
+      "docker",
+      "caching",
+      "build-performance"
+     ],
+     "prerequisites": [
+      "docker-images"
+     ],
+     "context": "Dockerfile:3-5 copies package.json and package-lock.json and runs npm ci before COPY . ., so the dependency layer is reused when only source files change"
+    },
+    {
+     "slug": "npm-ci-reproducible-install",
+     "name": "npm ci",
+     "description": "npm ci installs exactly what package-lock.json specifies, deletes any existing node_modules first and fails if the lockfile and package.json disagree, which makes installs reproducible.",
+     "tags": [
+      "npm",
+      "dependencies",
+      "reproducibility"
+     ],
+     "prerequisites": [],
+     "context": "Dockerfile:4 uses npm ci instead of npm install so the build image gets the locked dependency versions"
+    },
+    {
+     "slug": "container-non-root-user",
+     "name": "Non-Root Container User",
+     "description": "Running the container process as an unprivileged user limits the damage if the application is compromised, because the process has no root rights inside the container.",
+     "tags": [
+      "docker",
+      "security",
+      "least-privilege"
+     ],
+     "prerequisites": [
+      "docker-images"
+     ],
+     "context": "Dockerfile:12 sets USER node, the unprivileged user built into the node image, before CMD starts dist/server.js"
+    },
+    {
+     "slug": "docker-exec-form-cmd",
+     "name": "Exec-Form CMD",
+     "description": "The JSON-array form of CMD runs the process directly, with no shell, so it is PID 1 and receives signals such as SIGTERM, which allows graceful shutdown.",
+     "tags": [
+      "docker",
+      "process",
+      "signals"
+     ],
+     "prerequisites": [
+      "docker-images"
+     ],
+     "context": "Dockerfile:13 uses CMD [\"node\", \"dist/server.js\"] rather than a shell-form string"
+    },
+    {
+     "slug": "node-env-vars",
+     "context": "Dockerfile:10 sets ENV NODE_ENV=production in the runtime stage, configuring Node libraries through an environment variable rather than code"
+    },
+    {
+     "slug": "docker-images",
+     "name": "Docker Images",
+     "new": true,
+     "description": "A Docker image is a layered, read-only filesystem snapshot plus metadata, built from a Dockerfile and used to start containers.",
+     "tags": [
+      "docker",
+      "basics"
+     ],
+     "prerequisites": [],
+     "context": "Dockerfile uses node:22-slim as the base image for both the build and runtime stages"
+    }
+   ],
+   "matched": [],
+   "created": [
+    "docker-images"
+   ],
+   "logged": [
+    "docker-multi-stage-build",
+    "docker-layer-caching",
+    "npm-ci-reproducible-install",
+    "container-non-root-user",
+    "docker-exec-form-cmd",
+    "node-env-vars",
+    "docker-images"
+   ],
+   "mastered_hit": [],
+   "followup": {
+    "call": {
+     "concepts": [],
+     "edges": [
+      {
+       "from": "docker-images",
+       "to": "docker-multi-stage-build",
+       "relation": "prerequisite_of"
+      }
+     ]
+    },
+    "error": "concepts: Too small: expected array to have >=1 items",
+    "owed": [
+     {
+      "slug": "docker-images",
+      "domain": false,
+      "tier": false,
+      "edge": true,
+      "stored_domain": "docker",
+      "stored_tier": 2,
+      "stored_edge": true
+     }
+    ],
+    "skipped": true
+   }
+  },
+  {
+   "id": "dockerfile-layer-cache",
+   "repeat": 1,
+   "score": 1.0,
+   "gates_failed": [],
+   "quality": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "context": 1,
+    "followup": 1.0
+   },
+   "det": {
+    "strict": {
+     "matched": [
+      "docker-layer-caching",
+      "non-root-container-user"
+     ],
+     "missed": [
+      "multi-stage-build"
+     ],
+     "unlabelled": [
+      "docker-multi-stage-build",
+      "npm-ci-reproducible-install",
+      "docker-cmd-exec-form",
+      "docker-image-size-slim-base",
+      "node-env-production"
+     ],
+     "recall": 0.6666666666666666,
+     "precision": 0.2857142857142857
+    },
+    "count_ok": true,
+    "slugs_valid": true,
+    "context_file": true,
+    "contexts_without_file": [],
+    "context_grounded": 1
+   },
+   "judged": {
+    "verdicts": {
+     "docker-multi-stage-build": {
+      "slug": "docker-multi-stage-build",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Two FROM stages with COPY --from=build of dist and node_modules, and the context names that decision."
+     },
+     "docker-layer-caching": {
+      "slug": "docker-layer-caching",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Manifest copy and npm ci precede COPY . ., and the context explains the cache reuse."
+     },
+     "npm-ci-reproducible-install": {
+      "slug": "npm-ci-reproducible-install",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "RUN npm ci uses the copied package-lock.json, as the context states."
+     },
+     "container-non-root-user": {
+      "slug": "container-non-root-user",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "USER node drops root for the runtime process, and the context names it."
+     },
+     "docker-cmd-exec-form": {
+      "slug": "docker-cmd-exec-form",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "CMD uses JSON exec form so node is PID 1 and receives SIGTERM, which the context explains."
+     },
+     "docker-image-size-slim-base": {
+      "slug": "docker-image-size-slim-base",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Slim base is used, and the context notes the full node_modules with dev dependencies is still copied."
+     },
+     "node-env-production": {
+      "slug": "node-env-production",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "ENV NODE_ENV=production is set in the runtime stage, and the context notes its position after the copy."
+     }
+    },
+    "coverage": {
+     "sonnet": 1.0,
+     "claude-haiku-4-5": 1.0
+    },
+    "covered": {
+     "sonnet": [
+      "docker-layer-caching",
+      "multi-stage-build",
+      "non-root-container-user"
+     ],
+     "claude-haiku-4-5": [
+      "docker-layer-caching",
+      "multi-stage-build",
+      "non-root-container-user"
+     ]
+    }
+   },
+   "concepts": [
+    {
+     "slug": "docker-multi-stage-build",
+     "name": "Multi-stage builds",
+     "description": "Using several FROM stages so build tooling and sources stay in an earlier stage and only the artifacts needed at runtime are copied into the final image.",
+     "tags": [
+      "docker",
+      "containers",
+      "build"
+     ],
+     "prerequisites": [
+      "docker-images"
+     ],
+     "context": "Dockerfile: the 'build' stage runs npm ci and npm run build, then the final node:22-slim stage copies only /app/dist and node_modules via COPY --from=build"
+    },
+    {
+     "slug": "docker-layer-caching",
+     "name": "Layer caching",
+     "description": "Docker caches each instruction's layer and reuses it until that instruction or an earlier input changes, so instruction order decides how much rebuilds.",
+     "tags": [
+      "docker",
+      "performance",
+      "build"
+     ],
+     "prerequisites": [
+      "docker-images"
+     ],
+     "context": "Dockerfile: COPY package.json package-lock.json and RUN npm ci come before COPY . . so the dependency layer is reused when only source files change"
+    },
+    {
+     "slug": "npm-ci-reproducible-install",
+     "name": "npm ci",
+     "description": "npm ci installs exactly what package-lock.json records, deletes any existing node_modules first, and fails if the lockfile and package.json disagree, which makes installs reproducible.",
+     "tags": [
+      "npm",
+      "dependencies",
+      "reproducibility"
+     ],
+     "prerequisites": [
+      "package-lockfiles"
+     ],
+     "context": "Dockerfile: RUN npm ci in the build stage, using the package-lock.json copied on the line before it"
+    },
+    {
+     "slug": "container-non-root-user",
+     "name": "Non-root container user",
+     "description": "Running the container process as an unprivileged user limits what an attacker can do if the application is compromised.",
+     "tags": [
+      "docker",
+      "security",
+      "least-privilege"
+     ],
+     "prerequisites": [
+      "docker-images"
+     ],
+     "context": "Dockerfile: USER node in the runtime stage, so node dist/server.js runs as the built-in node user and not root"
+    },
+    {
+     "slug": "docker-cmd-exec-form",
+     "name": "CMD exec form",
+     "description": "The JSON-array form of CMD runs the process directly as PID 1 with no shell, so it receives signals like SIGTERM and can shut down gracefully.",
+     "tags": [
+      "docker",
+      "signals",
+      "process"
+     ],
+     "prerequisites": [
+      "docker-images"
+     ],
+     "context": "Dockerfile: CMD [\"node\", \"dist/server.js\"] in exec form, so Node is PID 1 and gets docker stop's SIGTERM directly"
+    },
+    {
+     "slug": "docker-image-size-slim-base",
+     "name": "Slim base images",
+     "description": "Choosing a smaller base image such as node:22-slim cuts image size and attack surface compared with the full image, at the cost of fewer preinstalled tools.",
+     "tags": [
+      "docker",
+      "image-size",
+      "security"
+     ],
+     "prerequisites": [
+      "docker-images"
+     ],
+     "context": "Dockerfile: both stages use node:22-slim, but the runtime stage still copies the full build-stage node_modules, dev dependencies included"
+    },
+    {
+     "slug": "node-env-production",
+     "new": true,
+     "name": "NODE_ENV production",
+     "description": "NODE_ENV=production is a convention that libraries read to switch on production behaviour such as caching and fewer debug checks. It also changes what npm install skips.",
+     "tags": [
+      "node",
+      "configuration",
+      "runtime"
+     ],
+     "prerequisites": [
+      "node-env-vars"
+     ],
+     "context": "Dockerfile: ENV NODE_ENV=production in the runtime stage, set after node_modules is copied from the build stage"
+    }
+   ],
+   "matched": [],
+   "created": [
+    "node-env-production"
+   ],
+   "logged": [
+    "docker-multi-stage-build",
+    "docker-layer-caching",
+    "npm-ci-reproducible-install",
+    "container-non-root-user",
+    "docker-cmd-exec-form",
+    "docker-image-size-slim-base",
+    "node-env-production"
+   ],
+   "mastered_hit": [],
+   "followup": {
+    "owed": []
+   }
+  },
+  {
+   "id": "dockerfile-layer-cache",
+   "repeat": 2,
+   "score": 0.0,
+   "gates_failed": [
+    "valid_slugs"
+   ],
+   "error": "tool rejected the call: concepts.0.name: a concept name is 1-3 words; put the detail in description",
+   "concepts": [
+    {
+     "slug": "docker-multi-stage-build",
+     "name": "Multi-Stage Build",
+     "description": "Using several FROM stages in one Dockerfile so build tooling and sources stay in an early stage and only the needed artifacts are copied into a smaller final image.",
+     "tags": [
+      "docker",
+      "build",
+      "image-size"
+     ],
+     "prerequisites": [
+      "docker-images"
+     ],
+     "context": "Dockerfile: `FROM node:22-slim AS build` compiles with npm run build, then a second FROM copies only /app/dist and node_modules via COPY --from=build"
+    },
+    {
+     "slug": "docker-layer-caching",
+     "name": "Layer Caching",
+     "description": "Each Dockerfile instruction creates a cached layer; ordering instructions from least to most frequently changing lets unchanged layers be reused on rebuild.",
+     "tags": [
+      "docker",
+      "caching",
+      "build-performance"
+     ],
+     "prerequisites": [
+      "docker-images"
+     ],
+     "context": "Dockerfile:3-4 copies package.json and package-lock.json and runs npm ci before COPY . . so dependency install is cached until the manifests change"
+    },
+    {
+     "slug": "npm-ci-reproducible-install",
+     "name": "npm ci",
+     "description": "npm ci installs exactly what package-lock.json specifies, deleting node_modules first and failing on a lockfile mismatch, giving deterministic installs for CI and images.",
+     "tags": [
+      "npm",
+      "node",
+      "reproducibility"
+     ],
+     "prerequisites": [
+      "package-lock"
+     ],
+     "context": "Dockerfile:4 uses RUN npm ci instead of npm install so the build stage installs the locked dependency versions"
+    },
+    {
+     "slug": "container-non-root-user",
+     "name": "Non-Root Container User",
+     "description": "Containers run as root by default; switching to an unprivileged user with USER limits what a compromised process can do inside and outside the container.",
+     "tags": [
+      "docker",
+      "security",
+      "least-privilege"
+     ],
+     "prerequisites": [
+      "docker-images"
+     ],
+     "context": "Dockerfile:12 sets USER node, the unprivileged account built into the node image, before CMD starts dist/server.js"
+    },
+    {
+     "slug": "docker-exec-form-cmd",
+     "name": "Exec-Form CMD",
+     "description": "CMD in JSON array (exec) form runs the process directly as PID 1 without a shell, so it receives signals like SIGTERM and shuts down gracefully.",
+     "tags": [
+      "docker",
+      "process",
+      "signals"
+     ],
+     "prerequisites": [
+      "docker-images"
+     ],
+     "context": "Dockerfile:13 uses CMD [\"node\", \"dist/server.js\"] rather than the shell form, so node gets stop signals directly"
+    },
+    {
+     "slug": "node-env-vars",
+     "name": "Environment variables and secrets",
+     "description": "NODE_ENV=production is a convention that libraries read to enable production behavior such as skipping dev-only checks and enabling caching; configuration lives in the environment, outside the code.",
+     "tags": [
+      "node",
+      "configuration",
+      "environment"
+     ],
+     "prerequisites": [],
+     "context": "Dockerfile:9 sets ENV NODE_ENV=production in the runtime stage; note node_modules copied from build still includes devDependencies since npm ci ran without --omit=dev"
+    }
+   ]
+  },
+  {
+   "id": "sql-transaction-transfer",
+   "repeat": 0,
+   "score": 0.0,
+   "gates_failed": [
+    "valid_slugs"
+   ],
+   "error": "tool rejected the call: concepts.7.name: a concept name is 1-3 words; put the detail in description",
+   "concepts": [
+    {
+     "slug": "database-transaction",
+     "name": "Database Transaction",
+     "description": "A group of SQL statements that commit together or not at all, so a failure partway leaves no partial writes.",
+     "tags": [
+      "database",
+      "sql",
+      "atomicity"
+     ],
+     "prerequisites": [],
+     "context": "transfer() in app/transfers.py wraps the debit, credit and ledger insert in one `with conn:` block so a failure never leaves money debited but not credited"
+    },
+    {
+     "slug": "context-manager-commit-rollback",
+     "name": "Context Manager Rollback",
+     "description": "A Python `with` block that runs cleanup on exit; for a sqlite3 connection it commits on normal exit and rolls back when an exception escapes.",
+     "tags": [
+      "python",
+      "sqlite3",
+      "context-manager"
+     ],
+     "prerequisites": [
+      "database-transaction"
+     ],
+     "context": "`with conn:` in app/transfers.py turns the raised InsufficientFunds into a rollback; note it does not close the connection"
+    },
+    {
+     "slug": "check-then-act-race",
+     "name": "Check-Then-Act Race",
+     "description": "A read-then-write sequence where another writer can change the checked value between the check and the write, invalidating the decision.",
+     "tags": [
+      "concurrency",
+      "race-condition",
+      "database"
+     ],
+     "prerequisites": [
+      "database-transaction"
+     ],
+     "context": "transfer() in app/transfers.py reads the balance with SELECT then compares to cents before the UPDATE; two concurrent transfers from the same src can both pass the check and overdraw"
+    },
+    {
+     "slug": "transaction-isolation",
+     "name": "Transaction Isolation",
+     "description": "How much one transaction sees of another's concurrent changes; the isolation level and lock mode decide whether the balance read can go stale before the write.",
+     "tags": [
+      "database",
+      "concurrency",
+      "isolation"
+     ],
+     "prerequisites": [
+      "database-transaction",
+      "check-then-act-race"
+     ],
+     "context": "The SELECT balance in app/transfers.py takes no write lock under sqlite3's default deferred transactions, so using BEGIN IMMEDIATE would make the check and debit safe"
+    },
+    {
+     "slug": "atomic-update-expression",
+     "name": "Atomic Update Expression",
+     "description": "Computing the new value inside the UPDATE itself (balance = balance - ?) so the database applies it to the current row rather than a stale value read earlier.",
+     "tags": [
+      "sql",
+      "concurrency",
+      "atomicity"
+     ],
+     "prerequisites": [
+      "database-transaction"
+     ],
+     "context": "UPDATE accounts SET balance = balance - ? in app/transfers.py avoids a lost update, but the preceding balance check is still not atomic with it"
+    },
+    {
+     "slug": "parameterized-queries",
+     "name": "Parameterized Queries",
+     "description": "Passing values as bound parameters (? placeholders) separate from the SQL text so input cannot be interpreted as SQL.",
+     "tags": [
+      "sql",
+      "security",
+      "injection"
+     ],
+     "prerequisites": [],
+     "context": "Every conn.execute in app/transfers.py binds src, dst and cents via (?, ?) tuples instead of string formatting, preventing SQL injection"
+    },
+    {
+     "slug": "audit-ledger",
+     "name": "Audit Ledger",
+     "description": "An append-only record of each money movement, written in the same transaction as the balance change so the two never disagree.",
+     "tags": [
+      "data-modeling",
+      "auditing",
+      "finance"
+     ],
+     "prerequisites": [
+      "database-transaction"
+     ],
+     "context": "The INSERT INTO ledger (src, dst, cents) in app/transfers.py sits inside the same `with conn:` block as the two balance UPDATEs"
+    },
+    {
+     "slug": "integer-money-cents",
+     "name": "Money As Integer Cents",
+     "description": "Storing currency as whole minor units (cents) in integers to avoid floating-point rounding errors.",
+     "tags": [
+      "data-modeling",
+      "finance",
+      "numeric-precision"
+     ],
+     "prerequisites": [],
+     "context": "transfer() in app/transfers.py takes `cents` as an int and compares and sums it directly with the balance column, so no float rounding can creep into the arithmetic"
+    }
+   ]
+  },
+  {
+   "id": "sql-transaction-transfer",
+   "repeat": 1,
+   "score": 0.3305,
+   "gates_failed": [
+    "count",
+    "context_decision"
+   ],
+   "quality": {
+    "recall": 1.0,
+    "precision": 0.8571428571428571,
+    "context": 1,
+    "followup": 1.0
+   },
+   "det": {
+    "strict": {
+     "matched": [
+      "check-then-act-race",
+      "parameterized-queries"
+     ],
+     "missed": [
+      "database-transaction-atomicity"
+     ],
+     "unlabelled": [
+      "database-transactions",
+      "context-manager-commit-rollback",
+      "exceptions-as-control-flow",
+      "double-entry-ledger",
+      "atomic-sql-update",
+      "exceptions-as-control-flow"
+     ],
+     "recall": 0.6666666666666666,
+     "precision": 0.2222222222222222
+    },
+    "count_ok": false,
+    "slugs_valid": true,
+    "context_file": true,
+    "contexts_without_file": [],
+    "context_grounded": 1
+   },
+   "judged": {
+    "verdicts": {
+     "database-transactions": {
+      "slug": "database-transactions",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names transfer(), the `with conn:` block and what it covers (check, both UPDATEs, INSERT) with rollback."
+     },
+     "context-manager-commit-rollback": {
+      "slug": "context-manager-commit-rollback",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Points to line 2 `with conn:` and that raising InsufficientFunds triggers rollback."
+     },
+     "check-then-act-race": {
+      "slug": "check-then-act-race",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "SELECT then compare then UPDATE is a real race in the code, and the context explains the overdraw scenario."
+     },
+     "parameterized-queries": {
+      "slug": "parameterized-queries",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "All statements use ? placeholders with tuples, and the context cites concrete examples."
+     },
+     "exceptions-as-control-flow": {
+      "slug": "exceptions-as-control-flow",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Raising InsufficientFunds at line 4 aborts the operation and drives rollback."
+     },
+     "double-entry-ledger": {
+      "slug": "double-entry-ledger",
+      "touched": true,
+      "exercised": false,
+      "context_level": 1,
+      "why": "The ledger is a single row per transfer, not double-entry; only atomicity with the updates is shown."
+     },
+     "atomic-sql-update": {
+      "slug": "atomic-sql-update",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Relative updates `balance = balance - ?` are used instead of writing a value computed from the SELECT."
+     }
+    },
+    "coverage": {
+     "sonnet": 1.0,
+     "claude-haiku-4-5": 1.0
+    },
+    "covered": {
+     "sonnet": [
+      "database-transaction-atomicity",
+      "check-then-act-race",
+      "parameterized-queries"
+     ],
+     "claude-haiku-4-5": [
+      "database-transaction-atomicity",
+      "check-then-act-race",
+      "parameterized-queries"
+     ]
+    }
+   },
+   "concepts": [
+    {
+     "slug": "database-transactions",
+     "name": "Database Transactions",
+     "description": "Grouping several SQL statements into one atomic unit that either fully commits or fully rolls back, so a failure never leaves partial changes.",
+     "tags": [
+      "database",
+      "sqlite",
+      "atomicity"
+     ],
+     "prerequisites": [
+      "sql-basics"
+     ],
+     "context": "transfer() in app/transfers.py wraps the balance check, both UPDATEs and the ledger INSERT in `with conn:` so an exception rolls back every write"
+    },
+    {
+     "slug": "context-manager-commit-rollback",
+     "name": "Connection Context Manager",
+     "description": "Python's sqlite3 connection used as a context manager commits on clean exit and rolls back on exception, but does not close the connection.",
+     "tags": [
+      "python",
+      "sqlite3",
+      "context-manager"
+     ],
+     "prerequisites": [
+      "database-transactions"
+     ],
+     "context": "`with conn:` in app/transfers.py:2 replaces manual commit/rollback; raising InsufficientFunds inside the block triggers the rollback"
+    },
+    {
+     "slug": "check-then-act-race",
+     "name": "Check-Then-Act Race",
+     "description": "A race where a value is read and checked, then written based on that check, while another writer can change it in between, so the check no longer holds.",
+     "tags": [
+      "concurrency",
+      "race-condition",
+      "isolation"
+     ],
+     "prerequisites": [
+      "database-transactions"
+     ],
+     "context": "transfer() in app/transfers.py reads the balance with SELECT then compares to cents before the UPDATE, so two concurrent transfers can both pass the check and overdraw the account"
+    },
+    {
+     "slug": "parameterized-queries",
+     "name": "Parameterized Queries",
+     "description": "Passing SQL values as bound parameters instead of string-formatting them into the query, which prevents SQL injection and handles quoting.",
+     "tags": [
+      "security",
+      "sql-injection",
+      "sqlite3"
+     ],
+     "prerequisites": [
+      "sql-basics"
+     ],
+     "context": "Every statement in app/transfers.py uses `?` placeholders with a tuple, e.g. `WHERE id = ?` with `(src,)`, so src, dst and cents are never interpolated"
+    },
+    {
+     "slug": "exceptions-as-control-flow",
+     "name": "Domain Exceptions",
+     "description": "Raising a specific custom exception to signal a business-rule failure and abort the current operation, letting callers handle it by type.",
+     "tags": [
+      "python",
+      "error-handling",
+      "exceptions"
+     ],
+     "prerequisites": [],
+     "context": "transfer() raises InsufficientFunds(src) in app/transfers.py:4 when the balance is below cents, which also triggers the transaction rollback"
+    },
+    {
+     "slug": "double-entry-ledger",
+     "name": "Ledger Audit Trail",
+     "description": "Recording every money movement as an append-only row in a ledger table in the same transaction as the balance change, so balances and history cannot diverge.",
+     "tags": [
+      "data-modeling",
+      "finance",
+      "audit"
+     ],
+     "prerequisites": [
+      "database-transactions"
+     ],
+     "context": "The INSERT INTO ledger (src, dst, cents) in app/transfers.py:8 sits inside the same `with conn:` block as the two balance UPDATEs, so a rollback also drops the ledger row"
+    },
+    {
+     "slug": "atomic-sql-update",
+     "name": "Atomic SQL Update",
+     "description": "Updating a value relative to its current value inside the statement (balance = balance - ?) so the database applies it atomically instead of the app writing back a stale read.",
+     "tags": [
+      "sql",
+      "concurrency",
+      "atomicity"
+     ],
+     "prerequisites": [
+      "sql-basics"
+     ],
+     "new": true,
+     "context": "The two UPDATEs in app/transfers.py:6-7 use `balance = balance - ?` and `balance + ?` rather than writing a computed value from the earlier SELECT"
+    },
+    {
+     "slug": "parameterized-queries",
+     "name": "Parameterized Queries",
+     "description": "Passing SQL values as bound parameters instead of string-formatting them into the query, which prevents SQL injection and handles quoting.",
+     "tags": [
+      "security",
+      "sql-injection",
+      "sqlite3"
+     ],
+     "prerequisites": [
+      "sql-basics"
+     ],
+     "context": "Every statement in app/transfers.py uses `?` placeholders with a tuple, e.g. `WHERE id = ?` with `(src,)`, so src, dst and cents are never interpolated"
+    },
+    {
+     "slug": "exceptions-as-control-flow",
+     "name": "Domain Exceptions",
+     "description": "Raising a specific custom exception to signal a business-rule failure and abort the current operation, letting callers handle it by type.",
+     "tags": [
+      "python",
+      "error-handling",
+      "exceptions"
+     ],
+     "prerequisites": [
+      "database-transactions"
+     ],
+     "context": "transfer() raises InsufficientFunds(src) in app/transfers.py:4 when the balance is below cents, which also triggers the transaction rollback"
+    }
+   ],
+   "matched": [],
+   "created": [
+    "atomic-sql-update"
+   ],
+   "logged": [
+    "database-transactions",
+    "context-manager-commit-rollback",
+    "check-then-act-race",
+    "parameterized-queries",
+    "exceptions-as-control-flow",
+    "double-entry-ledger",
+    "atomic-sql-update"
+   ],
+   "mastered_hit": [],
+   "followup": {
+    "call": {
+     "concepts": [
+      {
+       "slug": "atomic-sql-update",
+       "name": "Atomic SQL Update",
+       "domain": "databases",
+       "tier": 3,
+       "description": "Updating a value relative to its current value inside the statement (balance = balance - ?) so the database applies it atomically instead of the app writing back a stale read."
+      }
+     ],
+     "edges": [
+      {
+       "from": "sql-basics",
+       "to": "atomic-sql-update",
+       "relation": "prerequisite_of"
+      }
+     ]
+    },
+    "result": {
+     "created": [],
+     "updated": [],
+     "matched": [
+      {
+       "requested": "atomic-sql-update",
+       "resolved": "atomic-sql-update"
+      }
+     ],
+     "rejected": [],
+     "needs_decision": [],
+     "edges_added": 0
+    },
+    "owed": [
+     {
+      "slug": "atomic-sql-update",
+      "domain": true,
+      "tier": true,
+      "edge": true,
+      "stored_domain": "sql",
+      "stored_tier": 2,
+      "stored_edge": false
+     }
+    ],
+    "skipped": false
+   }
+  },
+  {
+   "id": "sql-transaction-transfer",
+   "repeat": 2,
+   "score": 0.4042,
+   "gates_failed": [
+    "context_file"
+   ],
+   "quality": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "context": 1,
+    "followup": 0.0
+   },
+   "det": {
+    "strict": {
+     "matched": [
+      "check-then-act-race"
+     ],
+     "missed": [
+      "database-transaction-atomicity",
+      "parameterized-queries"
+     ],
+     "unlabelled": [
+      "database-transaction",
+      "context-manager",
+      "sql-parameterization",
+      "atomic-update",
+      "ledger-audit-trail",
+      "domain-exception-rollback"
+     ],
+     "recall": 0.3333333333333333,
+     "precision": 0.14285714285714285
+    },
+    "count_ok": true,
+    "slugs_valid": true,
+    "context_file": false,
+    "contexts_without_file": [
+     "context-manager",
+     "check-then-act-race",
+     "sql-parameterization",
+     "atomic-update",
+     "ledger-audit-trail",
+     "domain-exception-rollback"
+    ],
+    "context_grounded": 1
+   },
+   "judged": {
+    "verdicts": {
+     "database-transaction": {
+      "slug": "database-transaction",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names `with conn:` and the three writes committed or rolled back together."
+     },
+     "context-manager": {
+      "slug": "context-manager",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Explains commit on normal exit, rollback on exception, and that it does not close the connection."
+     },
+     "check-then-act-race": {
+      "slug": "check-then-act-race",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Identifies the SELECT check before UPDATE and the concurrent overdraft outcome."
+     },
+     "sql-parameterization": {
+      "slug": "sql-parameterization",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "All statements use ? placeholders with tuples, and the log says so."
+     },
+     "atomic-update": {
+      "slug": "atomic-update",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Points to relative `balance = balance - ?` updates avoiding stale SELECT values."
+     },
+     "ledger-audit-trail": {
+      "slug": "ledger-audit-trail",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Ledger INSERT shares the transaction with balance updates, named specifically."
+     },
+     "domain-exception-rollback": {
+      "slug": "domain-exception-rollback",
+      "touched": true,
+      "exercised": true,
+      "context_level": 2,
+      "why": "Names the raise of InsufficientFunds inside the with block causing rollback."
+     }
+    },
+    "coverage": {
+     "sonnet": 1.0,
+     "claude-haiku-4-5": 1.0
+    },
+    "covered": {
+     "sonnet": [
+      "database-transaction-atomicity",
+      "check-then-act-race",
+      "parameterized-queries"
+     ],
+     "claude-haiku-4-5": [
+      "database-transaction-atomicity",
+      "check-then-act-race",
+      "parameterized-queries"
+     ]
+    }
+   },
+   "concepts": [
+    {
+     "slug": "database-transaction",
+     "name": "Database Transaction",
+     "description": "A group of SQL statements that commit together or roll back together, so a failure part-way leaves no partial change.",
+     "tags": [
+      "database",
+      "sqlite",
+      "atomicity"
+     ],
+     "prerequisites": [],
+     "context": "`with conn:` in transfer() in app/transfers.py commits the debit, credit and ledger insert together, and rolls all three back if InsufficientFunds or any statement raises"
+    },
+    {
+     "slug": "context-manager",
+     "name": "Context Manager",
+     "description": "A `with` block that runs setup and cleanup code around its body, including when the body raises an exception.",
+     "tags": [
+      "python",
+      "language-feature"
+     ],
+     "prerequisites": [],
+     "context": "sqlite3's connection works as a context manager in transfer(): leaving the `with conn:` block normally commits, and leaving it on an exception rolls back. It does not close the connection"
+    },
+    {
+     "slug": "check-then-act-race",
+     "name": "Check-Then-Act Race",
+     "description": "A bug where a condition is read and then acted on in separate steps, so another writer can change the value in between and make the check stale.",
+     "tags": [
+      "concurrency",
+      "database",
+      "race-condition"
+     ],
+     "prerequisites": [
+      "database-transaction"
+     ],
+     "context": "transfer() reads the balance with SELECT and checks `row[0] < cents` before the UPDATE. A concurrent transfer from the same account can pass the same check, so the balance can go negative"
+    },
+    {
+     "slug": "sql-parameterization",
+     "name": "SQL Parameterization",
+     "description": "Passing values to a query as bound parameters (`?` placeholders) instead of building the SQL string, so input cannot change the query.",
+     "tags": [
+      "security",
+      "sql",
+      "injection"
+     ],
+     "prerequisites": [],
+     "context": "Every statement in transfer() binds src, dst and cents through `?` placeholders with a tuple, so a hostile account id cannot inject SQL"
+    },
+    {
+     "slug": "atomic-update",
+     "name": "Atomic Update",
+     "description": "Letting the database compute a new value from the old one in a single statement, such as `balance = balance - ?`, instead of reading it into the application, changing it and writing it back.",
+     "tags": [
+      "database",
+      "sql",
+      "concurrency"
+     ],
+     "prerequisites": [
+      "database-transaction"
+     ],
+     "context": "The two UPDATE statements in transfer() use `balance = balance - ?` and `balance = balance + ?`, so no stale value from the earlier SELECT gets written back"
+    },
+    {
+     "slug": "ledger-audit-trail",
+     "name": "Ledger Audit Trail",
+     "description": "An append-only record of each money movement, written in the same transaction as the balance change, so balances and history cannot disagree.",
+     "tags": [
+      "database",
+      "data-integrity",
+      "finance"
+     ],
+     "prerequisites": [
+      "database-transaction"
+     ],
+     "context": "The INSERT INTO ledger (src, dst, cents) in transfer() commits atomically with the two balance updates, so a recorded transfer always has matching balance changes"
+    },
+    {
+     "slug": "domain-exception-rollback",
+     "name": "Exception-Driven Rollback",
+     "description": "Raising a domain exception to abort a unit of work, so the surrounding transaction discards everything done so far.",
+     "tags": [
+      "error-handling",
+      "python",
+      "database"
+     ],
+     "prerequisites": [
+      "database-transaction",
+      "context-manager"
+     ],
+     "context": "`raise InsufficientFunds(src)` inside the `with conn:` block in transfer() leaves the block through the exception, which makes the connection roll back before the error reaches the caller"
+    }
+   ],
+   "matched": [],
+   "created": [
+    "database-transaction",
+    "context-manager",
+    "check-then-act-race",
+    "sql-parameterization",
+    "atomic-update",
+    "ledger-audit-trail",
+    "domain-exception-rollback"
+   ],
+   "logged": [
+    "database-transaction",
+    "context-manager",
+    "check-then-act-race",
+    "sql-parameterization",
+    "atomic-update",
+    "ledger-audit-trail",
+    "domain-exception-rollback"
+   ],
+   "mastered_hit": [],
+   "followup": {
+    "call": {
+     "concepts": [
+      {
+       "slug": "sql-parameterization",
+       "tier": 2
+      }
+     ],
+     "edges": [
+      {
+       "from": "sql-injection",
+       "to": "sql-parameterization",
+       "relation": "prerequisite_of"
+      }
+     ]
+    },
+    "result": {
+     "created": [],
+     "updated": [],
+     "matched": [
+      {
+       "requested": "sql-parameterization",
+       "resolved": "sql-parameterization"
+      }
+     ],
+     "rejected": [],
+     "needs_decision": [],
+     "edges_added": 0
+    },
+    "owed": [
+     {
+      "slug": "sql-parameterization",
+      "domain": false,
+      "tier": true,
+      "edge": true,
+      "stored_domain": "security",
+      "stored_tier": 2,
+      "stored_edge": false
+     }
+    ],
+    "skipped": false
+   }
+  }
+ ],
+ "stopped_early": null,
+ "budget": {
+  "tokens": {
+   "input_total": 3017982,
+   "cache_read": 902992,
+   "output": 118109,
+   "by_kind": {
+    "generate:cache_read": 871576,
+    "generate:cache_write": 2012370,
+    "generate:input": 110,
+    "generate:output": 36231,
+    "judge:cache_read": 31416,
+    "judge:cache_write": 56264,
+    "judge:input": 46246,
+    "judge:output": 81878
+   }
+  },
+  "cost_usd_list_price": 9.26,
+  "calls": {
+   "generate": 55,
+   "judge": 63
+  },
+  "total_calls": 118,
+  "seconds_by_kind": {
+   "generate": 606.5
+  },
+  "errors": {},
+  "cap": 220,
+  "models": {
+   "generate": [
+    "claude-sonnet-5-5"
+   ],
+   "judge": [
+    "claude-haiku-4-5",
+    "claude-sonnet-5-5"
+   ]
+  }
+ },
+ "summary": {
+  "trials": 24,
+  "all_gates_passed": 5,
+  "gate_failures": {
+   "context_file": 4,
+   "valid_slugs": 3,
+   "context_decision": 13,
+   "count": 1
+  },
+  "mean_score": 0.4672,
+  "mean_score_finished_only": 0.5339,
+  "quality_means": {
+   "recall": 0.919,
+   "precision": 0.978,
+   "context": 1.0,
+   "followup": 0.762
+  },
+  "recall_by_judge": {
+   "claude-haiku-4-5": 0.929,
+   "sonnet": 0.909
+  },
+  "judge_agreement_on_covered": 0.956,
+  "strict_slug_recall": 0.345,
+  "strict_slug_precision": 0.185,
+  "mastered_logged": 0,
+  "concepts_created": 32,
+  "followups_skipped": 1,
+  "db_applied_domain": {
+   "asked_for_a_domain": 10,
+   "stored_as_general": 0
+  }
+ }
+}

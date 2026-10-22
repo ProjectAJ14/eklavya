@@ -103,14 +103,14 @@ how many proposals were scored and how many were rejected unscored.
 cd mcp && npm ci && npm run build && cd ..           # the bridge imports mcp/dist
 
 # the shipped guidance on the untouched test split
-python3 eval/gepa/extraction/run.py evaluate --split test --repeats 3 --out eval/gepa/runs/ex-shipped.json
+python3 eval/gepa/extraction/run.py evaluate --model claude-sonnet-5-5 --split test --repeats 3 --out eval/gepa/runs/ex-shipped.json
 
 # GEPA search (needs Python 3.10+ and the pilot's venv: see ../README.md)
 eval/gepa/.venv/bin/python eval/gepa/extraction/run.py optimize --out eval/gepa/runs/ex-search \
   --metric-calls 60 --max-model-calls 400 --max-minutes 90
 
 # the candidate on the same split, then compare
-python3 eval/gepa/extraction/run.py evaluate --prompt eval/gepa/runs/ex-search/best_candidate.md \
+python3 eval/gepa/extraction/run.py evaluate --model claude-sonnet-5-5 --prompt eval/gepa/runs/ex-search/best_candidate.md \
   --split test --repeats 3 --out eval/gepa/runs/ex-cand.json
 python3 eval/gepa/extraction/run.py report eval/gepa/runs/ex-shipped.json eval/gepa/runs/ex-cand.json
 ```

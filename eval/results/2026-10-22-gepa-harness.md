@@ -53,3 +53,26 @@ are direction, not a result. Nothing here is shipped; a candidate goes through r
 - No second-family judge: `gemini` is installed but asks for an interactive sign-in, so it could not be called. The gap
   stays; the harness records the judge model ids so the shared-family limit is visible.
 - `eval/gepa/dedup`, memory observer and the question pilot were not re-run.
+
+## Update: the naming fix, measured on 8 test fixtures
+
+The tutor skill now says a concept name is "1–3 words, never 4 or more" (`skills/tutor/SKILL.md`), paid for by trimming
+two sentences so the file stays at 1,996 of 1,999 words. Three new extraction test fixtures were written after the
+results above, so test is 8 fixtures and the rule can decide. Before (`main`'s block) and after (the edited skill),
+3 repeats each, generator pinned to `claude-sonnet-5-5`, same fixtures and code commit (`214df72`):
+
+| | Pass every gate | Mean (all trials) | Mean (finished only) | `valid_slugs` failures |
+|---|---|---|---|---|
+| Before | 5/24 | 0.467 | 0.534 | 3 |
+| After | 7/24 | 0.526 | 0.574 | 2 |
+
+Verdict from `report`: **candidate better, +0.059** (the rule needs 0.05), 6 fixtures up, 2 down. Data:
+`2026-10-22-gepa-ex8-before-naming-fix.json` and `...-after-naming-fix.json`.
+
+- This clears the rule by 0.009. Read it as a small gain, not a large one. The gate that dominates both columns is
+  `context_decision` (13 and 14 of 24), which this change does not touch.
+- A first pair of runs, made without pinning the generator, mixed `claude-opus-5-5` and `claude-sonnet-5-5` inside one
+  result and read `no difference` (+0.018). They are discarded as not comparable; `report` now warns when a result mixes
+  generator models, and the READMEs' commands pass `--model`. Cost of the extra pair: about $16.
+- The 8-fixture split still has only three repeats per fixture and one generator; a further run on a different day
+  could move the mean by more than the margin.

@@ -4,10 +4,12 @@ A judge from another model family: Azure OpenAI, over its REST API with the stan
 Credentials are read from the environment, or from `~/.config/eklavya-eval/azure.env` (KEY=VALUE lines, outside
 the repository, never printed):
 
-    AZURE_OPENAI_ENDPOINT     https://<resource>.openai.azure.com
-    AZURE_OPENAI_API_KEY
-    AZURE_OPENAI_DEPLOYMENT   the deployment name of the judge model
-    AZURE_OPENAI_API_VERSION  optional, default below
+    AZURE_OPENAI_ENDPOINT        https://<resource>.openai.azure.com
+    AZURE_OPENAI_KEY             (AZURE_OPENAI_API_KEY also works)
+    AZURE_OPENAI_DEPLOYMENT      the deployment name of the judge model
+    AZURE_OPENAI_API_VERSION     optional, default below
+    AZURE_OPENAI_INSECURE_TLS    "true" skips certificate checks for this client only, for a network that
+                                 inspects TLS; the run prints a note when it is on
 
 Self-check against a local fake server: `python3 eval/gepa/azure.py`.
 """
@@ -15,6 +17,8 @@ from __future__ import annotations
 
 import json
 import os
+import ssl
+import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -31,19 +35,24 @@ def settings() -> dict | None:
             if "=" in line and not line.lstrip().startswith("#"):
                 k, v = line.split("=", 1)
                 env.setdefault(k.strip(), v.strip().strip("\"'"))
-    got = {k: env.get(f"AZURE_OPENAI_{k.upper()}") for k in ("endpoint", "api_key", "deployment")}
+    got = {"endpoint": env.get("AZURE_OPENAI_ENDPOINT"), "api_key": env.get("AZURE_OPENAI_KEY") or env.get("AZURE_OPENAI_API_KEY"), "deployment": env.get("AZURE_OPENAI_DEPLOYMENT")}
     if not all(got.values()):
         return None
-    return {**got, "api_version": env.get("AZURE_OPENAI_API_VERSION", API_VERSION)}
+    insecure = env.get("AZURE_OPENAI_INSECURE_TLS", "").lower() == "true"
+    if insecure:
+        print("azure judge: TLS certificate checks are off for this client (AZURE_OPENAI_INSECURE_TLS)", file=sys.stderr)
+    return {**got, "api_version": env.get("AZURE_OPENAI_API_VERSION", API_VERSION), "insecure_tls": insecure}
 
 
 def ask(prompt: str, cfg: dict, timeout: float = 120) -> dict:
     """One chat completion. Returns {text, model, usage}; raises RuntimeError with the service's message on failure."""
     url = f"{cfg['endpoint'].rstrip('/')}/openai/deployments/{cfg['deployment']}/chat/completions?api-version={cfg['api_version']}"
-    body = json.dumps({"messages": [{"role": "user", "content": prompt}], "temperature": 0}).encode()
+    # No temperature: the gpt-5 family accepts only its default and answers 400 to anything else.
+    body = json.dumps({"messages": [{"role": "user", "content": prompt}]}).encode()
+    ctx = ssl._create_unverified_context() if cfg.get("insecure_tls") else None
     req = urllib.request.Request(url, data=body, headers={"api-key": cfg["api_key"], "content-type": "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as res:
+        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as res:
             out = json.loads(res.read())
     except urllib.error.HTTPError as err:
         raise RuntimeError(f"azure {err.code}: {err.read()[:200].decode(errors='replace')}") from err
@@ -72,6 +81,9 @@ if __name__ == "__main__":
     srv = HTTPServer(("127.0.0.1", 0), H)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     cfg = {"endpoint": f"http://127.0.0.1:{srv.server_port}/", "api_key": "k", "deployment": "judge", "api_version": API_VERSION}
+    os.environ.update(AZURE_OPENAI_ENDPOINT="http://x", AZURE_OPENAI_KEY="k", AZURE_OPENAI_DEPLOYMENT="d", AZURE_OPENAI_INSECURE_TLS="true")
+    from_env = settings()
+    assert from_env and from_env["api_key"] == "k" and from_env["insecure_tls"] and "temperature" not in json.dumps(from_env)
     got = ask("hello", cfg)
     assert got["text"] == '{"ok": true}' and got["model"] == "gpt-test-2026"
     assert seen["path"].startswith("/openai/deployments/judge/chat/completions?api-version=") and seen["key"] == "k"

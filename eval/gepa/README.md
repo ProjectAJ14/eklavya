@@ -120,15 +120,19 @@ what "better" meant after the fact. The rule is now written here and enforced by
   (`+uncommitted` when those files have edits). `report` warns when the two results have different fixtures,
   when the scorer changed between them (re-run the baseline) or when a result has no marker. It cannot see
   a split you read by hand while iterating: do not tune on test.
+- **Pin the generator.** Pass `--model` to every `evaluate` that will be compared: without it the CLI may answer from different models
+  inside one run, and `report` warns when it did.
 - **Models.** `budget.models` in every result and `summary.json` lists the model ids the `claude` CLI
   resolved for each role (`generate`, `judge`, `reflect`); `report` prints them.
 - **A second seed.** A search that returns the seed unchanged or finds a candidate is run again with
   `--seed 1` before anyone concludes either way; record both runs. This costs a search each time, so it
   is a manual step.
-- **A judge from another model family** is not built, on purpose. The harness runs on the machine's `claude`
-  login and every call site assumes `claude -p`'s JSON envelope; a second provider means a new call path, its
-  own cost and token accounting, and a login that CI-less manual runs cannot assume (the `gemini` CLI on the
-  maintainer's machine needed an interactive sign-in when tried on 2026-10-22). Extraction already uses two Claude judges of different sizes and reports
+- **A judge from another model family** is `--azure-judge` on the question pilot's `evaluate`: the same audit and
+  cold-read prompts go to an Azure OpenAI deployment (`azure.py`, standard library only; credentials from the
+  `AZURE_OPENAI_*` variables or `~/.config/eklavya-eval/azure.env`, never from the repository). The gates still use the
+  Claude verdicts; `report` prints, for `key_correct`, `single_answer`, `cold_answerable` and `tier_match`, how many
+  questions each family passed and how often they agreed, and the resolved Azure model id is recorded. Self-check:
+  `python3 eval/gepa/azure.py`. Extraction already uses two Claude judges of different sizes and reports
   how often they agree; `tier_match` and `single_answer` in the question pilot still partly measure the
   judge. Treat those two gates with that in mind.
 

@@ -110,6 +110,10 @@ def warnings(base: dict, cand: dict) -> list[str]:
         out.append(f"different fixtures: {a['split']}/{a['fixtures']} vs {b['split']}/{b['fixtures']}")
     if a["code"] != b["code"]:
         out.append(f"the harness or scorer changed between the runs ({a['code']} vs {b['code']}): the baseline is not comparable; re-run it")
+    for name, r in (("baseline", base), ("candidate", cand)):
+        gen = (r.get("budget", {}).get("models") or {}).get("generate") or []
+        if len(gen) > 1:
+            out.append(f"the {name} generated with {len(gen)} models ({', '.join(gen)}); pass --model to pin one, or the comparison mixes models")
     if a["split"] == "test" and a["prompt"] == b["prompt"]:
         out.append("both runs used the same prompt: this measures noise, not a candidate")
     return out
@@ -132,6 +136,8 @@ if __name__ == "__main__":
     assert warnings({"marker": m}, {"marker": {**m, "prompt": "p2"}}) == []
     assert len(warnings({"marker": m}, {"marker": {**m, "prompt": "p2", "code": "def"}})) == 1
     assert len(warnings({}, {"marker": m})) == 1
+    mixed = {"marker": m, "budget": {"models": {"generate": ["a", "b"]}}}
+    assert len(warnings(mixed, {**mixed, "marker": {**m, "prompt": "p2"}, "budget": {}})) == 1
     assert "-3" in limits_note("x", 10, 7)
     assert reject_over_cap("a b", 2) is None and reject_over_cap("a b c", 2)[1]["gates_failed"] == ["length_cap"]
     assert proposal_counts([{"candidate": "a", "gates_failed": ["word_ceiling"]}, {"candidate": "a"}, {"candidate": "b"}, {"id": "x"}]) == {"proposals": 2, "scored": 1, "rejected_unscored": 1}
