@@ -434,7 +434,7 @@ export const register: Register = on => {
         ))}
       </Box>
     )
-    // One answer: a bordered block. The Button holds the whole answer text, so a press anywhere on it
+    // One answer: a bordered block. The Button holds the answer text, so a press on it
     // selects; the border and fill show the pick, and nothing implies it is
     // right. The desktop app gives the text more room inside the border; the padding itself is not
     // pressable, since a Button takes none. The terminal keeps its tight cards.
@@ -501,11 +501,12 @@ export const register: Register = on => {
     const locked = s.step === 'grading'
     // Submit looks disabled until there is something to send; pressing it then does nothing.
     const hasDraft = s.draft.other ? s.draft.text.trim().length > 0 : s.draft.picked !== null
-    // The answer and its note are the Button's own inline Text, so a press anywhere on them selects.
+    // In the terminal the answer and its note are the Button's own inline Text, so a press anywhere on them
+    // selects. The desktop app draws only a Button's label (docs/verified-schemas.md row 17), so there the
+    // note is a Text under the Button and only the answer selects.
     // Markdown marks cannot show inside a Button, so the code and bold marks are dropped from both.
     // The pick shows by the card's border and fill, never a mark in the text, so picking moves nothing.
-    // On the desktop app the note starts where the answer does; the terminal indents it under the `1: `
-    // its plain Button draws.
+    // The terminal indents the note under the `1: ` its plain Button draws.
     // `wrap` asks the app to wrap a long answer rather than cut it off.
     const answer = (id: string, key: string, hotkey: string, label: string, chosen: boolean, note?: string) => (
       <Button

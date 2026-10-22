@@ -196,7 +196,7 @@ describe('the pane, state by state', () => {
       expect(await card('other')).not.toContain('backgroundColor')
     })
 
-    test(`an answer and its note are one button, so a press on the note picks it, on ${surface}`, async ($, on) => {
+    test(`the terminal's note is inside the answer button and the desktop's is a line under it, on ${surface}`, async ($, on) => {
       world(on)
       await boot($)
       const pane = await mount($, surface)
