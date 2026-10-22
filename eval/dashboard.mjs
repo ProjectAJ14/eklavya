@@ -45,6 +45,31 @@ function fromResult(d, f, st) {
   };
 }
 
+// A run file is data, not markup, and the page concatenates some of its numbers into HTML. Make every number a
+// number and `state` one of the known words here, so a hand-edited or hostile .json cannot carry a tag in them.
+const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+const counts = (o) => Object.fromEntries(Object.entries(o && typeof o === 'object' && !Array.isArray(o) ? o : {}).map(([k, v]) => [k, num(v) ?? 0]));
+function tame(r) {
+  for (const k of ['trials_done', 'trials_total', 'total_calls']) r[k] = num(r[k]) ?? 0;
+  for (const k of ['cap', 'max_minutes', 'started', 'updated', 'cost_usd_list_price']) r[k] = num(r[k]);
+  r.state = ['running', 'done', 'stopped early'].includes(r.state) ? r.state : 'unknown';
+  r.errors = counts(r.errors);
+  r.calls = counts(r.calls);
+  if (r.prompt && typeof r.prompt === 'object') {
+    r.prompt = { file: String(r.prompt.file ?? ''), diff: typeof r.prompt.diff === 'string' ? r.prompt.diff : '', words: num(r.prompt.words) ?? 0, shipped_words: num(r.prompt.shipped_words) ?? 0 };
+  } else r.prompt = null;
+  const s = (r.summary && typeof r.summary === 'object' ? r.summary : {});
+  s.gate_failures = counts(s.gate_failures);
+  for (const [g, v] of Object.entries(s.second_judge ?? {})) s.second_judge[g] = counts(v);
+  for (const [g, v] of Object.entries(s.longest ?? {})) s.longest[g] = counts(v);
+  r.summary = s;
+  for (const x of Array.isArray(r.trials) ? r.trials : []) {
+    if (!x || typeof x !== 'object') continue;
+    for (const k of ['tier', 'answer_position', 'repeat', 'correct_option', 'score']) if (k in x) x[k] = num(x[k]);
+  }
+  return r;
+}
+
 function load(f) {
   const st = fs.statSync(f), c = cache.get(f);
   if (c && c.m === st.mtimeMs && c.s === st.size) return c.run;
@@ -58,6 +83,7 @@ function load(f) {
   } catch {
     /* half-written; the next poll gets it */
   }
+  if (run) tame(run);
   cache.set(f, { m: st.mtimeMs, s: st.size, run });
   return run;
 }
@@ -210,7 +236,7 @@ select{background:var(--panel);color:var(--ink);border:1px solid var(--line-2);p
 const k=n=>n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e3?Math.round(n/1e3)+'k':String(Math.round(n||0));
 const t=s=>{s=Math.max(0,Math.round(s));const m=Math.floor(s/60);return m>=60?Math.floor(m/60)+'h '+(m%60)+'m':m+'m '+(s%60)+'s'};
 const ago=s=>{s=Math.max(0,s);return s<90?'just now':s<5400?Math.round(s/60)+' min ago':s<172800?Math.round(s/3600)+' h ago':Math.round(s/86400)+' days ago'};
-const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fx=(v,d)=>v==null?'–':Number(v).toFixed(d);
 const usd=v=>v==null?'–':'$'+Number(v).toFixed(2);
 const sum=r=>r.summary||{};
@@ -234,7 +260,7 @@ function state(r,d){
   if(live)return{live,cls:'running',txt:'Running',dot:1};
   if(r.state==='running')return{live,cls:'stopped',txt:'Stalled'};
   return r.state==='done'?{live,cls:'done',txt:'Done'}:{live,cls:'stopped',txt:r.state==='stopped early'?'Stopped early':String(r.state||'Unknown')}}
-const badge=st=>'<span class="badge '+st.cls+'">'+(st.dot?'<span class="dot on" style="margin:0"></span>':'')+st.txt+'</span>';
+const badge=st=>'<span class="badge '+st.cls+'">'+(st.dot?'<span class="dot on" style="margin:0"></span>':'')+esc(st.txt)+'</span>';
 function plain(r){
   const s=sum(r),all=r.trials||[],n=s.trials??all.length,errs=all.filter(x=>x.error).length,to=all.filter(timedOut).length,pre=r.state==='running'?'So far, ':'';
   if(isOpt(r)){const c=new Set(all.map(x=>x.candidate)).size;return pre+'Scored '+n+' tries across '+c+' candidate prompt'+(c===1?'':'s')+'. Mean score '+fx(s.mean_score,2)+'.'}
@@ -393,9 +419,15 @@ async function tick(){
 tick();setInterval(tick,3000);
 </script>`;
 
+// A page on another origin can reach 127.0.0.1 through DNS rebinding and read /api; only our own address is served.
+const hostOk = (h) => h === `127.0.0.1:${port}` || h === `localhost:${port}`;
+
 http
   .createServer((req, res) => {
-    if (req.url === '/api') {
+    if (!hostOk(req.headers.host)) {
+      res.writeHead(403, { 'content-type': 'text/plain' });
+      res.end('forbidden');
+    } else if (req.url === '/api') {
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
       res.end(JSON.stringify(snapshot()));
     } else {
