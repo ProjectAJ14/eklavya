@@ -202,7 +202,12 @@ describe('the pane, state by state', () => {
       const pane = await mount($, surface)
       const button = JSON.stringify(await pane.find({ key: 'opt-o2' }))
       expect(button).toContain(QUESTION.options[1].label)
-      expect(button).toContain(QUESTION.options[1].note)
+      if (surface === 'terminal') expect(button).toContain(QUESTION.options[1].note)
+      else {
+        // The desktop app draws only a Button's label, so its note is a Text under the button, inside the card.
+        expect(button).not.toContain(QUESTION.options[1].note)
+        expect(await pane.find({ text: QUESTION.options[1].note })).toBeDefined()
+      }
       // The note is no longer a Markdown block beside the button: only the question is Markdown.
       const drawn = JSON.stringify(await pane.drawn())
       expect((drawn.match(/"type":"Markdown"/g) ?? []).length).toBe(1)
@@ -1054,7 +1059,7 @@ describe('the desktop layout', () => {
     expect(terminal.y).toBe(0)
   })
 
-  test('a pick never moves the text: no tick on either surface, and the desktop note starts where the answer does', async ($, on) => {
+  test('a pick never moves the text: no tick on either surface, and the desktop note is its own line under the answer', async ($, on) => {
     world(on)
     await boot($)
     const pane = await mount($, 'desktop')
@@ -1066,7 +1071,7 @@ describe('the desktop layout', () => {
     expect(await ticks(term)).toBe(1)
     expect(JSON.stringify(await term.drawn())).not.toContain('✓')
     expect(d).toContain(JSON.stringify(QUESTION.options[0].label))
-    expect(d).toContain(JSON.stringify('\n' + QUESTION.options[0].note))
+    expect(d).toContain(JSON.stringify(QUESTION.options[0].note))
     expect(d).toContain('"wrap":"wrap"')
   })
 

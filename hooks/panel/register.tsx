@@ -516,7 +516,7 @@ export const register: Register = on => {
         onPress={() => (locked ? undefined : id === 'other' ? chooseOther($) : pick($, id))}
       >
         <Text wrap="wrap" bold={chosen} color={chosen && id !== 'other' ? PICKED.text : undefined}>{label}</Text>
-        {note ? <Text wrap="wrap" dimColor={!chosen} color={chosen ? PICKED.note : undefined}>{`\n${app ? '' : '   '}${note}`}</Text> : null}
+        {note && !app ? <Text wrap="wrap" dimColor={!chosen} color={chosen ? PICKED.note : undefined}>{`\n   ${note}`}</Text> : null}
       </Button>
     )
     const options = q.options.map((o, i) => {
@@ -525,7 +525,10 @@ export const register: Register = on => {
         o.id,
         chosen,
         answer(o.id, `opt-${o.id}`, String(i + 1), plainLabel(o.label), chosen, o.note ? plainLabel(o.note) : undefined),
-        [],
+        // The desktop app draws only a Button's label, not its inline children, so there the note sits under the button.
+        app && o.note
+          ? [<Text key={`note-${o.id}`} wrap="wrap" dimColor={!chosen} color={chosen ? PICKED.note : undefined}>{plainLabel(o.note)}</Text>]
+          : [],
       )
     })
 
