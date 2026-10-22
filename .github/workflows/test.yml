@@ -48,12 +48,21 @@ jobs:
       # Takes 17-30s (average 21s over 35 runs). A hung apt mirror once held a
       # shard for 6+ minutes and blocked the next push through the concurrency
       # group, so each attempt is cut at about twice the average and retried.
+      # The cut-off kills npx but can leave its apt-get running, and that apt-get
+      # holds the dpkg lock, so a retry started at once fails on the lock
+      # ("Could not get lock /var/lib/dpkg/lock-frontend"). Each retry first waits,
+      # for up to 90s, for the lock to be free; the orphan then usually finishes
+      # the install and the retry is quick.
       - name: Install Chromium
-        timeout-minutes: 3
+        timeout-minutes: 5
         run: |
           for attempt in 1 2 3; do
             timeout -k 5 45 npx playwright-core install --with-deps chromium && exit 0
             echo "Chromium install attempt $attempt failed or timed out"
+            for _ in $(seq 45); do
+              sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || break
+              sleep 2
+            done
           done
           exit 1
         working-directory: mcp
