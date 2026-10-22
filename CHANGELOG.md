@@ -1,3 +1,10 @@
+## [1.84.1](https://github.com/ProjectAJ14/eklavya/compare/v1.84.0...v1.84.1) (2026-10-22)
+
+
+### Bug Fixes
+
+* **panel:** show option notes under each answer on Claude Desktop ([#244](https://github.com/ProjectAJ14/eklavya/issues/244)) ([688aef6](https://github.com/ProjectAJ14/eklavya/commit/688aef6398d3fa5f37055eecb3778b59b76c8c3a))
+
 # [1.84.0](https://github.com/ProjectAJ14/eklavya/compare/v1.83.0...v1.84.0) (2026-10-21)
 
 
