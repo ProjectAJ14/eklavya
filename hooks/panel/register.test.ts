@@ -196,17 +196,49 @@ describe('the pane, state by state', () => {
       expect(await card('other')).not.toContain('backgroundColor')
     })
 
-    test(`an answer and its note are one button, so a press on the note picks it, on ${surface}`, async ($, on) => {
+    test(`the terminal's note is inside the answer button and the desktop's is a line under it, on ${surface}`, async ($, on) => {
       world(on)
       await boot($)
       const pane = await mount($, surface)
       const button = JSON.stringify(await pane.find({ key: 'opt-o2' }))
       expect(button).toContain(QUESTION.options[1].label)
-      expect(button).toContain(QUESTION.options[1].note)
+      if (surface === 'terminal') expect(button).toContain(QUESTION.options[1].note)
+      else {
+        // The desktop app draws only a Button's label, so its note is a Text under the button, inside the card.
+        expect(button).not.toContain(QUESTION.options[1].note)
+        expect(await pane.find({ text: QUESTION.options[1].note })).toBeDefined()
+      }
       // The note is no longer a Markdown block beside the button: only the question is Markdown.
       const drawn = JSON.stringify(await pane.drawn())
       expect((drawn.match(/"type":"Markdown"/g) ?? []).length).toBe(1)
       expect(await ticks(pane)).toBe(0)
+    })
+
+    test(`a note is dim, turns light on the picked card and sits in the card beside the button, not in it, only on the desktop (${surface})`, async ($, on) => {
+      world(on)
+      await boot($)
+      const pane = await mount($, surface)
+      const card = async (id: string) => JSON.stringify(await pane.find({ key: `card-${id}` }))
+      const sibling = (c: string, note: string) => c.includes(`"children":["${note}"]`)
+      expect(sibling(await card('o2'), 'note two')).toBe(surface !== 'terminal')
+      if (surface === 'terminal') return
+      expect(await card('o2')).toContain('"dimColor":true')
+      await press($, 'opt-o2', surface)
+      expect(await card('o2')).toContain(`"color":"${PICKED.note}"`)
+      expect(await card('o2')).toContain('"dimColor":false')
+      // The other cards keep their dim note, and Other never gets one.
+      expect(await card('o1')).toContain('"dimColor":true')
+      expect(await card('other')).not.toContain('"dimColor":true')
+    })
+
+    test(`an option without a note draws no note line on ${surface}`, async ($, on) => {
+      world(on, { waiting: { ...QUESTION, options: QUESTION.options.map((o, i) => (i === 1 ? { id: o.id, label: o.label } : o)) } })
+      await boot($)
+      const pane = await mount($, surface)
+      const card = JSON.stringify(await pane.find({ key: 'card-o2' }))
+      expect(card).toContain(QUESTION.options[1].label)
+      expect(card).not.toContain('"type":"Text","props":{"wrap":"wrap","dimColor"')
+      expect(JSON.stringify(await pane.find({ key: 'card-o1' }))).toContain('note one')
     })
   }
 
@@ -1054,7 +1086,7 @@ describe('the desktop layout', () => {
     expect(terminal.y).toBe(0)
   })
 
-  test('a pick never moves the text: no tick on either surface, and the desktop note starts where the answer does', async ($, on) => {
+  test('a pick never moves the text: no tick on either surface, and the desktop note is its own line under the answer', async ($, on) => {
     world(on)
     await boot($)
     const pane = await mount($, 'desktop')
@@ -1066,7 +1098,7 @@ describe('the desktop layout', () => {
     expect(await ticks(term)).toBe(1)
     expect(JSON.stringify(await term.drawn())).not.toContain('✓')
     expect(d).toContain(JSON.stringify(QUESTION.options[0].label))
-    expect(d).toContain(JSON.stringify('\n' + QUESTION.options[0].note))
+    expect(d).toContain(JSON.stringify(QUESTION.options[0].note))
     expect(d).toContain('"wrap":"wrap"')
   })
 
