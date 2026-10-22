@@ -1,0 +1,935 @@
+{
+ "prompt": "shipped REVIEW_SYSTEM",
+ "legacy": false,
+ "model": "claude-haiku-4-5",
+ "judge_model": "sonnet",
+ "split": "test",
+ "repeats": 3,
+ "marker": {
+  "split": "test",
+  "fixtures": "94306e4cab",
+  "prompt": "444422f1ef",
+  "code": "39be38a"
+ },
+ "trials": [
+  {
+   "id": "explain-then-change",
+   "repeat": 0,
+   "score": 0.7792,
+   "gates_failed": [],
+   "quality": {
+    "prevents": 0.5,
+    "facts": 0.6666666666666666,
+    "chosen": 1.0,
+    "tips": 0.0,
+    "areas": 0.6666666666666666,
+    "areas_agreement": 0.5
+   },
+   "det": {
+    "chosen": 2,
+    "invented": [],
+    "facts_recall": 0.6666666666666666,
+    "facts_missing": [
+     "per ip"
+    ],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 3,
+     "kept": 3
+    },
+    "areas": [
+     "context",
+     "outcome",
+     "scope"
+    ],
+    "area_recall": 0.6666666666666666,
+    "statuses": {
+     "outcome": "left_out",
+     "context": "left_out",
+     "scope": "left_out",
+     "check": "not_needed"
+    },
+    "areas_agreement": 0.5
+   },
+   "judge": {
+    "prevents_followups": "some",
+    "prevents_why": "The better prompt covers follow-ups 3 and 4 (header, ip fallback, config file), but the tests request in prompt 5 is not included.",
+    "grounded": true,
+    "grounded_why": "Each gap is backed by later prompts (header, fallback, config file), though calling the config detail a \"scope\" gap is a mild stretch.",
+    "intent_kept": true,
+    "intent_why": "The better prompt asks for the same per-key change and only adds details given in prompts 3 and 4.",
+    "tips": "generic"
+   },
+   "review": {
+    "chosen": 2,
+    "review": {
+     "worked": "Clearly states the goal to switch from IP-based to API-key-based limiting, building directly on previous context about current behavior.",
+     "gaps": [
+      {
+       "area": "context",
+       "missing": "The prompt didn't specify where to find the API key (x-api-key header) or where limits are stored (config/limits.json), requiring follow-up clarifications.",
+       "evidence": "the key is in the x-api-key header"
+      },
+      {
+       "area": "outcome",
+       "missing": "The complete behavior for unkeyed requests wasn't specified (should fall back to per-IP limiting), leaving implementation ambiguous.",
+       "evidence": "requests without one should still be limited per ip"
+      },
+      {
+       "area": "scope",
+       "missing": "Implementation constraints like 'don't hardcode' weren't mentioned upfront, requiring an additional clarification.",
+       "evidence": "don't hardcode them"
+      }
+     ],
+     "areas": {
+      "outcome": "left_out",
+      "context": "left_out",
+      "scope": "left_out",
+      "check": "not_needed"
+     }
+    },
+    "better": "Change the rate limiter to use per-API-key limiting when the key is present. The API key is in the x-api-key header. For requests without a key, fall back to per-IP limiting. Read the rate limits from config/limits.json instead of hardcoding them.",
+    "tips": [
+     "Specify where values come from (config files, headers, databases) when asking for behavior changes that depend on those values.",
+     "Describe what happens at every path through the code, including edge cases like missing data, not just the happy path.",
+     "Include implementation constraints like 'read from config' upfront, not as clarifications after work has started."
+    ]
+   }
+  },
+  {
+   "id": "explain-then-change",
+   "repeat": 1,
+   "score": 0.8125,
+   "gates_failed": [],
+   "quality": {
+    "prevents": 0.5,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 0.0,
+    "areas": 0.6666666666666666,
+    "areas_agreement": 0.75
+   },
+   "det": {
+    "chosen": 2,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 3,
+     "kept": 3
+    },
+    "areas": [
+     "context",
+     "context",
+     "scope"
+    ],
+    "area_recall": 0.6666666666666666,
+    "statuses": {
+     "outcome": "clear",
+     "context": "left_out",
+     "scope": "left_out",
+     "check": "not_needed"
+    },
+    "areas_agreement": 0.75
+   },
+   "judge": {
+    "prevents_followups": "some",
+    "prevents_why": "The rewrite covers the header, IP fallback, and config follow-ups (prompts 3 and 4) but omits the tests requested in prompt 5.",
+    "grounded": true,
+    "grounded_why": "Each gap is backed by a later prompt (3 and 4) that supplied exactly the missing information.",
+    "intent_kept": true,
+    "intent_why": "The rewrite asks for the same change and adds only the header, fallback, and config path that later prompts supplied, with no invented facts.",
+    "tips": "generic"
+   },
+   "review": {
+    "chosen": 2,
+    "review": {
+     "worked": "It clearly stated the desired change (per-IP to per-API-key rate limiting) and identified the file to modify.",
+     "gaps": [
+      {
+       "area": "context",
+       "missing": "Prompt didn't specify where the API key is located; agent had to guess until told it's in the x-api-key header.",
+       "evidence": "the key is in the x-api-key header"
+      },
+      {
+       "area": "context",
+       "missing": "Prompt didn't say how to handle requests without an API key; agent might reject them instead of falling back to per-IP limiting.",
+       "evidence": "requests without one should still be limited per ip"
+      },
+      {
+       "area": "scope",
+       "missing": "Prompt didn't forbid hardcoding or specify limits should come from config; agent might hardcode them until corrected.",
+       "evidence": "the limits live in config/limits.json, don't hardcode them"
+      }
+     ],
+     "areas": {
+      "outcome": "clear",
+      "context": "left_out",
+      "scope": "left_out",
+      "check": "not_needed"
+     }
+    },
+    "better": "Change the rate limiter to track usage per API key instead of per IP. The API key comes from the x-api-key header. Requests without an API key should still be rate-limited per IP. Load rate limits from config/limits.json rather than hardcoding them.",
+    "tips": [
+     "Specify where input values come from\u2014headers, body, environment\u2014before asking the agent to use them.",
+     "Describe how edge cases should behave, like requests missing required headers or data.",
+     "State where configuration lives and forbid hardcoding to prevent rework when requirements change."
+    ]
+   }
+  },
+  {
+   "id": "explain-then-change",
+   "repeat": 2,
+   "score": 0.8125,
+   "gates_failed": [],
+   "quality": {
+    "prevents": 0.5,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 0.0,
+    "areas": 0.6666666666666666,
+    "areas_agreement": 0.75
+   },
+   "det": {
+    "chosen": 2,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 3,
+     "kept": 3
+    },
+    "areas": [
+     "scope",
+     "context",
+     "context"
+    ],
+    "area_recall": 0.6666666666666666,
+    "statuses": {
+     "outcome": "clear",
+     "context": "left_out",
+     "scope": "left_out",
+     "check": "not_needed"
+    },
+    "areas_agreement": 0.75
+   },
+   "judge": {
+    "prevents_followups": "some",
+    "prevents_why": "Better covers the header, the IP fallback and the config file (prompts 3 and 4), but not the tests requested in prompt 5.",
+    "grounded": true,
+    "grounded_why": "Each gap is backed by a later prompt (3 and 4) that supplied the missing header, fallback and config details.",
+    "intent_kept": true,
+    "intent_why": "Better asks for the same per-key change and uses only facts from prompts 3 and 4: the x-api-key header, the IP fallback and config/limits.json.",
+    "tips": "generic"
+   },
+   "review": {
+    "chosen": 2,
+    "review": {
+     "worked": "The prompt clearly expressed the core goal: switch the rate limiting mechanism from per-IP to per-API-key.",
+     "gaps": [
+      {
+       "area": "scope",
+       "missing": "Requests lacking an API key were not assigned any behavior, leaving the agent to guess how to handle them.",
+       "evidence": "requests without one should still be limited per ip"
+      },
+      {
+       "area": "context",
+       "missing": "Config file location was not named, risking hardcoded limits or wrong file paths.",
+       "evidence": "the limits live in config/limits.json"
+      },
+      {
+       "area": "context",
+       "missing": "Header name for the API key was not stated, forcing the agent to search or assume.",
+       "evidence": "the key is in the x-api-key header"
+      }
+     ],
+     "areas": {
+      "outcome": "clear",
+      "context": "left_out",
+      "scope": "left_out",
+      "check": "not_needed"
+     }
+    },
+    "better": "Change the rate limiter to be per API key instead of per IP. API keys come from the x-api-key header. Requests without a key should still be limited per IP. The rate limits live in config/limits.json; don't hardcode them.",
+    "tips": [
+     "Specify where required data lives: file paths, header names, configuration sources.",
+     "Define behavior for edge cases: what happens when expected data is missing or invalid.",
+     "State constraints: what to avoid, preserve, or not touch in this change."
+    ]
+   }
+  },
+  {
+   "id": "migration-column",
+   "repeat": 0,
+   "score": 0.0,
+   "gates_failed": [
+    "generation"
+   ],
+   "error": "transient: claude -p did not finish in 100s"
+  },
+  {
+   "id": "migration-column",
+   "repeat": 1,
+   "score": 0.0,
+   "gates_failed": [
+    "generation"
+   ],
+   "error": "transient: claude -p did not finish in 100s"
+  },
+  {
+   "id": "migration-column",
+   "repeat": 2,
+   "score": 0.0,
+   "gates_failed": [
+    "generation"
+   ],
+   "error": "transient: claude -p did not finish in 100s"
+  },
+  {
+   "id": "copy-change",
+   "repeat": 0,
+   "score": 0.925,
+   "gates_failed": [],
+   "quality": {
+    "prevents": 1.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 0.0,
+    "areas": 1,
+    "areas_agreement": 0.75
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 2,
+     "kept": 2
+    },
+    "areas": [
+     "outcome",
+     "scope"
+    ],
+    "area_recall": 1,
+    "statuses": {
+     "outcome": "left_out",
+     "context": "not_needed",
+     "scope": "left_out",
+     "check": "not_needed"
+    },
+    "areas_agreement": 0.75
+   },
+   "judge": {
+    "prevents_followups": "all",
+    "prevents_why": "The rewrite folds in both the example text with a second line and the 60-character mobile limit, which are exactly what prompts 2 and 3 added.",
+    "grounded": true,
+    "grounded_why": "Both gaps are backed by the later prompts, which supplied the example and the 60-character mobile constraint.",
+    "intent_kept": true,
+    "intent_why": "The rewrite asks for the same inbox empty-state text change and only includes details from prompts 2 and 3.",
+    "tips": "generic"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "It clearly identified the location (inbox empty state) and desired direction (friendlier text) to guide the agent to the right place.",
+     "gaps": [
+      {
+       "area": "outcome",
+       "missing": "The prompt didn't specify what friendly text looks like or the format desired. The agent had to wait for Prompt 2 to clarify with an example.",
+       "evidence": "something like 'You're all caught up' with a short second line"
+      },
+      {
+       "area": "scope",
+       "missing": "The prompt didn't mention character limits or mobile context. Prompt 3 had to add this constraint to guide the solution.",
+       "evidence": "keep it under 60 characters, it's shown on mobile"
+      }
+     ],
+     "areas": {
+      "outcome": "left_out",
+      "context": "not_needed",
+      "scope": "left_out",
+      "check": "not_needed"
+     }
+    },
+    "better": "Change the empty state text on the inbox to something friendlier\u2014something like 'You're all caught up' with a short second line. Keep it under 60 characters, it's shown on mobile.",
+    "tips": [
+     "Give an example when requesting subjective qualities. Rather than 'friendlier', show what you mean with 'You're all caught up.'",
+     "State constraints upfront: character limits, mobile requirements, platform considerations\u2014don't reserve them for follow-ups."
+    ]
+   }
+  },
+  {
+   "id": "copy-change",
+   "repeat": 1,
+   "score": 1.0,
+   "gates_failed": [],
+   "quality": {
+    "prevents": 1.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 1.0,
+    "areas": 1,
+    "areas_agreement": 0.75
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 2,
+     "kept": 2
+    },
+    "areas": [
+     "scope",
+     "outcome",
+     "context"
+    ],
+    "area_recall": 1,
+    "statuses": {
+     "outcome": "left_out",
+     "context": "left_out",
+     "scope": "left_out",
+     "check": "not_needed"
+    },
+    "areas_agreement": 0.75
+   },
+   "judge": {
+    "prevents_followups": "all",
+    "prevents_why": "The better prompt includes both the example text with a second line and the 60-character mobile limit, which are exactly what prompts 2 and 3 added.",
+    "grounded": true,
+    "grounded_why": "The first two gaps are backed by prompts 2 and 3, and the file-location gap is a fair observation because prompt 1 names no file.",
+    "intent_kept": true,
+    "intent_why": "It asks for the same friendlier inbox empty-state text, using only details from prompts 2 and 3 and a bracketed placeholder for the file.",
+    "tips": "specific"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "The prompt clearly identified the specific UI element (inbox empty state) and the goal (make it friendlier).",
+     "gaps": [
+      {
+       "area": "scope",
+       "missing": "Character limit was not mentioned, so the agent might write text that violates the 60-character mobile constraint and need rework.",
+       "evidence": "keep it under 60 characters, it's shown on mobile"
+      },
+      {
+       "area": "outcome",
+       "missing": "Only the quality desired (friendlier) was named, not an example of the tone, so the agent had to ask or guess.",
+       "evidence": "something like 'You're all caught up' with a short second line"
+      },
+      {
+       "area": "context",
+       "missing": "The prompt did not specify which file holds the empty state text or show the current state to replace."
+      }
+     ],
+     "areas": {
+      "outcome": "left_out",
+      "context": "left_out",
+      "scope": "left_out",
+      "check": "not_needed"
+     }
+    },
+    "better": "Change the empty state text on the inbox to something friendlier, like 'You're all caught up' with a short second line. Keep the total text under 60 characters as it displays on mobile. Make the change in [the file or component where this text lives].",
+    "tips": [
+     "Specify platform constraints (mobile character limits) upfront so the agent does not write text that later needs redoing.",
+     "Provide a tone example rather than just the desired quality, so the agent knows exactly what you mean by friendlier.",
+     "Name which file or component holds the text, or ask the agent to confirm they located the right empty state."
+    ]
+   }
+  },
+  {
+   "id": "copy-change",
+   "repeat": 2,
+   "score": 1.0,
+   "gates_failed": [],
+   "quality": {
+    "prevents": 1.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 1.0,
+    "areas": 1,
+    "areas_agreement": 1
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 2,
+     "kept": 2
+    },
+    "areas": [
+     "scope",
+     "outcome"
+    ],
+    "area_recall": 1,
+    "statuses": {
+     "outcome": "left_out",
+     "context": "clear",
+     "scope": "left_out",
+     "check": "not_needed"
+    },
+    "areas_agreement": 1
+   },
+   "judge": {
+    "prevents_followups": "all",
+    "prevents_why": "The better prompt includes both the example text with a second line and the 60-character mobile limit, which are exactly what prompts 2 and 3 added.",
+    "grounded": true,
+    "grounded_why": "Both gaps are evidenced by the later prompts, which added the character limit and the example text.",
+    "intent_kept": true,
+    "intent_why": "The better prompt asks for the same inbox empty-state text change and only includes details from prompts 2 and 3.",
+    "tips": "specific"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "The prompt clearly identified where to make the change\u2014inbox empty state\u2014and that the tone should shift to something friendlier.",
+     "gaps": [
+      {
+       "area": "scope",
+       "missing": "Without a character limit specified, the agent would create text freely, requiring revision when the 60-character mobile constraint emerged.",
+       "evidence": "keep it under 60 characters, it's shown on mobile"
+      },
+      {
+       "area": "outcome",
+       "missing": "The vague direction 'friendlier' left the agent guessing at the exact text format; a concrete example was required.",
+       "evidence": "something like 'You're all caught up' with a short second line"
+      }
+     ],
+     "areas": {
+      "outcome": "left_out",
+      "context": "clear",
+      "scope": "left_out",
+      "check": "not_needed"
+     }
+    },
+    "better": "Change the empty state text on the inbox to something friendlier, like 'You're all caught up' with a short second line. Keep it under 60 characters because it displays on mobile.",
+    "tips": [
+     "Specify all constraints upfront in one message\u2014character limits and display contexts shouldn't trickle in as follow-up prompts.",
+     "Give concrete examples of the desired text rather than abstract qualities; 'You're all caught up' guides better than just 'friendlier'."
+    ]
+   }
+  },
+  {
+   "id": "refactor-no-behaviour",
+   "repeat": 0,
+   "score": 0.9333,
+   "gates_failed": [],
+   "quality": {
+    "prevents": 1.0,
+    "facts": 0.3333333333333333,
+    "chosen": 1.0,
+    "tips": 1.0,
+    "areas": 1,
+    "areas_agreement": 1
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 0.3333333333333333,
+    "facts_missing": [
+     "email, sms and push",
+     "tests must pass unchanged"
+    ],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 2,
+     "kept": 2
+    },
+    "areas": [
+     "outcome",
+     "scope",
+     "check"
+    ],
+    "area_recall": 1,
+    "statuses": {
+     "outcome": "left_out",
+     "context": "clear",
+     "scope": "left_out",
+     "check": "left_out"
+    },
+    "areas_agreement": 1
+   },
+   "judge": {
+    "prevents_followups": "all",
+    "prevents_why": "The rewrite includes the split into email/sms/push, the no-behaviour-change and same-public-methods constraint, and the tests-unchanged requirement, which covers prompts 2, 3 and 4.",
+    "grounded": true,
+    "grounded_why": "Each gap is backed by a later prompt: the split by prompt 2, the behaviour and public API constraint by prompt 3, and the tests check by prompt 4.",
+    "intent_kept": true,
+    "intent_why": "The rewrite asks to split NotificationService.ts into email, sms and push senders with the constraints from the later prompts, and adds no new facts.",
+    "tips": "specific"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "It clearly identifies the subject and uses direct, action-oriented language; the notification service component is identifiable in context.",
+     "gaps": [
+      {
+       "area": "outcome",
+       "missing": "Clean up is too vague\u2014doesn't specify the split into three senders. The agent might guess optimization, bug fixes, or other refactoring, costing a full clarification round when prompt 2 redirects.",
+       "evidence": "split the 900-line NotificationService.ts into email, sms and push senders"
+      },
+      {
+       "area": "scope",
+       "missing": "The prompt omits constraints about preserving behavior and public API. Without knowing these rules, the agent might refactor internals or modify tests, requiring corrections in prompts 3 and 4.",
+       "evidence": "no behaviour changes at all, the public methods stay exactly the same"
+      },
+      {
+       "area": "check",
+       "missing": "No success criteria or verification method specified. The agent has no way to confirm the split is correct and safe. Prompt 4 supplies this: existing tests must pass unchanged."
+      }
+     ],
+     "areas": {
+      "outcome": "left_out",
+      "context": "clear",
+      "scope": "left_out",
+      "check": "left_out"
+     }
+    },
+    "better": "Split NotificationService.ts into email, sms, and push notification senders. No behaviour changes\u2014keep all public methods exactly as they are. Don't edit the existing tests; they must all pass unchanged.",
+    "tips": [
+     "Name the concrete result, not a vague verb\u2014specify how to split, not just 'clean up'.",
+     "List what must stay the same upfront: public methods, behavior, and tests; prevents wasted refactoring.",
+     "State how to verify success\u2014include which tests must pass or what output to check."
+    ]
+   }
+  },
+  {
+   "id": "refactor-no-behaviour",
+   "repeat": 1,
+   "score": 0.0,
+   "gates_failed": [
+    "generation"
+   ],
+   "error": "transient: claude -p did not finish in 100s"
+  },
+  {
+   "id": "refactor-no-behaviour",
+   "repeat": 2,
+   "score": 0.0,
+   "gates_failed": [
+    "generation"
+   ],
+   "error": "transient: claude -p did not finish in 100s"
+  },
+  {
+   "id": "no-followups-vague",
+   "repeat": 0,
+   "score": 0.3375,
+   "gates_failed": [
+    "grounded"
+   ],
+   "quality": {
+    "prevents": 0.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 0.0,
+    "areas": 1,
+    "areas_agreement": 0.5
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 0,
+     "kept": 0
+    },
+    "areas": [
+     "context",
+     "outcome",
+     "check"
+    ],
+    "area_recall": 1,
+    "statuses": {
+     "outcome": "left_out",
+     "context": "left_out",
+     "scope": "left_out",
+     "check": "left_out"
+    },
+    "areas_agreement": 0.5
+   },
+   "judge": {
+    "prevents_followups": "none",
+    "prevents_why": "The only later prompt approves and asks to merge, correcting nothing, and \"better\" is mostly placeholders that leave the agent still guessing about which parser and behaviors.",
+    "grounded": false,
+    "grounded_why": "The gaps about unspecified parser, behaviors, and verification are visible in the prompt, but the review ignores that the user was satisfied in prompt 2, and the \"coverage threshold\" and scope claims are not shown.",
+    "intent_kept": true,
+    "intent_why": "\"Better\" still asks for tests for the parser, using only bracketed placeholders for missing details.",
+    "tips": "generic"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "The prompt clearly identified that tests are needed and directed the agent to write them.",
+     "gaps": [
+      {
+       "area": "context",
+       "missing": "The prompt doesn't specify which parser to test or where it's located. The agent has to guess the file or module without this information."
+      },
+      {
+       "area": "outcome",
+       "missing": "No details on what behaviors the tests should verify. The agent doesn't know whether to test valid inputs, error cases, edge cases, or specific features."
+      },
+      {
+       "area": "check",
+       "missing": "The prompt doesn't say how to verify the tests work: what command to run, what passing looks like, or what coverage threshold matters."
+      }
+     ],
+     "areas": {
+      "outcome": "left_out",
+      "context": "left_out",
+      "scope": "left_out",
+      "check": "left_out"
+     }
+    },
+    "better": "Write tests for [the parser]. Specifically test [these behaviors: valid inputs, error handling, edge cases]. Use [the project's test framework]. Put them in [the test file location]. Run [the test command] and verify they pass.",
+    "tips": [
+     "Name the file or module to test, not just 'the parser' or 'the component'.",
+     "List the specific behaviors or edge cases the tests should verify.",
+     "State the test command and what passing means: all tests green, coverage threshold, etc."
+    ]
+   }
+  },
+  {
+   "id": "no-followups-vague",
+   "repeat": 1,
+   "score": 0.225,
+   "gates_failed": [
+    "intent_kept",
+    "grounded"
+   ],
+   "quality": {
+    "prevents": 0.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 0.0,
+    "areas": 1,
+    "areas_agreement": 0.75
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 0,
+     "kept": 0
+    },
+    "areas": [
+     "context",
+     "outcome",
+     "scope"
+    ],
+    "area_recall": 1,
+    "statuses": {
+     "outcome": "left_out",
+     "context": "left_out",
+     "scope": "left_out",
+     "check": "not_needed"
+    },
+    "areas_agreement": 0.75
+   },
+   "judge": {
+    "prevents_followups": "none",
+    "prevents_why": "The only later prompt approves and asks to merge, so nothing was corrected; the rewrite is mostly placeholders that leave the agent only slightly less to guess.",
+    "grounded": false,
+    "grounded_why": "The review claims the agent wasted discovery effort and guessed, but the session shows nothing about the agent's process, and the evidence fields are empty.",
+    "intent_kept": false,
+    "intent_why": "The rewrite adds a requirement to run the tests and have them pass before merging, which the first prompt never asked for, and it adds coverage demands too.",
+    "tips": "generic"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "The prompt was direct and trusted the agent's judgment, and the result was apparently solid enough to merge without revision.",
+     "gaps": [
+      {
+       "area": "context",
+       "missing": "No file path or module name for the parser. The agent had to find or guess which parser to test, wasting discovery effort.",
+       "evidence": ""
+      },
+      {
+       "area": "outcome",
+       "missing": "No testing framework specified, no sample behaviors or coverage expected. The agent guessed what testing approach and depth would satisfy you.",
+       "evidence": ""
+      },
+      {
+       "area": "scope",
+       "missing": "No limits on what to test or conventions to follow. The agent had to infer what scenarios mattered most to your parser."
+      }
+     ],
+     "areas": {
+      "outcome": "left_out",
+      "context": "left_out",
+      "scope": "left_out",
+      "check": "not_needed"
+     }
+    },
+    "better": "Write tests for [the parser module or file]. Use [the testing framework your project uses]. Focus on [specific behaviors: e.g., happy path, edge cases, error handling]. The tests should cover [sample scenarios or inputs]. Run them with [test command], and they should all pass before merging.",
+    "tips": [
+     "Name the parser file or module, not just the task type. Start with where, then what.",
+     "Describe one or two key behaviors the tests should verify, so the agent knows what done looks like.",
+     "State the test framework and how to run the tests, so the agent doesn't have to guess your conventions."
+    ]
+   }
+  },
+  {
+   "id": "no-followups-vague",
+   "repeat": 2,
+   "score": 0.3375,
+   "gates_failed": [
+    "grounded"
+   ],
+   "quality": {
+    "prevents": 0.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 0.0,
+    "areas": 1,
+    "areas_agreement": 1
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 0,
+     "kept": 0
+    },
+    "areas": [
+     "context",
+     "outcome"
+    ],
+    "area_recall": 1,
+    "statuses": {
+     "outcome": "left_out",
+     "context": "left_out",
+     "scope": "not_needed",
+     "check": "not_needed"
+    },
+    "areas_agreement": 1
+   },
+   "judge": {
+    "prevents_followups": "none",
+    "prevents_why": "No follow-up corrected anything (the developer accepted the result and said merge), so the question is whether \"better\" leaves less to guess, and it does only through bracketed placeholders.",
+    "grounded": false,
+    "grounded_why": "The review says the agent had to search or assume, but the session shows the developer accepted the output without revision, so the claimed gaps never caused a visible problem.",
+    "intent_kept": true,
+    "intent_why": "\"Better\" still asks for tests of the parser and uses only bracketed placeholders for the missing details.",
+    "tips": "generic"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "The prompt succeeded: it prompted the agent to write tests the developer found acceptable without revision.",
+     "gaps": [
+      {
+       "area": "context",
+       "missing": "Prompt didn't specify which parser file to test or what test framework to use, forcing the agent to search the codebase or make assumptions."
+      },
+      {
+       "area": "outcome",
+       "missing": "No specific parsing behaviors to verify were named (invalid input, edge cases, syntax rules), leaving test coverage entirely for the agent to choose."
+      }
+     ],
+     "areas": {
+      "outcome": "left_out",
+      "context": "left_out",
+      "scope": "not_needed",
+      "check": "not_needed"
+     }
+    },
+    "better": "Write tests for [the parser file]. Test that it correctly [handles invalid input, parses expected syntax, covers edge cases like X and Y]. Use [the project's test framework and existing test file pattern] and verify by running [the test command].",
+    "tips": [
+     "Specify the file path and test framework when asking for tests, not just 'the parser'.",
+     "Name the parsing behaviors and edge cases your tests should verify.",
+     "Say how you'll know tests work: the command to run or the condition they must meet."
+    ]
+   }
+  }
+ ],
+ "stopped_early": null,
+ "budget": {
+  "tokens": {
+   "input_total": 92149,
+   "cache_read": 9900,
+   "output": 69744,
+   "by_kind": {
+    "generate:cache_read": 0,
+    "generate:cache_write": 41765,
+    "generate:input": 27866,
+    "generate:output": 66435,
+    "judge:cache_read": 9900,
+    "judge:cache_write": 12598,
+    "judge:input": 20,
+    "judge:output": 3309
+   }
+  },
+  "cost_usd_list_price": 0.53,
+  "calls": {
+   "generate": 15,
+   "judge": 10
+  },
+  "total_calls": 25,
+  "seconds_by_kind": {},
+  "errors": {},
+  "cap": 200,
+  "models": {
+   "generate": [
+    "claude-haiku-4-5"
+   ],
+   "judge": [
+    "claude-sonnet-5-5"
+   ]
+  }
+ },
+ "summary": {
+  "trials": 15,
+  "all_gates_passed": 7,
+  "timeouts": 5,
+  "gate_failures": {
+   "generation": 5,
+   "grounded": 3,
+   "intent_kept": 1
+  },
+  "mean_score": 0.4775,
+  "mean_score_finished_only": 0.7163,
+  "quality_means": {
+   "prevents": 0.55,
+   "facts": 0.9,
+   "chosen": 1.0,
+   "tips": 0.3,
+   "areas": 0.9,
+   "areas_agreement": 0.775
+  },
+  "quotes": {
+   "raw": 17,
+   "kept": 17
+  },
+  "invented_names": []
+ }
+}

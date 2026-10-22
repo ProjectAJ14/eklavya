@@ -1,0 +1,808 @@
+{
+ "prompt": "eval/gepa/runs/fb-search/best_candidate.md",
+ "legacy": false,
+ "model": "claude-haiku-4-5",
+ "judge_model": "sonnet",
+ "split": "test",
+ "repeats": 3,
+ "marker": {
+  "split": "test",
+  "fixtures": "94306e4cab",
+  "prompt": "834c6d0bf0",
+  "code": "39be38a"
+ },
+ "trials": [
+  {
+   "id": "explain-then-change",
+   "repeat": 0,
+   "score": 0.0,
+   "gates_failed": [
+    "generation"
+   ],
+   "error": "transient: claude -p did not finish in 100s"
+  },
+  {
+   "id": "explain-then-change",
+   "repeat": 1,
+   "score": 0.975,
+   "gates_failed": [],
+   "quality": {
+    "prevents": 1.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 1.0,
+    "areas": 0.6666666666666666,
+    "areas_agreement": 1
+   },
+   "det": {
+    "chosen": 2,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 3,
+     "kept": 3
+    },
+    "areas": [
+     "context",
+     "scope",
+     "context"
+    ],
+    "area_recall": 0.6666666666666666,
+    "statuses": {
+     "outcome": "clear",
+     "context": "left_out",
+     "scope": "left_out",
+     "check": "left_out"
+    },
+    "areas_agreement": 1
+   },
+   "judge": {
+    "prevents_followups": "all",
+    "prevents_why": "The rewrite includes the header name, the per-IP fallback, the config file, and the tests, which covers prompts 3, 4 and 5.",
+    "grounded": true,
+    "grounded_why": "Each gap is backed by a later prompt that supplied the missing detail, and the quoted evidence matches those prompts.",
+    "intent_kept": true,
+    "intent_why": "It asks for the same per-API-key change and adds only details that prompts 3, 4 and 5 supply (x-api-key, per-IP fallback, config/limits.json, tests for both paths).",
+    "tips": "specific"
+   },
+   "review": {
+    "chosen": 2,
+    "review": {
+     "worked": "The prompt clearly expressed the intended change (from per-IP to per-API-key limiting) in concise terms.",
+     "gaps": [
+      {
+       "area": "context",
+       "missing": "The API key header name wasn't specified. This required Prompt 3 to clarify it comes from x-api-key.",
+       "evidence": "the key is in the x-api-key header"
+      },
+      {
+       "area": "scope",
+       "missing": "The fallback behavior for missing keys wasn't defined. Prompt 3 had to clarify requests without keys should limit per IP.",
+       "evidence": "requests without one should still be limited per ip"
+      },
+      {
+       "area": "context",
+       "missing": "The limits source wasn't mentioned, leading Prompt 4 to specify they're in config/limits.json, not hardcoded.",
+       "evidence": "the limits live in config/limits.json, don't hardcode them"
+      }
+     ],
+     "areas": {
+      "outcome": "clear",
+      "context": "left_out",
+      "scope": "left_out",
+      "check": "left_out"
+     }
+    },
+    "better": "Change the rate limiter to limit per API key instead of per IP. The API key comes from the x-api-key header; requests without the header should fall back to per-IP limiting. Load the limit values from config/limits.json, don't hardcode them. Add tests for both paths (with and without API key).",
+    "tips": [
+     "Specify header names and file paths when changes depend on finding configuration or auth values in specific places.",
+     "Define behavior for requests lacking required fields (like missing API keys) before asking the agent to refactor.",
+     "Pair constraints like 'don't hardcode' with what to do instead, such as 'load from config/limits.json'."
+    ]
+   }
+  },
+  {
+   "id": "explain-then-change",
+   "repeat": 2,
+   "score": 0.0,
+   "gates_failed": [
+    "generation"
+   ],
+   "error": "transient: claude -p did not finish in 100s"
+  },
+  {
+   "id": "migration-column",
+   "repeat": 0,
+   "score": 0.0,
+   "gates_failed": [
+    "generation"
+   ],
+   "error": "transient: claude -p did not finish in 100s"
+  },
+  {
+   "id": "migration-column",
+   "repeat": 1,
+   "score": 0.0,
+   "gates_failed": [
+    "generation"
+   ],
+   "error": "transient: claude -p did not finish in 100s"
+  },
+  {
+   "id": "migration-column",
+   "repeat": 2,
+   "score": 0.975,
+   "gates_failed": [],
+   "quality": {
+    "prevents": 1.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 1.0,
+    "areas": 0.6666666666666666,
+    "areas_agreement": 0.75
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 3,
+     "kept": 3
+    },
+    "areas": [
+     "scope",
+     "scope",
+     "outcome"
+    ],
+    "area_recall": 0.6666666666666666,
+    "statuses": {
+     "outcome": "left_out",
+     "context": "not_needed",
+     "scope": "left_out",
+     "check": "not_needed"
+    },
+    "areas_agreement": 0.75
+   },
+   "judge": {
+    "prevents_followups": "all",
+    "prevents_why": "The rewrite includes the table, nullability, IANA format, no default, forward-only migration numbering, and the Profile type update, covering all four follow-ups.",
+    "grounded": true,
+    "grounded_why": "Each gap cites a later prompt that actually supplied the missing table, migration convention, or type update.",
+    "intent_kept": true,
+    "intent_why": "Every detail in the rewrite comes from the five prompts, with no invented files or names.",
+    "tips": "specific"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "It stated the goal clearly\u2014adding a timezone column\u2014but left the table location, implementation approach, and type updates unspecified.",
+     "gaps": [
+      {
+       "area": "scope",
+       "missing": "The prompt didn't name the target table, causing ambiguity resolved by the next prompt specifying profiles, not users.",
+       "evidence": "on the profiles table, not users"
+      },
+      {
+       "area": "scope",
+       "missing": "The prompt omitted the implementation method, causing a later prompt to clarify migrations in db/migrations with specific numbering.",
+       "evidence": "we use forward-only migrations in db/migrations, number it after the last one"
+      },
+      {
+       "area": "outcome",
+       "missing": "The prompt didn't mention the Profile type needs updating, revealing later as necessary work to complete the feature.",
+       "evidence": "update the Profile type too"
+      }
+     ],
+     "areas": {
+      "outcome": "left_out",
+      "context": "not_needed",
+      "scope": "left_out",
+      "check": "not_needed"
+     }
+    },
+    "better": "Add a timezone column to the profiles table, not users. Make it nullable, accepting IANA timezone names like Europe/Berlin, with no default. Create a forward-only migration in db/migrations numbered after the last one, then update the Profile type definition to include the timezone field.",
+    "tips": [
+     "State which table or file you're targeting in the initial prompt, not as a correction after.",
+     "List project conventions upfront: migration locations, numbering patterns, and required code updates.",
+     "Describe complete feature scope: which files change, types that need updating, related modules affected."
+    ]
+   }
+  },
+  {
+   "id": "copy-change",
+   "repeat": 0,
+   "score": 1.0,
+   "gates_failed": [],
+   "quality": {
+    "prevents": 1.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 1.0,
+    "areas": 1,
+    "areas_agreement": 1
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 2,
+     "kept": 2
+    },
+    "areas": [
+     "outcome",
+     "scope"
+    ],
+    "area_recall": 1,
+    "statuses": {
+     "outcome": "left_out",
+     "context": "clear",
+     "scope": "left_out",
+     "check": "not_needed"
+    },
+    "areas_agreement": 1
+   },
+   "judge": {
+    "prevents_followups": "all",
+    "prevents_why": "The better prompt includes both the example text with second line and the 60-character mobile limit, which are exactly what prompts 2 and 3 added.",
+    "grounded": true,
+    "grounded_why": "Both gaps are evidenced by the later prompts 2 and 3, which supplied the example text and the length constraint missing from prompt 1.",
+    "intent_kept": true,
+    "intent_why": "The rewrite asks for the same friendlier inbox empty state text and only folds in details from prompts 2 and 3.",
+    "tips": "specific"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "The prompt clearly identified the target feature (inbox empty state) as the location for change.",
+     "gaps": [
+      {
+       "area": "outcome",
+       "missing": "The prompt didn't specify the actual text (e.g., 'You're all caught up') or format (two lines).",
+       "evidence": "something like 'You're all caught up' with a short second line"
+      },
+      {
+       "area": "scope",
+       "missing": "The prompt didn't mention the 60-character limit or mobile display constraint.",
+       "evidence": "keep it under 60 characters, it's shown on mobile"
+      }
+     ],
+     "areas": {
+      "outcome": "left_out",
+      "context": "clear",
+      "scope": "left_out",
+      "check": "not_needed"
+     }
+    },
+    "better": "Change the empty state text on the inbox to something friendlier, like 'You're all caught up' with a short second line. Keep it under 60 characters\u2014it's shown on mobile.",
+    "tips": [
+     "Illustrate subjective UI requests like 'friendlier' with specific examples of the exact text and format you want.",
+     "State character limits and display contexts (mobile, tablet) upfront rather than as later refinements.",
+     "When revising copy requirements across prompts, consolidate all constraints into the initial request to avoid rework."
+    ]
+   }
+  },
+  {
+   "id": "copy-change",
+   "repeat": 1,
+   "score": 1.0,
+   "gates_failed": [],
+   "quality": {
+    "prevents": 1.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 1.0,
+    "areas": 1,
+    "areas_agreement": 0.75
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 2,
+     "kept": 2
+    },
+    "areas": [
+     "outcome",
+     "scope"
+    ],
+    "area_recall": 1,
+    "statuses": {
+     "outcome": "left_out",
+     "context": "clear",
+     "scope": "left_out",
+     "check": "clear"
+    },
+    "areas_agreement": 0.75
+   },
+   "judge": {
+    "prevents_followups": "all",
+    "prevents_why": "The better prompt includes the example phrase, second line, and 60-character mobile limit, which covers both follow-ups.",
+    "grounded": true,
+    "grounded_why": "Both gaps match the later prompts, which added an example phrase and a 60-character mobile limit.",
+    "intent_kept": true,
+    "intent_why": "It asks for the same inbox empty-state text change and uses only details from prompts 2 and 3.",
+    "tips": "specific"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "The prompt clearly identified what to change (empty state text) and where (inbox).",
+     "gaps": [
+      {
+       "area": "outcome",
+       "missing": "The vague term 'friendlier' required clarification with a specific example in the next prompt.",
+       "evidence": "something like 'You're all caught up' with a short second line"
+      },
+      {
+       "area": "scope",
+       "missing": "No character limit or mobile context was mentioned, forcing a third prompt to add this critical constraint.",
+       "evidence": "keep it under 60 characters, it's shown on mobile"
+      }
+     ],
+     "areas": {
+      "outcome": "left_out",
+      "context": "clear",
+      "scope": "left_out",
+      "check": "clear"
+     }
+    },
+    "better": "Change the inbox empty state text to 'You're all caught up' with a friendly second line. Keep it under 60 characters total\u2014it's shown on mobile.",
+    "tips": [
+     "Specify tone with concrete examples like 'You're all caught up' rather than subjective words like 'friendlier' to avoid clarification rounds.",
+     "State design constraints like character limits in your initial prompt instead of adding them after as refinements.",
+     "Group all related requirements\u2014tone, length, display context\u2014in one prompt to avoid sequential clarifications."
+    ]
+   }
+  },
+  {
+   "id": "copy-change",
+   "repeat": 2,
+   "score": 0.0,
+   "gates_failed": [
+    "generation"
+   ],
+   "error": "transient: claude -p did not finish in 100s"
+  },
+  {
+   "id": "refactor-no-behaviour",
+   "repeat": 0,
+   "score": 0.9667,
+   "gates_failed": [],
+   "quality": {
+    "prevents": 1.0,
+    "facts": 0.6666666666666666,
+    "chosen": 1.0,
+    "tips": 1.0,
+    "areas": 1,
+    "areas_agreement": 1
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 0.6666666666666666,
+    "facts_missing": [
+     "email, sms and push"
+    ],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 3,
+     "kept": 3
+    },
+    "areas": [
+     "outcome",
+     "scope",
+     "check"
+    ],
+    "area_recall": 1,
+    "statuses": {
+     "outcome": "left_out",
+     "context": "clear",
+     "scope": "left_out",
+     "check": "left_out"
+    },
+    "areas_agreement": 1
+   },
+   "judge": {
+    "prevents_followups": "all",
+    "prevents_why": "The rewrite includes the split into email/sms/push, no behavior changes, unchanged public methods, and unchanged tests, covering all three follow-ups.",
+    "grounded": true,
+    "grounded_why": "Each gap cites a later prompt that actually added the split target, the behavior/API constraints, and the test requirement.",
+    "intent_kept": true,
+    "intent_why": "It asks for the same cleanup as the split of NotificationService.ts into email, sms and push, using only details from the prompts; \"verify by running the tests\" is a mild extension of the test requirement.",
+    "tips": "specific"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "The prompt clearly identified the target service for refactoring.",
+     "gaps": [
+      {
+       "area": "outcome",
+       "missing": "The prompt omitted the specific refactoring goal\u2014splitting NotificationService.ts into three modules. This required a clarification prompt to specify the intended architecture.",
+       "evidence": "split the 900-line NotificationService.ts into email, sms and push senders"
+      },
+      {
+       "area": "scope",
+       "missing": "The prompt lacked scope constraints on behavior, API stability, and test editing. Later clarifications stated no behavior changes, identical public methods, and no test edits.",
+       "evidence": "no behaviour changes at all, the public methods stay exactly the same"
+      },
+      {
+       "area": "check",
+       "missing": "The prompt didn't specify how to verify success. A later prompt clarified that existing tests must pass unchanged as the validation check.",
+       "evidence": "the existing tests must pass unchanged"
+      }
+     ],
+     "areas": {
+      "outcome": "left_out",
+      "context": "clear",
+      "scope": "left_out",
+      "check": "left_out"
+     }
+    },
+    "better": "Split the 900-line NotificationService.ts into three separate modules\u2014one each for email, SMS, and push notifications. Make no behavior changes and keep the public methods exactly the same. The existing tests must pass unchanged; don't edit the test files. Verify by running the tests.",
+    "tips": [
+     "Specify concrete deliverables in refactoring tasks\u2014name the target structure or files you want, not just the problem you want fixed.",
+     "State upfront in refactoring prompts what must stay unchanged: the public interface, behavior, and test constraints.",
+     "Name the specific check that proves success: the tests to run, the command to verify, or the condition that says done."
+    ]
+   }
+  },
+  {
+   "id": "refactor-no-behaviour",
+   "repeat": 1,
+   "score": 0.0,
+   "gates_failed": [
+    "generation"
+   ],
+   "error": "transient: claude -p did not finish in 100s"
+  },
+  {
+   "id": "refactor-no-behaviour",
+   "repeat": 2,
+   "score": 0.9667,
+   "gates_failed": [],
+   "quality": {
+    "prevents": 1.0,
+    "facts": 0.6666666666666666,
+    "chosen": 1.0,
+    "tips": 1.0,
+    "areas": 1,
+    "areas_agreement": 1
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 0.6666666666666666,
+    "facts_missing": [
+     "email, sms and push"
+    ],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 3,
+     "kept": 3
+    },
+    "areas": [
+     "outcome",
+     "scope",
+     "check"
+    ],
+    "area_recall": 1,
+    "statuses": {
+     "outcome": "left_out",
+     "context": "clear",
+     "scope": "left_out",
+     "check": "left_out"
+    },
+    "areas_agreement": 1
+   },
+   "judge": {
+    "prevents_followups": "all",
+    "prevents_why": "The better prompt includes the split into email/sms/push, unchanged behavior and public API, and tests passing unedited, which covers all three follow-ups.",
+    "grounded": true,
+    "grounded_why": "Each gap is backed by a later prompt that adds exactly that missing detail, though the \"worked\" line is slightly generous about the vague prompt.",
+    "intent_kept": true,
+    "intent_why": "It asks for the same refactor of NotificationService.ts using only details from the later prompts, with no invented facts (it omits the 900-line detail, which is harmless).",
+    "tips": "specific"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "The prompt clearly identified the component needing work, but was too vague about the specific refactoring approach.",
+     "gaps": [
+      {
+       "area": "outcome",
+       "missing": "The prompt didn't specify how to refactor\u2014just 'clean up'. Later clarification was needed to say split it into email, sms, and push senders.",
+       "evidence": "split the 900-line NotificationService.ts into email, sms and push senders"
+      },
+      {
+       "area": "scope",
+       "missing": "The prompt didn't state whether behavior and public methods must remain unchanged, leading to constraint clarification later.",
+       "evidence": "no behaviour changes at all, the public methods stay exactly the same"
+      },
+      {
+       "area": "check",
+       "missing": "The prompt didn't specify how to verify the refactoring or whether tests could be modified, requiring clarification later.",
+       "evidence": "the existing tests must pass unchanged, don't edit them"
+      }
+     ],
+     "areas": {
+      "outcome": "left_out",
+      "context": "clear",
+      "scope": "left_out",
+      "check": "left_out"
+     }
+    },
+    "better": "Refactor NotificationService.ts by splitting it into separate email, sms, and push sender implementations. The public API and behavior must stay exactly the same\u2014this is a pure refactoring. Verify it worked: the existing tests must pass unchanged, and don't modify the test code.",
+    "tips": [
+     "Name the specific refactoring structure you want (split into X, Y, Z) rather than just the goal (clean up).",
+     "State whether behavior and public APIs must stay unchanged for refactoring tasks.",
+     "Specify what existing code can't be modified and how to verify the refactoring worked."
+    ]
+   }
+  },
+  {
+   "id": "no-followups-vague",
+   "repeat": 0,
+   "score": 0.3262,
+   "gates_failed": [
+    "grounded"
+   ],
+   "quality": {
+    "prevents": 0.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 0.0,
+    "areas": 0,
+    "areas_agreement": 0.5
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 0,
+     "kept": 0
+    },
+    "areas": [],
+    "area_recall": 0,
+    "statuses": {
+     "outcome": "clear",
+     "context": "not_needed",
+     "scope": "not_needed",
+     "check": "not_needed"
+    },
+    "areas_agreement": 0.5
+   },
+   "judge": {
+    "prevents_followups": "none",
+    "prevents_why": "No later prompt corrects anything, and \"better\" is identical to the original, so it leaves the agent no less to guess.",
+    "grounded": false,
+    "grounded_why": "The review claims the developer was confident in the agent's understanding of project context and that context, scope and check were not needed, but the prompts show none of that; the prompt is vague and approval alone doesn't justify those claims.",
+    "intent_kept": true,
+    "intent_why": "The rewrite is identical to the original prompt, so it asks for the same task and adds nothing new.",
+    "tips": "generic"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "The developer's confidence in the agent's understanding of project context was validated by immediate approval without corrections needed.",
+     "gaps": [],
+     "areas": {
+      "outcome": "clear",
+      "context": "not_needed",
+      "scope": "not_needed",
+      "check": "not_needed"
+     }
+    },
+    "better": "write some tests for the parser",
+    "tips": [
+     "Be specific about what to build, not how; established patterns guide the agent when the goal is clear and unambiguous."
+    ]
+   }
+  },
+  {
+   "id": "no-followups-vague",
+   "repeat": 1,
+   "score": 0.3262,
+   "gates_failed": [
+    "grounded"
+   ],
+   "quality": {
+    "prevents": 0.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 0.0,
+    "areas": 0,
+    "areas_agreement": 0.5
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 0,
+     "kept": 0
+    },
+    "areas": [],
+    "area_recall": 0,
+    "statuses": {
+     "outcome": "clear",
+     "context": "not_needed",
+     "scope": "not_needed",
+     "check": "not_needed"
+    },
+    "areas_agreement": 0.5
+   },
+   "judge": {
+    "prevents_followups": "none",
+    "prevents_why": "No later prompt corrects anything, and \"better\" only adds \"and run them\", which leaves the agent almost as much to guess (which parser, which cases, which framework).",
+    "grounded": false,
+    "grounded_why": "The review calls the prompt clear and says context and scope were not needed, but \"the parser\" is vague and gives no file, framework or cases, and the approval in prompt 2 doesn't show the prompt was adequate.",
+    "intent_kept": true,
+    "intent_why": "\"Better\" still asks for tests for the parser and adds only running them, with no invented files or names.",
+    "tips": "generic"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "The brief prompt was clear about what done looks like\u2014writing tests\u2014and the developer approved the result without requesting changes or clarification.",
+     "gaps": [],
+     "areas": {
+      "outcome": "clear",
+      "context": "not_needed",
+      "scope": "not_needed",
+      "check": "not_needed"
+     }
+    },
+    "better": "Write some tests for the parser and run them.",
+    "tips": [
+     "Lead with outcome, even when context or scope is implicit\u2014this prompt made clear what done looks like, and that sufficed."
+    ]
+   }
+  },
+  {
+   "id": "no-followups-vague",
+   "repeat": 2,
+   "score": 0.3262,
+   "gates_failed": [
+    "grounded"
+   ],
+   "quality": {
+    "prevents": 0.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 0.0,
+    "areas": 0,
+    "areas_agreement": 0
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 0,
+     "kept": 0
+    },
+    "areas": [],
+    "area_recall": 0,
+    "statuses": {
+     "outcome": "clear",
+     "context": "clear",
+     "scope": "clear",
+     "check": "clear"
+    },
+    "areas_agreement": 0
+   },
+   "judge": {
+    "prevents_followups": "none",
+    "prevents_why": "No later prompt corrects anything, and \"better\" is identical to the original, so the agent is left with the same guesses about which parser, which framework and what to cover.",
+    "grounded": false,
+    "grounded_why": "The review claims context, scope and outcome are all clear, but the prompt never names the parser, test framework, or coverage, and approval of the result doesn't show the prompt was sufficient.",
+    "intent_kept": true,
+    "intent_why": "\"better\" is verbatim the chosen prompt, so it asks for the same task and adds nothing.",
+    "tips": "generic"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "The prompt clearly expressed the task and the agent completed it without needing correction or clarification.",
+     "gaps": [],
+     "areas": {
+      "outcome": "clear",
+      "context": "clear",
+      "scope": "clear",
+      "check": "clear"
+     }
+    },
+    "better": "write some tests for the parser",
+    "tips": [
+     "Keep task prompts brief and direct when context and conventions are clear; straight approval proves sufficiency."
+    ]
+   }
+  }
+ ],
+ "stopped_early": null,
+ "budget": {
+  "tokens": {
+   "input_total": 62063,
+   "cache_read": 8910,
+   "output": 64164,
+   "by_kind": {
+    "generate:cache_read": 0,
+    "generate:cache_write": 19421,
+    "generate:input": 23237,
+    "generate:output": 61194,
+    "judge:cache_read": 8910,
+    "judge:cache_write": 10477,
+    "judge:input": 18,
+    "judge:output": 2970
+   }
+  },
+  "cost_usd_list_price": 0.44,
+  "calls": {
+   "generate": 15,
+   "judge": 9
+  },
+  "total_calls": 24,
+  "seconds_by_kind": {},
+  "errors": {},
+  "cap": 200,
+  "models": {
+   "generate": [
+    "claude-haiku-4-5"
+   ],
+   "judge": [
+    "claude-sonnet-5-5"
+   ]
+  }
+ },
+ "summary": {
+  "trials": 15,
+  "all_gates_passed": 6,
+  "timeouts": 6,
+  "gate_failures": {
+   "generation": 6,
+   "grounded": 3
+  },
+  "mean_score": 0.4575,
+  "mean_score_finished_only": 0.7624,
+  "quality_means": {
+   "prevents": 0.667,
+   "facts": 0.926,
+   "chosen": 1.0,
+   "tips": 0.667,
+   "areas": 0.593,
+   "areas_agreement": 0.722
+  },
+  "quotes": {
+   "raw": 16,
+   "kept": 16
+  },
+  "invented_names": []
+ }
+}
