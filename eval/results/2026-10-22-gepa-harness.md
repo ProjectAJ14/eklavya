@@ -2,7 +2,8 @@
 
 Run on `main` at 688aef6 plus PR #245 (the `decide.py` rule, length cap, limits note, marker and model ids).
 `origin/main` was merged before the runs ended; that commit touched only `hooks/panel/`, the workflow and docs,
-and all five markers show the same fixtures and the same scorer commit (`39be38a`). Data: `2026-10-22-gepa-harness/`.
+and the three extraction markers show the same fixtures and the same scorer commit (`39be38a`). Data: `2026-10-22-gepa-*.json`
+(the evaluations) and `2026-10-22-gepa-*-candidate-seed*.md` (the candidate texts).
 Models the CLI resolved: generator `claude-sonnet-5-5` (extraction) and `claude-haiku-4-5` (feedback); judges
 `claude-sonnet-5-5` and `claude-haiku-4-5`; reflection `claude-sonnet-5-5`. Every judge is a Claude model.
 
