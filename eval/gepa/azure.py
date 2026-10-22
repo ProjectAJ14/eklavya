@@ -1,13 +1,14 @@
 """
 A judge from another model family: Azure OpenAI, over its REST API with the standard library.
 
-Credentials are read from the environment, or from `~/.config/eklavya-eval/azure.env` (KEY=VALUE lines, outside
+The v1 API (https://learn.microsoft.com/azure/ai-foundry/foundry-models/how-to/use-chat-completions): POST
+`<endpoint>/openai/v1/chat/completions`, an `api-key` header, and the deployment name in the body's `model`; no
+`api-version`. Credentials are read from the environment, or from `~/.config/eklavya-eval/azure.env` (KEY=VALUE lines, outside
 the repository, never printed):
 
     AZURE_OPENAI_ENDPOINT        https://<resource>.openai.azure.com
     AZURE_OPENAI_KEY             (AZURE_OPENAI_API_KEY also works)
     AZURE_OPENAI_DEPLOYMENT      the deployment name of the judge model
-    AZURE_OPENAI_API_VERSION     optional, default below
     AZURE_OPENAI_INSECURE_TLS    "true" skips certificate checks for this client only, for a network that
                                  inspects TLS; the run prints a note when it is on
 
@@ -24,7 +25,6 @@ import urllib.request
 from pathlib import Path
 
 ENV_FILE = Path.home() / ".config" / "eklavya-eval" / "azure.env"
-API_VERSION = "2024-10-21"
 
 
 def settings() -> dict | None:
@@ -41,14 +41,14 @@ def settings() -> dict | None:
     insecure = env.get("AZURE_OPENAI_INSECURE_TLS", "").lower() == "true"
     if insecure:
         print("azure judge: TLS certificate checks are off for this client (AZURE_OPENAI_INSECURE_TLS)", file=sys.stderr)
-    return {**got, "api_version": env.get("AZURE_OPENAI_API_VERSION", API_VERSION), "insecure_tls": insecure}
+    return {**got, "insecure_tls": insecure}
 
 
 def ask(prompt: str, cfg: dict, timeout: float = 120) -> dict:
     """One chat completion. Returns {text, model, usage}; raises RuntimeError with the service's message on failure."""
-    url = f"{cfg['endpoint'].rstrip('/')}/openai/deployments/{cfg['deployment']}/chat/completions?api-version={cfg['api_version']}"
-    # No temperature: the gpt-5 family accepts only its default and answers 400 to anything else.
-    body = json.dumps({"messages": [{"role": "user", "content": prompt}]}).encode()
+    url = f"{cfg['endpoint'].rstrip('/')}/openai/v1/chat/completions"
+    # No temperature and no token limit: the reasoning models reject the first and count their reasoning against the second.
+    body = json.dumps({"model": cfg["deployment"], "messages": [{"role": "user", "content": prompt}]}).encode()
     ctx = ssl._create_unverified_context() if cfg.get("insecure_tls") else None
     req = urllib.request.Request(url, data=body, headers={"api-key": cfg["api_key"], "content-type": "application/json"})
     try:
@@ -80,13 +80,13 @@ if __name__ == "__main__":
 
     srv = HTTPServer(("127.0.0.1", 0), H)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
-    cfg = {"endpoint": f"http://127.0.0.1:{srv.server_port}/", "api_key": "k", "deployment": "judge", "api_version": API_VERSION}
+    cfg = {"endpoint": f"http://127.0.0.1:{srv.server_port}/", "api_key": "k", "deployment": "judge"}
     os.environ.update(AZURE_OPENAI_ENDPOINT="http://x", AZURE_OPENAI_KEY="k", AZURE_OPENAI_DEPLOYMENT="d", AZURE_OPENAI_INSECURE_TLS="true")
     from_env = settings()
     assert from_env and from_env["api_key"] == "k" and from_env["insecure_tls"] and "temperature" not in json.dumps(from_env)
     got = ask("hello", cfg)
     assert got["text"] == '{"ok": true}' and got["model"] == "gpt-test-2026"
-    assert seen["path"].startswith("/openai/deployments/judge/chat/completions?api-version=") and seen["key"] == "k"
+    assert seen["path"] == "/openai/v1/chat/completions" and seen["key"] == "k" and seen["body"]["model"] == "judge"
     try:
         ask("fail", cfg)
         raise SystemExit("expected an error")
