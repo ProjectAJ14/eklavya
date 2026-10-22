@@ -35,11 +35,15 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import decide
+
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 BRIDGE = HERE / "bridge.mjs"
 SEED_FILE = REPO / "skills" / "tutor" / "references" / "writing-mcq.md"
 SKILL_FILE = REPO / "skills" / "tutor" / "SKILL.md"
+# What a result is scored with: the marker records the last commit touching these, so a changed scorer shows.
+CODE_PATHS = ["eval/gepa/pilot.py", "eval/gepa/bridge.mjs", "eval/gepa/decide.py", "eval/judge-prompts.mjs", "mcp/src/eval"]
 
 
 class BudgetExceeded(RuntimeError):
@@ -56,6 +60,7 @@ class Budget:
         self.seconds: Counter[str] = Counter()
         self.errors: Counter[str] = Counter()
         self.tokens: Counter[str] = Counter()
+        self.models: dict[str, set[str]] = {}  # the model ids the CLI resolved, per call kind
         self.cost_usd = 0.0
         self._lock = threading.Lock()
         self._flush_lock = threading.Lock()
@@ -104,12 +109,14 @@ class Budget:
                 self.tokens[name] += u.get(key, 0)
                 self.tokens[f"{kind}:{name}"] += u.get(key, 0)
             self.cost_usd += out.get("total_cost_usd") or 0
+            # `claude -p` names the resolved model ids in `modelUsage`; the bridges pass them as `usage.models`.
+            self.models.setdefault(kind, set()).update(out.get("modelUsage") or u.get("models") or [])
         self.flush()
 
     def summary(self) -> dict:
         t = self.tokens
         total_in = t["input"] + t["cache_write"] + t["cache_read"]
-        return {"tokens": {"input_total": total_in, "cache_read": t["cache_read"], "output": t["output"], "by_kind": {k: v for k, v in sorted(t.items()) if ":" in k}}, "cost_usd_list_price": round(self.cost_usd, 2), "calls": dict(self.calls), "total_calls": sum(self.calls.values()), "seconds_by_kind": {k: round(v, 1) for k, v in self.seconds.items()}, "errors": dict(self.errors), "cap": self.max_calls}
+        return {"tokens": {"input_total": total_in, "cache_read": t["cache_read"], "output": t["output"], "by_kind": {k: v for k, v in sorted(t.items()) if ":" in k}}, "cost_usd_list_price": round(self.cost_usd, 2), "calls": dict(self.calls), "total_calls": sum(self.calls.values()), "seconds_by_kind": {k: round(v, 1) for k, v in self.seconds.items()}, "errors": dict(self.errors), "cap": self.max_calls, "models": {k: sorted(v) for k, v in sorted(self.models.items())}}
 
 
 BUDGET: Budget | None = None
@@ -375,7 +382,7 @@ def cmd_evaluate(args) -> None:
                 trials.append(f.result())
             except BudgetExceeded as err:
                 stopped = str(err)
-    result = {"prompt": args.prompt, "split": args.split, "repeats": args.repeats, "examples": len(rows), "trials": trials, "stopped_early": stopped, "budget": BUDGET.summary(), "summary": summarise(trials)}
+    result = {"prompt": args.prompt, "split": args.split, "repeats": args.repeats, "examples": len(rows), "marker": decide.marker(args.split, [e["group"] for e in rows], guidance, CODE_PATHS), "trials": trials, "stopped_early": stopped, "budget": BUDGET.summary(), "summary": summarise(trials)}
     Path(args.out).write_text(json.dumps(result, indent=1))
     BUDGET.state = "stopped early" if stopped else "done"
     BUDGET.flush(force=True)
@@ -398,7 +405,8 @@ def summarise(trials: list[dict]) -> dict:
         "trials": n,
         "all_gates_passed": len(ok),
         "gate_failures": dict(gate_fail),
-        "mean_score": round(statistics.fmean(t["score"] for t in trials), 4) if trials else None,
+        "mean_score": decide.mean_scores(trials)[0],
+        "mean_score_finished_only": decide.mean_scores(trials)[1],
         "mean_score_when_valid": round(statistics.fmean(t["score"] for t in ok), 4) if ok else None,
         "longest": {"label": rate("label"), "description": rate("description"), "combined": rate("combined")},
         "generation_errors": sum(1 for t in trials if "generation" in t.get("gates_failed", [])),
@@ -418,10 +426,14 @@ def cmd_report(args) -> None:
     shared = sorted(set(b) & set(c))
     wins = sum(c[k] > b[k] + 1e-9 for k in shared)
     losses = sum(c[k] < b[k] - 1e-9 for k in shared)
+    for w in decide.warnings(base, cand):
+        print(f"WARNING: {w}")
     print(f"examples compared: {len(shared)}  candidate wins {wins}, losses {losses}, ties {len(shared) - wins - losses}")
+    print(f"decision: {decide.verdict('question', b, c)}")
     for name, r in (("baseline", base), ("candidate", cand)):
         s = r["summary"]
-        print(f"\n{name}: {s['all_gates_passed']}/{s['trials']} pass every gate, mean score {s['mean_score']}, generation errors {s['generation_errors']}")
+        print(f"\n{name}: {s['all_gates_passed']}/{s['trials']} pass every gate, mean score {s['mean_score']} (finished only {s.get('mean_score_finished_only', 'not recorded')}), generation errors {s['generation_errors']}")
+        print(f"  models: {decide.models_line(r['budget'])}")
         print(f"  gate failures: {s['gate_failures']}")
         for k, v in s["longest"].items():
             print(f"  keyed option strictly longest by {k}: {v['keyed_strictly_longest']}/{v['of']}")

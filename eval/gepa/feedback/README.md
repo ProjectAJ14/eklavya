@@ -42,6 +42,13 @@ how many evidence quotes the model wrote and how many survived `parseReview`'s c
 of the four areas whose status in the reconciled `review.areas` matches the labels, where `left_out`
 matches `expect.areas`, `clear` matches `expect.clear` and any other area expects `not_needed`.
 
+## Decision rule
+
+5 test sessions, 3 repeats each. A difference in mean score under 0.10 is `no difference`, and under 8
+sessions `report` says `cannot decide`; this split has 5, so it does (see [`../README.md`](../README.md#reading-a-result-all-five-targets)).
+`mean_score` counts a reviewer timeout as 0; `mean_score_finished_only` leaves timeouts out; `report` prints both.
+`optimize` rejects a candidate over 1.25 x the shipped instruction words unscored and tells the reflection model the limit.
+
 ## Run it
 
 ```bash

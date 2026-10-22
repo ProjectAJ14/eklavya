@@ -36,6 +36,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
+import decide  # noqa: E402  the decision rule and test-split marker every target shares
 import pilot  # noqa: E402  the budget, its caps and the progress file are the question pilot's
 from pilot import Budget, BudgetExceeded  # noqa: E402
 
@@ -47,6 +48,8 @@ START = "Call `log_session_concepts` as you implement"
 END = "\n## Which one is asking"
 # `packaging.test.ts`: whitespace tokens of the whole file, frontmatter included, under 2000.
 WORD_CEILING = 2000
+# The product's own handler scores this eval, so a change anywhere in mcp/src or the skill is a different scorer.
+CODE_PATHS = ["eval/gepa/extraction", "eval/gepa/decide.py", "eval/gepa/pilot.py", "mcp/src", "skills/tutor/SKILL.md"]
 
 GATES = ("count", "valid_slugs", "context_file", "context_decision", "touched", "not_mastered")
 WEIGHTS = {"recall": 0.4, "precision": 0.3, "context": 0.15, "followup": 0.15}
@@ -89,6 +92,14 @@ def skill_with(guidance: str) -> str:
 def over_budget(guidance: str) -> int:
     """Whitespace tokens the whole skill would have, past the ceiling; 0 when it fits."""
     return max(0, len(skill_with(guidance).strip().split()) - (WORD_CEILING - 1))
+
+
+def ceiling_note(guidance: str) -> str:
+    """The exact numbers for the reflection prompt: the whole file's size, the ceiling and what that leaves this block."""
+    block = len(guidance.split())
+    used = len(skill_with(guidance).strip().split())
+    room = WORD_CEILING - 1 - used
+    return decide.limits_note("the guidance block", block, block + room, f" The whole skill file is {used} of {WORD_CEILING - 1} words; the rest of the file is fixed.")
 
 
 def strip_frontmatter(text: str) -> str:
@@ -338,7 +349,8 @@ def summarise(trials: list[dict]) -> dict:
         "trials": len(trials),
         "all_gates_passed": len(ok),
         "gate_failures": dict(Counter(g for t in trials for g in t.get("gates_failed", []))),
-        "mean_score": round(statistics.fmean(t["score"] for t in trials), 4) if trials else None,
+        "mean_score": decide.mean_scores(trials)[0],
+        "mean_score_finished_only": decide.mean_scores(trials)[1],
         "quality_means": {k: mean(k) for k in WEIGHTS},
         "recall_by_judge": per_judge,
         "judge_agreement_on_covered": round(sum(agree) / sum(union), 3) if sum(union) else None,
@@ -382,7 +394,7 @@ def cmd_evaluate(args) -> None:
                 trials.append(f.result())
             except BudgetExceeded as err:
                 stopped = str(err)
-    result = {"prompt": args.prompt or "shipped guidance", "model": args.model or "default", "judges": judges, "split": args.split, "repeats": args.repeats, "trials": trials, "stopped_early": stopped, "budget": pilot.BUDGET.summary(), "summary": summarise(trials)}
+    result = {"prompt": args.prompt or "shipped guidance", "model": args.model or "default", "judges": judges, "split": args.split, "repeats": args.repeats, "marker": decide.marker(args.split, [r["id"] for r in rows], guidance, CODE_PATHS), "trials": trials, "stopped_early": stopped, "budget": pilot.BUDGET.summary(), "summary": summarise(trials)}
     Path(args.out).write_text(json.dumps(result, indent=1))
     pilot.BUDGET.state = "stopped early" if stopped else "done"
     pilot.BUDGET.flush(force=True)
@@ -402,13 +414,17 @@ def cmd_report(args) -> None:
     shared = sorted(set(b) & set(c))
     wins = sum(c[k] > b[k] + 1e-9 for k in shared)
     losses = sum(c[k] < b[k] - 1e-9 for k in shared)
+    for w in decide.warnings(base, cand):
+        print(f"WARNING: {w}")
     print(f"fixtures compared: {len(shared)}  candidate wins {wins}, losses {losses}, ties {len(shared) - wins - losses}")
+    print(f"decision: {decide.verdict('extraction', b, c)}")
     for k in shared:
         print(f"  {k}: {b[k]:.3f} -> {c[k]:.3f}")
     for name, r in (("baseline", base), ("candidate", cand)):
         s, tk = r["summary"], r["budget"]["tokens"]
         print(f"\n{name}: {r['prompt']}")
-        print(f"  {s['all_gates_passed']}/{s['trials']} pass every gate, mean score {s['mean_score']}")
+        print(f"  {s['all_gates_passed']}/{s['trials']} pass every gate, mean score {s['mean_score']} (finished only {s.get('mean_score_finished_only', 'not recorded')})")
+        print(f"  models: {decide.models_line(r['budget'])}")
         print(f"  gate failures: {s['gate_failures']}")
         print(f"  quality means: {s['quality_means']}")
         print(f"  recall by judge: {s['recall_by_judge']} (agree on {s['judge_agreement_on_covered']} of covered); strict slug recall {s['strict_slug_recall']}, precision {s['strict_slug_precision']}")
@@ -469,8 +485,8 @@ def cmd_optimize(args) -> None:
                 "(the ones a developer would learn something from), each with a context naming the file and the decision made there, and then does the follow-up the tool response asks for."
             ),
             background=(
-                "Hard rules a rewrite must keep: it replaces one block of a skill file that must stay under a fixed word ceiling, so it may not be longer than the shipped block by more than a few words "
-                "(a candidate over the ceiling scores 0); 3-8 concepts per batch; `context` names the actual decision in the actual file (good: \"set httpOnly on the refresh cookie in auth.ts:42\", useless: \"used cookies\"); "
+                "Hard rules a rewrite must keep: it replaces one block of a skill file that must stay under a fixed word ceiling. " + ceiling_note(seed) + " "
+                "3-8 concepts per batch; `context` names the actual decision in the actual file (good: \"set httpOnly on the refresh cookie in auth.ts:42\", useless: \"used cookies\"); "
                 "a concept is a topic named in 1-3 words with a `description` and `tags`; an unknown slug that resembles existing concepts comes back in `needs_decision` and is answered with a candidate's slug or `new: true`; give each concept an honest `tier` and `prerequisites`, and a `created` slug still `unlinked` owes an `upsert_concepts` edge; "
                 "never log a concept the learner's profile says is mastered; logging is silent: never narrate it or pause the work. "
                 "Do not add per-example special cases or concept lists."
@@ -484,7 +500,7 @@ def cmd_optimize(args) -> None:
     best = result.best_candidate if result else seed
     best = best if isinstance(best, str) else next(iter(best.values()))
     (out / "best_candidate.md").write_text(best.strip() + "\n")
-    (out / "summary.json").write_text(json.dumps({"metric_calls": args.metric_calls, "train": len(train), "val": len(val), "seed": args.seed, "model": args.model or "default", "judges": judges, "reflect_model": args.reflect_model, "stopped_early": stopped, "words_over_ceiling": over_budget(best), "budget": pilot.BUDGET.summary()}, indent=1))
+    (out / "summary.json").write_text(json.dumps({"metric_calls": args.metric_calls, "train": len(train), "val": len(val), "seed": args.seed, "model": args.model or "default", "judges": judges, "reflect_model": args.reflect_model, "stopped_early": stopped, "proposals": decide.proposal_counts(pilot.BUDGET.trials), "words_over_ceiling": over_budget(best), "budget": pilot.BUDGET.summary()}, indent=1))
     print(f"wrote {out}/best_candidate.md; budget {pilot.BUDGET.summary()}; stopped early: {stopped}; words over the ceiling: {over_budget(best)}")
 
 

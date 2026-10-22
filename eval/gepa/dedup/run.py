@@ -25,6 +25,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
+import decide  # noqa: E402
 import pilot  # noqa: E402
 from pilot import Budget, BudgetExceeded  # noqa: E402
 
@@ -35,6 +36,7 @@ _spec.loader.exec_module(ex)
 
 SCENARIOS = ex.REPO / "eval" / "fixtures" / "dedup" / "scenarios.json"
 MAX_NAME_WORDS = 3
+CODE_PATHS = ["eval/gepa/dedup", "eval/gepa/extraction", "eval/gepa/decide.py", "eval/gepa/pilot.py", "mcp/src", "skills/tutor/SKILL.md"]
 WEIGHTS = {"resolved": 0.5, "no_duplicate": 0.3, "short_name": 0.2}
 
 
@@ -98,7 +100,8 @@ def summarise(trials: list[dict]) -> dict:
     created = sum(len(t["created"]) for t in ok)
     return {
         "trials": len(trials), "scored": len(ok),
-        "mean_score": round(statistics.fmean(t["score"] for t in trials), 4) if trials else None,
+        "mean_score": decide.mean_scores(trials)[0],
+        "mean_score_finished_only": decide.mean_scores(trials)[1],
         "resolved_to_existing_or_new": mean("resolved"), "no_duplicate_minted": mean("no_duplicate"), "short_names": mean("short_name"),
         "duplicates_created": sum(len(t["duplicates_created"]) for t in ok),
         "concepts_created": created,
@@ -135,6 +138,7 @@ def cmd_evaluate(args) -> None:
             except Exception as err:  # one failed call must not discard the finished trials
                 print(f"trial failed: {err}", file=sys.stderr)
     result = {"prompt": args.prompt or "shipped guidance", "model": args.model or "default", "split": args.split, "repeats": args.repeats,
+              "marker": decide.marker(args.split, [sc["id"] for sc in rows], guidance, CODE_PATHS),
               "trials": trials, "stopped_early": stopped, "budget": pilot.BUDGET.summary(), "summary": summarise(trials)}
     Path(args.out).write_text(json.dumps(result, indent=1))
     pilot.BUDGET.state = "stopped early" if stopped else "done"
@@ -143,7 +147,19 @@ def cmd_evaluate(args) -> None:
 
 
 def cmd_report(args) -> None:
-    a, b = (json.loads(Path(p).read_text())["summary"] for p in (args.before, args.after))
+    before, after = (json.loads(Path(p).read_text()) for p in (args.before, args.after))
+    a, b = before["summary"], after["summary"]
+    for w in decide.warnings(before, after):
+        print(f"WARNING: {w}")
+
+    def by_id(r):
+        d: dict[str, list[float]] = {}
+        for t in r["trials"]:
+            d.setdefault(t["id"], []).append(t["score"])
+        return {k: statistics.fmean(v) for k, v in d.items()}
+
+    print(f"decision: {decide.verdict('dedup', by_id(before), by_id(after))}")
+    print(f"models: {decide.models_line(after['budget'])}")
     for k in a:
         if k != "failed":
             print(f"{k:32} {a[k]!s:>8} -> {b[k]!s:>8}")

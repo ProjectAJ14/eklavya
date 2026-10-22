@@ -45,6 +45,13 @@ Quality: share of `expect.facts` present (judge, 0.35), share of `expect.skip` l
 with nothing merged (judge, 0.15). Latency is reported; a call over `runClaude`'s 100 s timeout is a
 failed batch (the observer runs inside a 120 s worker lease).
 
+## Decision rule
+
+5 test batches, 3 repeats each. A difference in mean score under 0.03 is `no difference`, and under 8
+batches `report` says `cannot decide`; this split has 5, so it does (see [`../README.md`](../README.md#reading-a-result-all-five-targets)).
+`mean_score` counts a timeout as 0; `mean_score_finished_only` leaves timeouts out. `optimize` rejects a candidate
+over 1.25 x the shipped instruction words unscored and tells the reflection model the limit.
+
 ## Run it
 
 ```bash

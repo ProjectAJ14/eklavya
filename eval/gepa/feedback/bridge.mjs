@@ -24,19 +24,22 @@ const dist = (rel) => import(pathToFileURL(path.join(repoRoot, 'mcp', 'dist', re
 const { REVIEW_SCHEMA, REVIEW_SYSTEM, parseReview, renderPrompts } = await dist('feedback-review.js');
 const { runClaude, readResult } = await dist('memory/provider.js');
 
+/** The envelope's token usage, plus the model ids the CLI resolved (`modelUsage` keys), which the result files record. */
+const usageOf = (env) => ({ ...(env?.usage ?? {}), models: Object.keys(env?.modelUsage ?? {}) });
+
 /** One call through the product's path, with the envelope's usage kept for the budget. */
 async function call(model, prompt, spec) {
   let stdout = '';
   try {
     stdout = await runClaude(model, prompt, { spec });
     const env = JSON.parse(stdout);
-    return { structured: readResult(stdout), usage: env.usage ?? {}, cost: env.total_cost_usd ?? 0 };
+    return { structured: readResult(stdout), usage: usageOf(env), cost: env.total_cost_usd ?? 0 };
   } catch (err) {
     let usage = {};
     let cost = 0;
     try {
       const env = JSON.parse(stdout);
-      usage = env.usage ?? {};
+      usage = usageOf(env);
       cost = env.total_cost_usd ?? 0;
     } catch { /* no envelope */ }
     return { error: `${err.errorClass ?? 'error'}: ${String(err.message).slice(0, 300)}`, usage, cost };
