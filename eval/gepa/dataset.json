@@ -27,14 +27,17 @@
    "medium"
   ]
  ],
- "split_by": "fixture id (hash-ranked); near-duplicates share a side",
+ "split_by": "fixture id (hash-ranked, then pinned; later fixtures are test); near-duplicates share a side",
  "fixtures": {
+  "accessible-modal-focus": "test",
   "cache-ttl-profile": "val",
   "dart-async-await-errors": "test",
   "env-config-secrets": "train",
   "flutter-const-widgets": "test",
   "git-rebase-vs-merge": "test",
+  "graphql-resolver-n-plus-one": "test",
   "pagination-cursor": "train",
+  "queue-consumer-idempotency": "test",
   "rate-limit-token-bucket": "train",
   "retry-with-backoff": "val",
   "session-cookie-flags": "test",
@@ -49,7 +52,7 @@
  "counts": {
   "train": 108,
   "val": 36,
-  "test": 60
+  "test": 96
  },
  "examples": [
   {
@@ -493,6 +496,46 @@
    }
   },
   {
+   "id": "queue-consumer-idempotency:idempotent-consumer-dedup-table:project:easy",
+   "split": "test",
+   "group": "queue-consumer-idempotency",
+   "focus": "project",
+   "difficulty": "easy",
+   "code": "async function onMessage(msg: Message) {\n  const { eventId, orderId } = JSON.parse(msg.body);\n  const claimed = await db.run(\n    'INSERT INTO processed_events (event_id) VALUES (?) ON CONFLICT DO NOTHING', [eventId]);\n  if (claimed.changes === 0) return msg.ack();\n  try {\n    await markPaid(orderId);\n    msg.ack();\n  } catch (err) {\n    await db.run('DELETE FROM processed_events WHERE event_id = ?', [eventId]);\n    msg.nack({ requeue: true });\n  }\n}",
+   "source": "worker/orders.ts",
+   "plan": {
+    "slug": "idempotent-consumer-dedup-table",
+    "description": "Recording each handled event id under a unique constraint lets a consumer skip repeats instead of repeating side effects.",
+    "context": "inserts the event id with ON CONFLICT DO NOTHING before marking the order paid",
+    "tier_to_ask": 2,
+    "answer_position": 4,
+    "framing": "Ground every question in the diff just written: name the file, the line, the decision. The code is the subject.",
+    "level": "easy",
+    "level_framing": "Level easy (tiers 1-2). Ask what a thing is and what the machine does with it. No judgement questions, no failure modes, no design. They have been watching the agent work, and every question must be answerable from that -- this is the runway that makes the habit stick, not a warm-up to hurry through.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "queue-consumer-idempotency:at-least-once-delivery:project:easy",
+   "split": "test",
+   "group": "queue-consumer-idempotency",
+   "focus": "project",
+   "difficulty": "easy",
+   "code": "async function onMessage(msg: Message) {\n  const { eventId, orderId } = JSON.parse(msg.body);\n  const claimed = await db.run(\n    'INSERT INTO processed_events (event_id) VALUES (?) ON CONFLICT DO NOTHING', [eventId]);\n  if (claimed.changes === 0) return msg.ack();\n  try {\n    await markPaid(orderId);\n    msg.ack();\n  } catch (err) {\n    await db.run('DELETE FROM processed_events WHERE event_id = ?', [eventId]);\n    msg.nack({ requeue: true });\n  }\n}",
+   "source": "worker/orders.ts",
+   "plan": {
+    "slug": "at-least-once-delivery",
+    "description": "A queue that retries until acknowledged may deliver the same message twice, so consumers must expect duplicates.",
+    "context": "acks and requeues messages in onMessage()",
+    "tier_to_ask": 2,
+    "answer_position": 4,
+    "framing": "Ground every question in the diff just written: name the file, the line, the decision. The code is the subject.",
+    "level": "easy",
+    "level_framing": "Level easy (tiers 1-2). Ask what a thing is and what the machine does with it. No judgement questions, no failure modes, no design. They have been watching the agent work, and every question must be answerable from that -- this is the runway that makes the habit stick, not a warm-up to hurry through.",
+    "asked_before": []
+   }
+  },
+  {
    "id": "pagination-cursor:fetch-one-extra:project:easy",
    "split": "train",
    "group": "pagination-cursor",
@@ -526,6 +569,46 @@
     "context": "pages by id < after instead of OFFSET",
     "tier_to_ask": 2,
     "answer_position": 2,
+    "framing": "Ground every question in the diff just written: name the file, the line, the decision. The code is the subject.",
+    "level": "easy",
+    "level_framing": "Level easy (tiers 1-2). Ask what a thing is and what the machine does with it. No judgement questions, no failure modes, no design. They have been watching the agent work, and every question must be answerable from that -- this is the runway that makes the habit stick, not a warm-up to hurry through.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "graphql-resolver-n-plus-one:dataloader-batching:project:easy",
+   "split": "test",
+   "group": "graphql-resolver-n-plus-one",
+   "focus": "project",
+   "difficulty": "easy",
+   "code": "const resolvers = {\n  Query: { authors: () => db.all('SELECT * FROM authors') },\n  Author: {\n    posts: (author, _args, ctx) => ctx.loaders.postsByAuthor.load(author.id),\n  },\n};\n\nfunction makeLoaders(db) {\n  return {\n    postsByAuthor: new DataLoader(async (ids) => {\n      const rows = await db.all(`SELECT * FROM posts WHERE author_id IN (${ids.map(() => '?').join(',')})`, ids);\n      return ids.map((id) => rows.filter((r) => r.author_id === id));\n    }),\n  };\n}",
+   "source": "api/resolvers.ts",
+   "plan": {
+    "slug": "dataloader-batching",
+    "description": "A loader collects the keys requested in one tick and resolves them together, returning results in the order of the keys.",
+    "context": "maps rows back to each author id so results line up with the ids passed in",
+    "tier_to_ask": 2,
+    "answer_position": 4,
+    "framing": "Ground every question in the diff just written: name the file, the line, the decision. The code is the subject.",
+    "level": "easy",
+    "level_framing": "Level easy (tiers 1-2). Ask what a thing is and what the machine does with it. No judgement questions, no failure modes, no design. They have been watching the agent work, and every question must be answerable from that -- this is the runway that makes the habit stick, not a warm-up to hurry through.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "graphql-resolver-n-plus-one:n-plus-one-queries:project:easy",
+   "split": "test",
+   "group": "graphql-resolver-n-plus-one",
+   "focus": "project",
+   "difficulty": "easy",
+   "code": "const resolvers = {\n  Query: { authors: () => db.all('SELECT * FROM authors') },\n  Author: {\n    posts: (author, _args, ctx) => ctx.loaders.postsByAuthor.load(author.id),\n  },\n};\n\nfunction makeLoaders(db) {\n  return {\n    postsByAuthor: new DataLoader(async (ids) => {\n      const rows = await db.all(`SELECT * FROM posts WHERE author_id IN (${ids.map(() => '?').join(',')})`, ids);\n      return ids.map((id) => rows.filter((r) => r.author_id === id));\n    }),\n  };\n}",
+   "source": "api/resolvers.ts",
+   "plan": {
+    "slug": "n-plus-one-queries",
+    "description": "Fetching a list and then querying once per row issues N+1 round trips; one batched query replaces them.",
+    "context": "replaces a per-author posts query with a batched IN lookup",
+    "tier_to_ask": 2,
+    "answer_position": 3,
     "framing": "Ground every question in the diff just written: name the file, the line, the decision. The code is the subject.",
     "level": "easy",
     "level_framing": "Level easy (tiers 1-2). Ask what a thing is and what the machine does with it. No judgement questions, no failure modes, no design. They have been watching the agent work, and every question must be answerable from that -- this is the runway that makes the habit stick, not a warm-up to hurry through.",
@@ -726,6 +809,46 @@
     "context": "gives the profile cache a 60 second TTL",
     "tier_to_ask": 2,
     "answer_position": 3,
+    "framing": "Ground every question in the diff just written: name the file, the line, the decision. The code is the subject.",
+    "level": "easy",
+    "level_framing": "Level easy (tiers 1-2). Ask what a thing is and what the machine does with it. No judgement questions, no failure modes, no design. They have been watching the agent work, and every question must be answerable from that -- this is the runway that makes the habit stick, not a warm-up to hurry through.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "accessible-modal-focus:aria-dialog-semantics:project:easy",
+   "split": "test",
+   "group": "accessible-modal-focus",
+   "focus": "project",
+   "difficulty": "easy",
+   "code": "function Modal({ open, onClose, children }) {\n  const ref = useRef<HTMLDivElement>(null);\n  const opener = useRef<Element | null>(null);\n  useEffect(() => {\n    if (!open) return;\n    opener.current = document.activeElement;\n    ref.current?.focus();\n    return () => (opener.current as HTMLElement | null)?.focus();\n  }, [open]);\n  if (!open) return null;\n  return (\n    <div role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"modal-title\" tabIndex={-1} ref={ref}\n         onKeyDown={(e) => e.key === 'Escape' && onClose()}>\n      {children}\n    </div>\n  );\n}",
+   "source": "web/Modal.tsx",
+   "plan": {
+    "slug": "aria-dialog-semantics",
+    "description": "role=dialog with aria-modal and a label tells assistive technology what the region is and that the page behind is inert.",
+    "context": "adds role, aria-modal and aria-labelledby to the Modal root",
+    "tier_to_ask": 2,
+    "answer_position": 2,
+    "framing": "Ground every question in the diff just written: name the file, the line, the decision. The code is the subject.",
+    "level": "easy",
+    "level_framing": "Level easy (tiers 1-2). Ask what a thing is and what the machine does with it. No judgement questions, no failure modes, no design. They have been watching the agent work, and every question must be answerable from that -- this is the runway that makes the habit stick, not a warm-up to hurry through.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "accessible-modal-focus:focus-management-dialogs:project:easy",
+   "split": "test",
+   "group": "accessible-modal-focus",
+   "focus": "project",
+   "difficulty": "easy",
+   "code": "function Modal({ open, onClose, children }) {\n  const ref = useRef<HTMLDivElement>(null);\n  const opener = useRef<Element | null>(null);\n  useEffect(() => {\n    if (!open) return;\n    opener.current = document.activeElement;\n    ref.current?.focus();\n    return () => (opener.current as HTMLElement | null)?.focus();\n  }, [open]);\n  if (!open) return null;\n  return (\n    <div role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"modal-title\" tabIndex={-1} ref={ref}\n         onKeyDown={(e) => e.key === 'Escape' && onClose()}>\n      {children}\n    </div>\n  );\n}",
+   "source": "web/Modal.tsx",
+   "plan": {
+    "slug": "focus-management-dialogs",
+    "description": "A dialog moves keyboard focus into itself when it opens and returns it to the control that opened it when it closes.",
+    "context": "saves the opener and restores focus in the effect cleanup",
+    "tier_to_ask": 2,
+    "answer_position": 4,
     "framing": "Ground every question in the diff just written: name the file, the line, the decision. The code is the subject.",
     "level": "easy",
     "level_framing": "Level easy (tiers 1-2). Ask what a thing is and what the machine does with it. No judgement questions, no failure modes, no design. They have been watching the agent work, and every question must be answerable from that -- this is the runway that makes the habit stick, not a warm-up to hurry through.",
@@ -1093,6 +1216,46 @@
    }
   },
   {
+   "id": "queue-consumer-idempotency:idempotent-consumer-dedup-table:project:hard",
+   "split": "test",
+   "group": "queue-consumer-idempotency",
+   "focus": "project",
+   "difficulty": "hard",
+   "code": "async function onMessage(msg: Message) {\n  const { eventId, orderId } = JSON.parse(msg.body);\n  const claimed = await db.run(\n    'INSERT INTO processed_events (event_id) VALUES (?) ON CONFLICT DO NOTHING', [eventId]);\n  if (claimed.changes === 0) return msg.ack();\n  try {\n    await markPaid(orderId);\n    msg.ack();\n  } catch (err) {\n    await db.run('DELETE FROM processed_events WHERE event_id = ?', [eventId]);\n    msg.nack({ requeue: true });\n  }\n}",
+   "source": "worker/orders.ts",
+   "plan": {
+    "slug": "idempotent-consumer-dedup-table",
+    "description": "Recording each handled event id under a unique constraint lets a consumer skip repeats instead of repeating side effects.",
+    "context": "inserts the event id with ON CONFLICT DO NOTHING before marking the order paid",
+    "tier_to_ask": 3,
+    "answer_position": 4,
+    "framing": "Ground every question in the diff just written: name the file, the line, the decision. The code is the subject.",
+    "level": "hard",
+    "level_framing": "Level hard (tiers 3-5). Judgement, failure modes and design: when is this the wrong approach entirely, and how would they notice in production. A definition question is a wasted question here.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "queue-consumer-idempotency:at-least-once-delivery:project:hard",
+   "split": "test",
+   "group": "queue-consumer-idempotency",
+   "focus": "project",
+   "difficulty": "hard",
+   "code": "async function onMessage(msg: Message) {\n  const { eventId, orderId } = JSON.parse(msg.body);\n  const claimed = await db.run(\n    'INSERT INTO processed_events (event_id) VALUES (?) ON CONFLICT DO NOTHING', [eventId]);\n  if (claimed.changes === 0) return msg.ack();\n  try {\n    await markPaid(orderId);\n    msg.ack();\n  } catch (err) {\n    await db.run('DELETE FROM processed_events WHERE event_id = ?', [eventId]);\n    msg.nack({ requeue: true });\n  }\n}",
+   "source": "worker/orders.ts",
+   "plan": {
+    "slug": "at-least-once-delivery",
+    "description": "A queue that retries until acknowledged may deliver the same message twice, so consumers must expect duplicates.",
+    "context": "acks and requeues messages in onMessage()",
+    "tier_to_ask": 3,
+    "answer_position": 4,
+    "framing": "Ground every question in the diff just written: name the file, the line, the decision. The code is the subject.",
+    "level": "hard",
+    "level_framing": "Level hard (tiers 3-5). Judgement, failure modes and design: when is this the wrong approach entirely, and how would they notice in production. A definition question is a wasted question here.",
+    "asked_before": []
+   }
+  },
+  {
    "id": "pagination-cursor:fetch-one-extra:project:hard",
    "split": "train",
    "group": "pagination-cursor",
@@ -1126,6 +1289,46 @@
     "context": "pages by id < after instead of OFFSET",
     "tier_to_ask": 3,
     "answer_position": 2,
+    "framing": "Ground every question in the diff just written: name the file, the line, the decision. The code is the subject.",
+    "level": "hard",
+    "level_framing": "Level hard (tiers 3-5). Judgement, failure modes and design: when is this the wrong approach entirely, and how would they notice in production. A definition question is a wasted question here.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "graphql-resolver-n-plus-one:dataloader-batching:project:hard",
+   "split": "test",
+   "group": "graphql-resolver-n-plus-one",
+   "focus": "project",
+   "difficulty": "hard",
+   "code": "const resolvers = {\n  Query: { authors: () => db.all('SELECT * FROM authors') },\n  Author: {\n    posts: (author, _args, ctx) => ctx.loaders.postsByAuthor.load(author.id),\n  },\n};\n\nfunction makeLoaders(db) {\n  return {\n    postsByAuthor: new DataLoader(async (ids) => {\n      const rows = await db.all(`SELECT * FROM posts WHERE author_id IN (${ids.map(() => '?').join(',')})`, ids);\n      return ids.map((id) => rows.filter((r) => r.author_id === id));\n    }),\n  };\n}",
+   "source": "api/resolvers.ts",
+   "plan": {
+    "slug": "dataloader-batching",
+    "description": "A loader collects the keys requested in one tick and resolves them together, returning results in the order of the keys.",
+    "context": "maps rows back to each author id so results line up with the ids passed in",
+    "tier_to_ask": 3,
+    "answer_position": 4,
+    "framing": "Ground every question in the diff just written: name the file, the line, the decision. The code is the subject.",
+    "level": "hard",
+    "level_framing": "Level hard (tiers 3-5). Judgement, failure modes and design: when is this the wrong approach entirely, and how would they notice in production. A definition question is a wasted question here.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "graphql-resolver-n-plus-one:n-plus-one-queries:project:hard",
+   "split": "test",
+   "group": "graphql-resolver-n-plus-one",
+   "focus": "project",
+   "difficulty": "hard",
+   "code": "const resolvers = {\n  Query: { authors: () => db.all('SELECT * FROM authors') },\n  Author: {\n    posts: (author, _args, ctx) => ctx.loaders.postsByAuthor.load(author.id),\n  },\n};\n\nfunction makeLoaders(db) {\n  return {\n    postsByAuthor: new DataLoader(async (ids) => {\n      const rows = await db.all(`SELECT * FROM posts WHERE author_id IN (${ids.map(() => '?').join(',')})`, ids);\n      return ids.map((id) => rows.filter((r) => r.author_id === id));\n    }),\n  };\n}",
+   "source": "api/resolvers.ts",
+   "plan": {
+    "slug": "n-plus-one-queries",
+    "description": "Fetching a list and then querying once per row issues N+1 round trips; one batched query replaces them.",
+    "context": "replaces a per-author posts query with a batched IN lookup",
+    "tier_to_ask": 3,
+    "answer_position": 3,
     "framing": "Ground every question in the diff just written: name the file, the line, the decision. The code is the subject.",
     "level": "hard",
     "level_framing": "Level hard (tiers 3-5). Judgement, failure modes and design: when is this the wrong approach entirely, and how would they notice in production. A definition question is a wasted question here.",
@@ -1306,6 +1509,46 @@
     "context": "gives the profile cache a 60 second TTL",
     "tier_to_ask": 3,
     "answer_position": 3,
+    "framing": "Ground every question in the diff just written: name the file, the line, the decision. The code is the subject.",
+    "level": "hard",
+    "level_framing": "Level hard (tiers 3-5). Judgement, failure modes and design: when is this the wrong approach entirely, and how would they notice in production. A definition question is a wasted question here.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "accessible-modal-focus:aria-dialog-semantics:project:hard",
+   "split": "test",
+   "group": "accessible-modal-focus",
+   "focus": "project",
+   "difficulty": "hard",
+   "code": "function Modal({ open, onClose, children }) {\n  const ref = useRef<HTMLDivElement>(null);\n  const opener = useRef<Element | null>(null);\n  useEffect(() => {\n    if (!open) return;\n    opener.current = document.activeElement;\n    ref.current?.focus();\n    return () => (opener.current as HTMLElement | null)?.focus();\n  }, [open]);\n  if (!open) return null;\n  return (\n    <div role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"modal-title\" tabIndex={-1} ref={ref}\n         onKeyDown={(e) => e.key === 'Escape' && onClose()}>\n      {children}\n    </div>\n  );\n}",
+   "source": "web/Modal.tsx",
+   "plan": {
+    "slug": "aria-dialog-semantics",
+    "description": "role=dialog with aria-modal and a label tells assistive technology what the region is and that the page behind is inert.",
+    "context": "adds role, aria-modal and aria-labelledby to the Modal root",
+    "tier_to_ask": 3,
+    "answer_position": 2,
+    "framing": "Ground every question in the diff just written: name the file, the line, the decision. The code is the subject.",
+    "level": "hard",
+    "level_framing": "Level hard (tiers 3-5). Judgement, failure modes and design: when is this the wrong approach entirely, and how would they notice in production. A definition question is a wasted question here.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "accessible-modal-focus:focus-management-dialogs:project:hard",
+   "split": "test",
+   "group": "accessible-modal-focus",
+   "focus": "project",
+   "difficulty": "hard",
+   "code": "function Modal({ open, onClose, children }) {\n  const ref = useRef<HTMLDivElement>(null);\n  const opener = useRef<Element | null>(null);\n  useEffect(() => {\n    if (!open) return;\n    opener.current = document.activeElement;\n    ref.current?.focus();\n    return () => (opener.current as HTMLElement | null)?.focus();\n  }, [open]);\n  if (!open) return null;\n  return (\n    <div role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"modal-title\" tabIndex={-1} ref={ref}\n         onKeyDown={(e) => e.key === 'Escape' && onClose()}>\n      {children}\n    </div>\n  );\n}",
+   "source": "web/Modal.tsx",
+   "plan": {
+    "slug": "focus-management-dialogs",
+    "description": "A dialog moves keyboard focus into itself when it opens and returns it to the control that opened it when it closes.",
+    "context": "saves the opener and restores focus in the effect cleanup",
+    "tier_to_ask": 3,
+    "answer_position": 4,
     "framing": "Ground every question in the diff just written: name the file, the line, the decision. The code is the subject.",
     "level": "hard",
     "level_framing": "Level hard (tiers 3-5). Judgement, failure modes and design: when is this the wrong approach entirely, and how would they notice in production. A definition question is a wasted question here.",
@@ -1853,6 +2096,46 @@
    }
   },
   {
+   "id": "queue-consumer-idempotency:idempotent-consumer-dedup-table:concept:easy",
+   "split": "test",
+   "group": "queue-consumer-idempotency",
+   "focus": "concept",
+   "difficulty": "easy",
+   "code": "async function onMessage(msg: Message) {\n  const { eventId, orderId } = JSON.parse(msg.body);\n  const claimed = await db.run(\n    'INSERT INTO processed_events (event_id) VALUES (?) ON CONFLICT DO NOTHING', [eventId]);\n  if (claimed.changes === 0) return msg.ack();\n  try {\n    await markPaid(orderId);\n    msg.ack();\n  } catch (err) {\n    await db.run('DELETE FROM processed_events WHERE event_id = ?', [eventId]);\n    msg.nack({ requeue: true });\n  }\n}",
+   "source": "worker/orders.ts",
+   "plan": {
+    "slug": "idempotent-consumer-dedup-table",
+    "description": "Recording each handled event id under a unique constraint lets a consumer skip repeats instead of repeating side effects.",
+    "context": "inserts the event id with ON CONFLICT DO NOTHING before marking the order paid",
+    "tier_to_ask": 2,
+    "answer_position": 4,
+    "framing": "Ask the transferable version. The diff is the motivation, not the subject: open from what was just written, then ask for the general rule, the class of problem, or where else it applies. A correct answer must be usable on a different codebase. Do not ask for a definition -- that is tier 1 recall, not generalisation.",
+    "level": "easy",
+    "level_framing": "Level easy (tiers 1-2). Ask what a thing is and what the machine does with it. No judgement questions, no failure modes, no design. They have been watching the agent work, and every question must be answerable from that -- this is the runway that makes the habit stick, not a warm-up to hurry through.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "queue-consumer-idempotency:at-least-once-delivery:concept:easy",
+   "split": "test",
+   "group": "queue-consumer-idempotency",
+   "focus": "concept",
+   "difficulty": "easy",
+   "code": "async function onMessage(msg: Message) {\n  const { eventId, orderId } = JSON.parse(msg.body);\n  const claimed = await db.run(\n    'INSERT INTO processed_events (event_id) VALUES (?) ON CONFLICT DO NOTHING', [eventId]);\n  if (claimed.changes === 0) return msg.ack();\n  try {\n    await markPaid(orderId);\n    msg.ack();\n  } catch (err) {\n    await db.run('DELETE FROM processed_events WHERE event_id = ?', [eventId]);\n    msg.nack({ requeue: true });\n  }\n}",
+   "source": "worker/orders.ts",
+   "plan": {
+    "slug": "at-least-once-delivery",
+    "description": "A queue that retries until acknowledged may deliver the same message twice, so consumers must expect duplicates.",
+    "context": "acks and requeues messages in onMessage()",
+    "tier_to_ask": 2,
+    "answer_position": 4,
+    "framing": "Ask the transferable version. The diff is the motivation, not the subject: open from what was just written, then ask for the general rule, the class of problem, or where else it applies. A correct answer must be usable on a different codebase. Do not ask for a definition -- that is tier 1 recall, not generalisation.",
+    "level": "easy",
+    "level_framing": "Level easy (tiers 1-2). Ask what a thing is and what the machine does with it. No judgement questions, no failure modes, no design. They have been watching the agent work, and every question must be answerable from that -- this is the runway that makes the habit stick, not a warm-up to hurry through.",
+    "asked_before": []
+   }
+  },
+  {
    "id": "pagination-cursor:fetch-one-extra:concept:easy",
    "split": "train",
    "group": "pagination-cursor",
@@ -1886,6 +2169,46 @@
     "context": "pages by id < after instead of OFFSET",
     "tier_to_ask": 2,
     "answer_position": 2,
+    "framing": "Ask the transferable version. The diff is the motivation, not the subject: open from what was just written, then ask for the general rule, the class of problem, or where else it applies. A correct answer must be usable on a different codebase. Do not ask for a definition -- that is tier 1 recall, not generalisation.",
+    "level": "easy",
+    "level_framing": "Level easy (tiers 1-2). Ask what a thing is and what the machine does with it. No judgement questions, no failure modes, no design. They have been watching the agent work, and every question must be answerable from that -- this is the runway that makes the habit stick, not a warm-up to hurry through.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "graphql-resolver-n-plus-one:dataloader-batching:concept:easy",
+   "split": "test",
+   "group": "graphql-resolver-n-plus-one",
+   "focus": "concept",
+   "difficulty": "easy",
+   "code": "const resolvers = {\n  Query: { authors: () => db.all('SELECT * FROM authors') },\n  Author: {\n    posts: (author, _args, ctx) => ctx.loaders.postsByAuthor.load(author.id),\n  },\n};\n\nfunction makeLoaders(db) {\n  return {\n    postsByAuthor: new DataLoader(async (ids) => {\n      const rows = await db.all(`SELECT * FROM posts WHERE author_id IN (${ids.map(() => '?').join(',')})`, ids);\n      return ids.map((id) => rows.filter((r) => r.author_id === id));\n    }),\n  };\n}",
+   "source": "api/resolvers.ts",
+   "plan": {
+    "slug": "dataloader-batching",
+    "description": "A loader collects the keys requested in one tick and resolves them together, returning results in the order of the keys.",
+    "context": "maps rows back to each author id so results line up with the ids passed in",
+    "tier_to_ask": 2,
+    "answer_position": 4,
+    "framing": "Ask the transferable version. The diff is the motivation, not the subject: open from what was just written, then ask for the general rule, the class of problem, or where else it applies. A correct answer must be usable on a different codebase. Do not ask for a definition -- that is tier 1 recall, not generalisation.",
+    "level": "easy",
+    "level_framing": "Level easy (tiers 1-2). Ask what a thing is and what the machine does with it. No judgement questions, no failure modes, no design. They have been watching the agent work, and every question must be answerable from that -- this is the runway that makes the habit stick, not a warm-up to hurry through.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "graphql-resolver-n-plus-one:n-plus-one-queries:concept:easy",
+   "split": "test",
+   "group": "graphql-resolver-n-plus-one",
+   "focus": "concept",
+   "difficulty": "easy",
+   "code": "const resolvers = {\n  Query: { authors: () => db.all('SELECT * FROM authors') },\n  Author: {\n    posts: (author, _args, ctx) => ctx.loaders.postsByAuthor.load(author.id),\n  },\n};\n\nfunction makeLoaders(db) {\n  return {\n    postsByAuthor: new DataLoader(async (ids) => {\n      const rows = await db.all(`SELECT * FROM posts WHERE author_id IN (${ids.map(() => '?').join(',')})`, ids);\n      return ids.map((id) => rows.filter((r) => r.author_id === id));\n    }),\n  };\n}",
+   "source": "api/resolvers.ts",
+   "plan": {
+    "slug": "n-plus-one-queries",
+    "description": "Fetching a list and then querying once per row issues N+1 round trips; one batched query replaces them.",
+    "context": "replaces a per-author posts query with a batched IN lookup",
+    "tier_to_ask": 2,
+    "answer_position": 3,
     "framing": "Ask the transferable version. The diff is the motivation, not the subject: open from what was just written, then ask for the general rule, the class of problem, or where else it applies. A correct answer must be usable on a different codebase. Do not ask for a definition -- that is tier 1 recall, not generalisation.",
     "level": "easy",
     "level_framing": "Level easy (tiers 1-2). Ask what a thing is and what the machine does with it. No judgement questions, no failure modes, no design. They have been watching the agent work, and every question must be answerable from that -- this is the runway that makes the habit stick, not a warm-up to hurry through.",
@@ -2093,6 +2416,46 @@
    }
   },
   {
+   "id": "accessible-modal-focus:aria-dialog-semantics:concept:easy",
+   "split": "test",
+   "group": "accessible-modal-focus",
+   "focus": "concept",
+   "difficulty": "easy",
+   "code": "function Modal({ open, onClose, children }) {\n  const ref = useRef<HTMLDivElement>(null);\n  const opener = useRef<Element | null>(null);\n  useEffect(() => {\n    if (!open) return;\n    opener.current = document.activeElement;\n    ref.current?.focus();\n    return () => (opener.current as HTMLElement | null)?.focus();\n  }, [open]);\n  if (!open) return null;\n  return (\n    <div role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"modal-title\" tabIndex={-1} ref={ref}\n         onKeyDown={(e) => e.key === 'Escape' && onClose()}>\n      {children}\n    </div>\n  );\n}",
+   "source": "web/Modal.tsx",
+   "plan": {
+    "slug": "aria-dialog-semantics",
+    "description": "role=dialog with aria-modal and a label tells assistive technology what the region is and that the page behind is inert.",
+    "context": "adds role, aria-modal and aria-labelledby to the Modal root",
+    "tier_to_ask": 2,
+    "answer_position": 2,
+    "framing": "Ask the transferable version. The diff is the motivation, not the subject: open from what was just written, then ask for the general rule, the class of problem, or where else it applies. A correct answer must be usable on a different codebase. Do not ask for a definition -- that is tier 1 recall, not generalisation.",
+    "level": "easy",
+    "level_framing": "Level easy (tiers 1-2). Ask what a thing is and what the machine does with it. No judgement questions, no failure modes, no design. They have been watching the agent work, and every question must be answerable from that -- this is the runway that makes the habit stick, not a warm-up to hurry through.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "accessible-modal-focus:focus-management-dialogs:concept:easy",
+   "split": "test",
+   "group": "accessible-modal-focus",
+   "focus": "concept",
+   "difficulty": "easy",
+   "code": "function Modal({ open, onClose, children }) {\n  const ref = useRef<HTMLDivElement>(null);\n  const opener = useRef<Element | null>(null);\n  useEffect(() => {\n    if (!open) return;\n    opener.current = document.activeElement;\n    ref.current?.focus();\n    return () => (opener.current as HTMLElement | null)?.focus();\n  }, [open]);\n  if (!open) return null;\n  return (\n    <div role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"modal-title\" tabIndex={-1} ref={ref}\n         onKeyDown={(e) => e.key === 'Escape' && onClose()}>\n      {children}\n    </div>\n  );\n}",
+   "source": "web/Modal.tsx",
+   "plan": {
+    "slug": "focus-management-dialogs",
+    "description": "A dialog moves keyboard focus into itself when it opens and returns it to the control that opened it when it closes.",
+    "context": "saves the opener and restores focus in the effect cleanup",
+    "tier_to_ask": 2,
+    "answer_position": 4,
+    "framing": "Ask the transferable version. The diff is the motivation, not the subject: open from what was just written, then ask for the general rule, the class of problem, or where else it applies. A correct answer must be usable on a different codebase. Do not ask for a definition -- that is tier 1 recall, not generalisation.",
+    "level": "easy",
+    "level_framing": "Level easy (tiers 1-2). Ask what a thing is and what the machine does with it. No judgement questions, no failure modes, no design. They have been watching the agent work, and every question must be answerable from that -- this is the runway that makes the habit stick, not a warm-up to hurry through.",
+    "asked_before": []
+   }
+  },
+  {
    "id": "plan-jargon-in-context:hook-output-as-model-context:concept:medium",
    "split": "val",
    "group": "plan-jargon-in-context",
@@ -2286,6 +2649,26 @@
     "context": "gives the profile cache a 60 second TTL",
     "tier_to_ask": 2,
     "answer_position": 3,
+    "framing": "Ask the transferable version. The diff is the motivation, not the subject: open from what was just written, then ask for the general rule, the class of problem, or where else it applies. A correct answer must be usable on a different codebase. Do not ask for a definition -- that is tier 1 recall, not generalisation.",
+    "level": "medium",
+    "level_framing": "Level medium (tiers 2-4). Mechanism, then why this choice rather than the obvious alternative, then what breaks it. Definitions are spent at this level.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "accessible-modal-focus:aria-dialog-semantics:concept:medium",
+   "split": "test",
+   "group": "accessible-modal-focus",
+   "focus": "concept",
+   "difficulty": "medium",
+   "code": "function Modal({ open, onClose, children }) {\n  const ref = useRef<HTMLDivElement>(null);\n  const opener = useRef<Element | null>(null);\n  useEffect(() => {\n    if (!open) return;\n    opener.current = document.activeElement;\n    ref.current?.focus();\n    return () => (opener.current as HTMLElement | null)?.focus();\n  }, [open]);\n  if (!open) return null;\n  return (\n    <div role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"modal-title\" tabIndex={-1} ref={ref}\n         onKeyDown={(e) => e.key === 'Escape' && onClose()}>\n      {children}\n    </div>\n  );\n}",
+   "source": "web/Modal.tsx",
+   "plan": {
+    "slug": "aria-dialog-semantics",
+    "description": "role=dialog with aria-modal and a label tells assistive technology what the region is and that the page behind is inert.",
+    "context": "adds role, aria-modal and aria-labelledby to the Modal root",
+    "tier_to_ask": 2,
+    "answer_position": 2,
     "framing": "Ask the transferable version. The diff is the motivation, not the subject: open from what was just written, then ask for the general rule, the class of problem, or where else it applies. A correct answer must be usable on a different codebase. Do not ask for a definition -- that is tier 1 recall, not generalisation.",
     "level": "medium",
     "level_framing": "Level medium (tiers 2-4). Mechanism, then why this choice rather than the obvious alternative, then what breaks it. Definitions are spent at this level.",
@@ -2553,6 +2936,46 @@
    }
   },
   {
+   "id": "queue-consumer-idempotency:idempotent-consumer-dedup-table:concept:medium",
+   "split": "test",
+   "group": "queue-consumer-idempotency",
+   "focus": "concept",
+   "difficulty": "medium",
+   "code": "async function onMessage(msg: Message) {\n  const { eventId, orderId } = JSON.parse(msg.body);\n  const claimed = await db.run(\n    'INSERT INTO processed_events (event_id) VALUES (?) ON CONFLICT DO NOTHING', [eventId]);\n  if (claimed.changes === 0) return msg.ack();\n  try {\n    await markPaid(orderId);\n    msg.ack();\n  } catch (err) {\n    await db.run('DELETE FROM processed_events WHERE event_id = ?', [eventId]);\n    msg.nack({ requeue: true });\n  }\n}",
+   "source": "worker/orders.ts",
+   "plan": {
+    "slug": "idempotent-consumer-dedup-table",
+    "description": "Recording each handled event id under a unique constraint lets a consumer skip repeats instead of repeating side effects.",
+    "context": "inserts the event id with ON CONFLICT DO NOTHING before marking the order paid",
+    "tier_to_ask": 3,
+    "answer_position": 4,
+    "framing": "Ask the transferable version. The diff is the motivation, not the subject: open from what was just written, then ask for the general rule, the class of problem, or where else it applies. A correct answer must be usable on a different codebase. Do not ask for a definition -- that is tier 1 recall, not generalisation.",
+    "level": "medium",
+    "level_framing": "Level medium (tiers 2-4). Mechanism, then why this choice rather than the obvious alternative, then what breaks it. Definitions are spent at this level.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "queue-consumer-idempotency:at-least-once-delivery:concept:medium",
+   "split": "test",
+   "group": "queue-consumer-idempotency",
+   "focus": "concept",
+   "difficulty": "medium",
+   "code": "async function onMessage(msg: Message) {\n  const { eventId, orderId } = JSON.parse(msg.body);\n  const claimed = await db.run(\n    'INSERT INTO processed_events (event_id) VALUES (?) ON CONFLICT DO NOTHING', [eventId]);\n  if (claimed.changes === 0) return msg.ack();\n  try {\n    await markPaid(orderId);\n    msg.ack();\n  } catch (err) {\n    await db.run('DELETE FROM processed_events WHERE event_id = ?', [eventId]);\n    msg.nack({ requeue: true });\n  }\n}",
+   "source": "worker/orders.ts",
+   "plan": {
+    "slug": "at-least-once-delivery",
+    "description": "A queue that retries until acknowledged may deliver the same message twice, so consumers must expect duplicates.",
+    "context": "acks and requeues messages in onMessage()",
+    "tier_to_ask": 3,
+    "answer_position": 4,
+    "framing": "Ask the transferable version. The diff is the motivation, not the subject: open from what was just written, then ask for the general rule, the class of problem, or where else it applies. A correct answer must be usable on a different codebase. Do not ask for a definition -- that is tier 1 recall, not generalisation.",
+    "level": "medium",
+    "level_framing": "Level medium (tiers 2-4). Mechanism, then why this choice rather than the obvious alternative, then what breaks it. Definitions are spent at this level.",
+    "asked_before": []
+   }
+  },
+  {
    "id": "pagination-cursor:fetch-one-extra:concept:medium",
    "split": "train",
    "group": "pagination-cursor",
@@ -2586,6 +3009,46 @@
     "context": "pages by id < after instead of OFFSET",
     "tier_to_ask": 3,
     "answer_position": 2,
+    "framing": "Ask the transferable version. The diff is the motivation, not the subject: open from what was just written, then ask for the general rule, the class of problem, or where else it applies. A correct answer must be usable on a different codebase. Do not ask for a definition -- that is tier 1 recall, not generalisation.",
+    "level": "medium",
+    "level_framing": "Level medium (tiers 2-4). Mechanism, then why this choice rather than the obvious alternative, then what breaks it. Definitions are spent at this level.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "graphql-resolver-n-plus-one:dataloader-batching:concept:medium",
+   "split": "test",
+   "group": "graphql-resolver-n-plus-one",
+   "focus": "concept",
+   "difficulty": "medium",
+   "code": "const resolvers = {\n  Query: { authors: () => db.all('SELECT * FROM authors') },\n  Author: {\n    posts: (author, _args, ctx) => ctx.loaders.postsByAuthor.load(author.id),\n  },\n};\n\nfunction makeLoaders(db) {\n  return {\n    postsByAuthor: new DataLoader(async (ids) => {\n      const rows = await db.all(`SELECT * FROM posts WHERE author_id IN (${ids.map(() => '?').join(',')})`, ids);\n      return ids.map((id) => rows.filter((r) => r.author_id === id));\n    }),\n  };\n}",
+   "source": "api/resolvers.ts",
+   "plan": {
+    "slug": "dataloader-batching",
+    "description": "A loader collects the keys requested in one tick and resolves them together, returning results in the order of the keys.",
+    "context": "maps rows back to each author id so results line up with the ids passed in",
+    "tier_to_ask": 3,
+    "answer_position": 4,
+    "framing": "Ask the transferable version. The diff is the motivation, not the subject: open from what was just written, then ask for the general rule, the class of problem, or where else it applies. A correct answer must be usable on a different codebase. Do not ask for a definition -- that is tier 1 recall, not generalisation.",
+    "level": "medium",
+    "level_framing": "Level medium (tiers 2-4). Mechanism, then why this choice rather than the obvious alternative, then what breaks it. Definitions are spent at this level.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "graphql-resolver-n-plus-one:n-plus-one-queries:concept:medium",
+   "split": "test",
+   "group": "graphql-resolver-n-plus-one",
+   "focus": "concept",
+   "difficulty": "medium",
+   "code": "const resolvers = {\n  Query: { authors: () => db.all('SELECT * FROM authors') },\n  Author: {\n    posts: (author, _args, ctx) => ctx.loaders.postsByAuthor.load(author.id),\n  },\n};\n\nfunction makeLoaders(db) {\n  return {\n    postsByAuthor: new DataLoader(async (ids) => {\n      const rows = await db.all(`SELECT * FROM posts WHERE author_id IN (${ids.map(() => '?').join(',')})`, ids);\n      return ids.map((id) => rows.filter((r) => r.author_id === id));\n    }),\n  };\n}",
+   "source": "api/resolvers.ts",
+   "plan": {
+    "slug": "n-plus-one-queries",
+    "description": "Fetching a list and then querying once per row issues N+1 round trips; one batched query replaces them.",
+    "context": "replaces a per-author posts query with a batched IN lookup",
+    "tier_to_ask": 3,
+    "answer_position": 3,
     "framing": "Ask the transferable version. The diff is the motivation, not the subject: open from what was just written, then ask for the general rule, the class of problem, or where else it applies. A correct answer must be usable on a different codebase. Do not ask for a definition -- that is tier 1 recall, not generalisation.",
     "level": "medium",
     "level_framing": "Level medium (tiers 2-4). Mechanism, then why this choice rather than the obvious alternative, then what breaks it. Definitions are spent at this level.",
@@ -2666,6 +3129,26 @@
     "context": "adds a 5 second timeout to the HTTP call",
     "tier_to_ask": 3,
     "answer_position": 3,
+    "framing": "Ask the transferable version. The diff is the motivation, not the subject: open from what was just written, then ask for the general rule, the class of problem, or where else it applies. A correct answer must be usable on a different codebase. Do not ask for a definition -- that is tier 1 recall, not generalisation.",
+    "level": "medium",
+    "level_framing": "Level medium (tiers 2-4). Mechanism, then why this choice rather than the obvious alternative, then what breaks it. Definitions are spent at this level.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "accessible-modal-focus:focus-management-dialogs:concept:medium",
+   "split": "test",
+   "group": "accessible-modal-focus",
+   "focus": "concept",
+   "difficulty": "medium",
+   "code": "function Modal({ open, onClose, children }) {\n  const ref = useRef<HTMLDivElement>(null);\n  const opener = useRef<Element | null>(null);\n  useEffect(() => {\n    if (!open) return;\n    opener.current = document.activeElement;\n    ref.current?.focus();\n    return () => (opener.current as HTMLElement | null)?.focus();\n  }, [open]);\n  if (!open) return null;\n  return (\n    <div role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"modal-title\" tabIndex={-1} ref={ref}\n         onKeyDown={(e) => e.key === 'Escape' && onClose()}>\n      {children}\n    </div>\n  );\n}",
+   "source": "web/Modal.tsx",
+   "plan": {
+    "slug": "focus-management-dialogs",
+    "description": "A dialog moves keyboard focus into itself when it opens and returns it to the control that opened it when it closes.",
+    "context": "saves the opener and restores focus in the effect cleanup",
+    "tier_to_ask": 3,
+    "answer_position": 4,
     "framing": "Ask the transferable version. The diff is the motivation, not the subject: open from what was just written, then ask for the general rule, the class of problem, or where else it applies. A correct answer must be usable on a different codebase. Do not ask for a definition -- that is tier 1 recall, not generalisation.",
     "level": "medium",
     "level_framing": "Level medium (tiers 2-4). Mechanism, then why this choice rather than the obvious alternative, then what breaks it. Definitions are spent at this level.",
@@ -3133,6 +3616,46 @@
    }
   },
   {
+   "id": "queue-consumer-idempotency:idempotent-consumer-dedup-table:concept:hard",
+   "split": "test",
+   "group": "queue-consumer-idempotency",
+   "focus": "concept",
+   "difficulty": "hard",
+   "code": "async function onMessage(msg: Message) {\n  const { eventId, orderId } = JSON.parse(msg.body);\n  const claimed = await db.run(\n    'INSERT INTO processed_events (event_id) VALUES (?) ON CONFLICT DO NOTHING', [eventId]);\n  if (claimed.changes === 0) return msg.ack();\n  try {\n    await markPaid(orderId);\n    msg.ack();\n  } catch (err) {\n    await db.run('DELETE FROM processed_events WHERE event_id = ?', [eventId]);\n    msg.nack({ requeue: true });\n  }\n}",
+   "source": "worker/orders.ts",
+   "plan": {
+    "slug": "idempotent-consumer-dedup-table",
+    "description": "Recording each handled event id under a unique constraint lets a consumer skip repeats instead of repeating side effects.",
+    "context": "inserts the event id with ON CONFLICT DO NOTHING before marking the order paid",
+    "tier_to_ask": 3,
+    "answer_position": 4,
+    "framing": "Ask the transferable version. The diff is the motivation, not the subject: open from what was just written, then ask for the general rule, the class of problem, or where else it applies. A correct answer must be usable on a different codebase. Do not ask for a definition -- that is tier 1 recall, not generalisation.",
+    "level": "hard",
+    "level_framing": "Level hard (tiers 3-5). Judgement, failure modes and design: when is this the wrong approach entirely, and how would they notice in production. A definition question is a wasted question here.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "queue-consumer-idempotency:at-least-once-delivery:concept:hard",
+   "split": "test",
+   "group": "queue-consumer-idempotency",
+   "focus": "concept",
+   "difficulty": "hard",
+   "code": "async function onMessage(msg: Message) {\n  const { eventId, orderId } = JSON.parse(msg.body);\n  const claimed = await db.run(\n    'INSERT INTO processed_events (event_id) VALUES (?) ON CONFLICT DO NOTHING', [eventId]);\n  if (claimed.changes === 0) return msg.ack();\n  try {\n    await markPaid(orderId);\n    msg.ack();\n  } catch (err) {\n    await db.run('DELETE FROM processed_events WHERE event_id = ?', [eventId]);\n    msg.nack({ requeue: true });\n  }\n}",
+   "source": "worker/orders.ts",
+   "plan": {
+    "slug": "at-least-once-delivery",
+    "description": "A queue that retries until acknowledged may deliver the same message twice, so consumers must expect duplicates.",
+    "context": "acks and requeues messages in onMessage()",
+    "tier_to_ask": 3,
+    "answer_position": 4,
+    "framing": "Ask the transferable version. The diff is the motivation, not the subject: open from what was just written, then ask for the general rule, the class of problem, or where else it applies. A correct answer must be usable on a different codebase. Do not ask for a definition -- that is tier 1 recall, not generalisation.",
+    "level": "hard",
+    "level_framing": "Level hard (tiers 3-5). Judgement, failure modes and design: when is this the wrong approach entirely, and how would they notice in production. A definition question is a wasted question here.",
+    "asked_before": []
+   }
+  },
+  {
    "id": "pagination-cursor:fetch-one-extra:concept:hard",
    "split": "train",
    "group": "pagination-cursor",
@@ -3166,6 +3689,46 @@
     "context": "pages by id < after instead of OFFSET",
     "tier_to_ask": 3,
     "answer_position": 2,
+    "framing": "Ask the transferable version. The diff is the motivation, not the subject: open from what was just written, then ask for the general rule, the class of problem, or where else it applies. A correct answer must be usable on a different codebase. Do not ask for a definition -- that is tier 1 recall, not generalisation.",
+    "level": "hard",
+    "level_framing": "Level hard (tiers 3-5). Judgement, failure modes and design: when is this the wrong approach entirely, and how would they notice in production. A definition question is a wasted question here.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "graphql-resolver-n-plus-one:dataloader-batching:concept:hard",
+   "split": "test",
+   "group": "graphql-resolver-n-plus-one",
+   "focus": "concept",
+   "difficulty": "hard",
+   "code": "const resolvers = {\n  Query: { authors: () => db.all('SELECT * FROM authors') },\n  Author: {\n    posts: (author, _args, ctx) => ctx.loaders.postsByAuthor.load(author.id),\n  },\n};\n\nfunction makeLoaders(db) {\n  return {\n    postsByAuthor: new DataLoader(async (ids) => {\n      const rows = await db.all(`SELECT * FROM posts WHERE author_id IN (${ids.map(() => '?').join(',')})`, ids);\n      return ids.map((id) => rows.filter((r) => r.author_id === id));\n    }),\n  };\n}",
+   "source": "api/resolvers.ts",
+   "plan": {
+    "slug": "dataloader-batching",
+    "description": "A loader collects the keys requested in one tick and resolves them together, returning results in the order of the keys.",
+    "context": "maps rows back to each author id so results line up with the ids passed in",
+    "tier_to_ask": 3,
+    "answer_position": 4,
+    "framing": "Ask the transferable version. The diff is the motivation, not the subject: open from what was just written, then ask for the general rule, the class of problem, or where else it applies. A correct answer must be usable on a different codebase. Do not ask for a definition -- that is tier 1 recall, not generalisation.",
+    "level": "hard",
+    "level_framing": "Level hard (tiers 3-5). Judgement, failure modes and design: when is this the wrong approach entirely, and how would they notice in production. A definition question is a wasted question here.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "graphql-resolver-n-plus-one:n-plus-one-queries:concept:hard",
+   "split": "test",
+   "group": "graphql-resolver-n-plus-one",
+   "focus": "concept",
+   "difficulty": "hard",
+   "code": "const resolvers = {\n  Query: { authors: () => db.all('SELECT * FROM authors') },\n  Author: {\n    posts: (author, _args, ctx) => ctx.loaders.postsByAuthor.load(author.id),\n  },\n};\n\nfunction makeLoaders(db) {\n  return {\n    postsByAuthor: new DataLoader(async (ids) => {\n      const rows = await db.all(`SELECT * FROM posts WHERE author_id IN (${ids.map(() => '?').join(',')})`, ids);\n      return ids.map((id) => rows.filter((r) => r.author_id === id));\n    }),\n  };\n}",
+   "source": "api/resolvers.ts",
+   "plan": {
+    "slug": "n-plus-one-queries",
+    "description": "Fetching a list and then querying once per row issues N+1 round trips; one batched query replaces them.",
+    "context": "replaces a per-author posts query with a batched IN lookup",
+    "tier_to_ask": 3,
+    "answer_position": 3,
     "framing": "Ask the transferable version. The diff is the motivation, not the subject: open from what was just written, then ask for the general rule, the class of problem, or where else it applies. A correct answer must be usable on a different codebase. Do not ask for a definition -- that is tier 1 recall, not generalisation.",
     "level": "hard",
     "level_framing": "Level hard (tiers 3-5). Judgement, failure modes and design: when is this the wrong approach entirely, and how would they notice in production. A definition question is a wasted question here.",
@@ -3346,6 +3909,46 @@
     "context": "gives the profile cache a 60 second TTL",
     "tier_to_ask": 3,
     "answer_position": 3,
+    "framing": "Ask the transferable version. The diff is the motivation, not the subject: open from what was just written, then ask for the general rule, the class of problem, or where else it applies. A correct answer must be usable on a different codebase. Do not ask for a definition -- that is tier 1 recall, not generalisation.",
+    "level": "hard",
+    "level_framing": "Level hard (tiers 3-5). Judgement, failure modes and design: when is this the wrong approach entirely, and how would they notice in production. A definition question is a wasted question here.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "accessible-modal-focus:aria-dialog-semantics:concept:hard",
+   "split": "test",
+   "group": "accessible-modal-focus",
+   "focus": "concept",
+   "difficulty": "hard",
+   "code": "function Modal({ open, onClose, children }) {\n  const ref = useRef<HTMLDivElement>(null);\n  const opener = useRef<Element | null>(null);\n  useEffect(() => {\n    if (!open) return;\n    opener.current = document.activeElement;\n    ref.current?.focus();\n    return () => (opener.current as HTMLElement | null)?.focus();\n  }, [open]);\n  if (!open) return null;\n  return (\n    <div role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"modal-title\" tabIndex={-1} ref={ref}\n         onKeyDown={(e) => e.key === 'Escape' && onClose()}>\n      {children}\n    </div>\n  );\n}",
+   "source": "web/Modal.tsx",
+   "plan": {
+    "slug": "aria-dialog-semantics",
+    "description": "role=dialog with aria-modal and a label tells assistive technology what the region is and that the page behind is inert.",
+    "context": "adds role, aria-modal and aria-labelledby to the Modal root",
+    "tier_to_ask": 3,
+    "answer_position": 2,
+    "framing": "Ask the transferable version. The diff is the motivation, not the subject: open from what was just written, then ask for the general rule, the class of problem, or where else it applies. A correct answer must be usable on a different codebase. Do not ask for a definition -- that is tier 1 recall, not generalisation.",
+    "level": "hard",
+    "level_framing": "Level hard (tiers 3-5). Judgement, failure modes and design: when is this the wrong approach entirely, and how would they notice in production. A definition question is a wasted question here.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "accessible-modal-focus:focus-management-dialogs:concept:hard",
+   "split": "test",
+   "group": "accessible-modal-focus",
+   "focus": "concept",
+   "difficulty": "hard",
+   "code": "function Modal({ open, onClose, children }) {\n  const ref = useRef<HTMLDivElement>(null);\n  const opener = useRef<Element | null>(null);\n  useEffect(() => {\n    if (!open) return;\n    opener.current = document.activeElement;\n    ref.current?.focus();\n    return () => (opener.current as HTMLElement | null)?.focus();\n  }, [open]);\n  if (!open) return null;\n  return (\n    <div role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"modal-title\" tabIndex={-1} ref={ref}\n         onKeyDown={(e) => e.key === 'Escape' && onClose()}>\n      {children}\n    </div>\n  );\n}",
+   "source": "web/Modal.tsx",
+   "plan": {
+    "slug": "focus-management-dialogs",
+    "description": "A dialog moves keyboard focus into itself when it opens and returns it to the control that opened it when it closes.",
+    "context": "saves the opener and restores focus in the effect cleanup",
+    "tier_to_ask": 3,
+    "answer_position": 4,
     "framing": "Ask the transferable version. The diff is the motivation, not the subject: open from what was just written, then ask for the general rule, the class of problem, or where else it applies. A correct answer must be usable on a different codebase. Do not ask for a definition -- that is tier 1 recall, not generalisation.",
     "level": "hard",
     "level_framing": "Level hard (tiers 3-5). Judgement, failure modes and design: when is this the wrong approach entirely, and how would they notice in production. A definition question is a wasted question here.",
@@ -3653,6 +4256,26 @@
    }
   },
   {
+   "id": "accessible-modal-focus:aria-dialog-semantics:project:medium",
+   "split": "test",
+   "group": "accessible-modal-focus",
+   "focus": "project",
+   "difficulty": "medium",
+   "code": "function Modal({ open, onClose, children }) {\n  const ref = useRef<HTMLDivElement>(null);\n  const opener = useRef<Element | null>(null);\n  useEffect(() => {\n    if (!open) return;\n    opener.current = document.activeElement;\n    ref.current?.focus();\n    return () => (opener.current as HTMLElement | null)?.focus();\n  }, [open]);\n  if (!open) return null;\n  return (\n    <div role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"modal-title\" tabIndex={-1} ref={ref}\n         onKeyDown={(e) => e.key === 'Escape' && onClose()}>\n      {children}\n    </div>\n  );\n}",
+   "source": "web/Modal.tsx",
+   "plan": {
+    "slug": "aria-dialog-semantics",
+    "description": "role=dialog with aria-modal and a label tells assistive technology what the region is and that the page behind is inert.",
+    "context": "adds role, aria-modal and aria-labelledby to the Modal root",
+    "tier_to_ask": 2,
+    "answer_position": 2,
+    "framing": "Ground every question in the diff just written: name the file, the line, the decision. The code is the subject.",
+    "level": "medium",
+    "level_framing": "Level medium (tiers 2-4). Mechanism, then why this choice rather than the obvious alternative, then what breaks it. Definitions are spent at this level.",
+    "asked_before": []
+   }
+  },
+  {
    "id": "wal-and-busy-retry:wal-journal-mode:project:medium",
    "split": "train",
    "group": "wal-and-busy-retry",
@@ -3913,6 +4536,46 @@
    }
   },
   {
+   "id": "queue-consumer-idempotency:idempotent-consumer-dedup-table:project:medium",
+   "split": "test",
+   "group": "queue-consumer-idempotency",
+   "focus": "project",
+   "difficulty": "medium",
+   "code": "async function onMessage(msg: Message) {\n  const { eventId, orderId } = JSON.parse(msg.body);\n  const claimed = await db.run(\n    'INSERT INTO processed_events (event_id) VALUES (?) ON CONFLICT DO NOTHING', [eventId]);\n  if (claimed.changes === 0) return msg.ack();\n  try {\n    await markPaid(orderId);\n    msg.ack();\n  } catch (err) {\n    await db.run('DELETE FROM processed_events WHERE event_id = ?', [eventId]);\n    msg.nack({ requeue: true });\n  }\n}",
+   "source": "worker/orders.ts",
+   "plan": {
+    "slug": "idempotent-consumer-dedup-table",
+    "description": "Recording each handled event id under a unique constraint lets a consumer skip repeats instead of repeating side effects.",
+    "context": "inserts the event id with ON CONFLICT DO NOTHING before marking the order paid",
+    "tier_to_ask": 3,
+    "answer_position": 4,
+    "framing": "Ground every question in the diff just written: name the file, the line, the decision. The code is the subject.",
+    "level": "medium",
+    "level_framing": "Level medium (tiers 2-4). Mechanism, then why this choice rather than the obvious alternative, then what breaks it. Definitions are spent at this level.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "queue-consumer-idempotency:at-least-once-delivery:project:medium",
+   "split": "test",
+   "group": "queue-consumer-idempotency",
+   "focus": "project",
+   "difficulty": "medium",
+   "code": "async function onMessage(msg: Message) {\n  const { eventId, orderId } = JSON.parse(msg.body);\n  const claimed = await db.run(\n    'INSERT INTO processed_events (event_id) VALUES (?) ON CONFLICT DO NOTHING', [eventId]);\n  if (claimed.changes === 0) return msg.ack();\n  try {\n    await markPaid(orderId);\n    msg.ack();\n  } catch (err) {\n    await db.run('DELETE FROM processed_events WHERE event_id = ?', [eventId]);\n    msg.nack({ requeue: true });\n  }\n}",
+   "source": "worker/orders.ts",
+   "plan": {
+    "slug": "at-least-once-delivery",
+    "description": "A queue that retries until acknowledged may deliver the same message twice, so consumers must expect duplicates.",
+    "context": "acks and requeues messages in onMessage()",
+    "tier_to_ask": 3,
+    "answer_position": 4,
+    "framing": "Ground every question in the diff just written: name the file, the line, the decision. The code is the subject.",
+    "level": "medium",
+    "level_framing": "Level medium (tiers 2-4). Mechanism, then why this choice rather than the obvious alternative, then what breaks it. Definitions are spent at this level.",
+    "asked_before": []
+   }
+  },
+  {
    "id": "pagination-cursor:fetch-one-extra:project:medium",
    "split": "train",
    "group": "pagination-cursor",
@@ -3946,6 +4609,46 @@
     "context": "pages by id < after instead of OFFSET",
     "tier_to_ask": 3,
     "answer_position": 2,
+    "framing": "Ground every question in the diff just written: name the file, the line, the decision. The code is the subject.",
+    "level": "medium",
+    "level_framing": "Level medium (tiers 2-4). Mechanism, then why this choice rather than the obvious alternative, then what breaks it. Definitions are spent at this level.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "graphql-resolver-n-plus-one:dataloader-batching:project:medium",
+   "split": "test",
+   "group": "graphql-resolver-n-plus-one",
+   "focus": "project",
+   "difficulty": "medium",
+   "code": "const resolvers = {\n  Query: { authors: () => db.all('SELECT * FROM authors') },\n  Author: {\n    posts: (author, _args, ctx) => ctx.loaders.postsByAuthor.load(author.id),\n  },\n};\n\nfunction makeLoaders(db) {\n  return {\n    postsByAuthor: new DataLoader(async (ids) => {\n      const rows = await db.all(`SELECT * FROM posts WHERE author_id IN (${ids.map(() => '?').join(',')})`, ids);\n      return ids.map((id) => rows.filter((r) => r.author_id === id));\n    }),\n  };\n}",
+   "source": "api/resolvers.ts",
+   "plan": {
+    "slug": "dataloader-batching",
+    "description": "A loader collects the keys requested in one tick and resolves them together, returning results in the order of the keys.",
+    "context": "maps rows back to each author id so results line up with the ids passed in",
+    "tier_to_ask": 3,
+    "answer_position": 4,
+    "framing": "Ground every question in the diff just written: name the file, the line, the decision. The code is the subject.",
+    "level": "medium",
+    "level_framing": "Level medium (tiers 2-4). Mechanism, then why this choice rather than the obvious alternative, then what breaks it. Definitions are spent at this level.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "graphql-resolver-n-plus-one:n-plus-one-queries:project:medium",
+   "split": "test",
+   "group": "graphql-resolver-n-plus-one",
+   "focus": "project",
+   "difficulty": "medium",
+   "code": "const resolvers = {\n  Query: { authors: () => db.all('SELECT * FROM authors') },\n  Author: {\n    posts: (author, _args, ctx) => ctx.loaders.postsByAuthor.load(author.id),\n  },\n};\n\nfunction makeLoaders(db) {\n  return {\n    postsByAuthor: new DataLoader(async (ids) => {\n      const rows = await db.all(`SELECT * FROM posts WHERE author_id IN (${ids.map(() => '?').join(',')})`, ids);\n      return ids.map((id) => rows.filter((r) => r.author_id === id));\n    }),\n  };\n}",
+   "source": "api/resolvers.ts",
+   "plan": {
+    "slug": "n-plus-one-queries",
+    "description": "Fetching a list and then querying once per row issues N+1 round trips; one batched query replaces them.",
+    "context": "replaces a per-author posts query with a batched IN lookup",
+    "tier_to_ask": 3,
+    "answer_position": 3,
     "framing": "Ground every question in the diff just written: name the file, the line, the decision. The code is the subject.",
     "level": "medium",
     "level_framing": "Level medium (tiers 2-4). Mechanism, then why this choice rather than the obvious alternative, then what breaks it. Definitions are spent at this level.",
@@ -4026,6 +4729,26 @@
     "context": "adds a 5 second timeout to the HTTP call",
     "tier_to_ask": 3,
     "answer_position": 3,
+    "framing": "Ground every question in the diff just written: name the file, the line, the decision. The code is the subject.",
+    "level": "medium",
+    "level_framing": "Level medium (tiers 2-4). Mechanism, then why this choice rather than the obvious alternative, then what breaks it. Definitions are spent at this level.",
+    "asked_before": []
+   }
+  },
+  {
+   "id": "accessible-modal-focus:focus-management-dialogs:project:medium",
+   "split": "test",
+   "group": "accessible-modal-focus",
+   "focus": "project",
+   "difficulty": "medium",
+   "code": "function Modal({ open, onClose, children }) {\n  const ref = useRef<HTMLDivElement>(null);\n  const opener = useRef<Element | null>(null);\n  useEffect(() => {\n    if (!open) return;\n    opener.current = document.activeElement;\n    ref.current?.focus();\n    return () => (opener.current as HTMLElement | null)?.focus();\n  }, [open]);\n  if (!open) return null;\n  return (\n    <div role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"modal-title\" tabIndex={-1} ref={ref}\n         onKeyDown={(e) => e.key === 'Escape' && onClose()}>\n      {children}\n    </div>\n  );\n}",
+   "source": "web/Modal.tsx",
+   "plan": {
+    "slug": "focus-management-dialogs",
+    "description": "A dialog moves keyboard focus into itself when it opens and returns it to the control that opened it when it closes.",
+    "context": "saves the opener and restores focus in the effect cleanup",
+    "tier_to_ask": 3,
+    "answer_position": 4,
     "framing": "Ground every question in the diff just written: name the file, the line, the decision. The code is the subject.",
     "level": "medium",
     "level_framing": "Level medium (tiers 2-4). Mechanism, then why this choice rather than the obvious alternative, then what breaks it. Definitions are spent at this level.",

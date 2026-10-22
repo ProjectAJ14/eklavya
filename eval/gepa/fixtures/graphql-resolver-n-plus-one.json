@@ -1,0 +1,24 @@
+{
+ "id": "graphql-resolver-n-plus-one",
+ "title": "Listing authors with their posts",
+ "source": "api/resolvers.ts",
+ "diff": "const resolvers = {\n  Query: { authors: () => db.all('SELECT * FROM authors') },\n  Author: {\n    posts: (author, _args, ctx) => ctx.loaders.postsByAuthor.load(author.id),\n  },\n};\n\nfunction makeLoaders(db) {\n  return {\n    postsByAuthor: new DataLoader(async (ids) => {\n      const rows = await db.all(`SELECT * FROM posts WHERE author_id IN (${ids.map(() => '?').join(',')})`, ids);\n      return ids.map((id) => rows.filter((r) => r.author_id === id));\n    }),\n  };\n}",
+ "concepts": [
+  {
+   "slug": "n-plus-one-queries",
+   "domain": "databases",
+   "tier": 3,
+   "description": "Fetching a list and then querying once per row issues N+1 round trips; one batched query replaces them.",
+   "context": "replaces a per-author posts query with a batched IN lookup",
+   "prerequisite_of": []
+  },
+  {
+   "slug": "dataloader-batching",
+   "domain": "api-design",
+   "tier": 3,
+   "description": "A loader collects the keys requested in one tick and resolves them together, returning results in the order of the keys.",
+   "context": "maps rows back to each author id so results line up with the ids passed in",
+   "prerequisite_of": []
+  }
+ ]
+}

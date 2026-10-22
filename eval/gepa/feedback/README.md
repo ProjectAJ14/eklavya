@@ -22,7 +22,7 @@ are invented sessions (`sessions.json`) built that way, each labelled with:
 | `expect.clear` | The areas the chosen prompt plainly states. An area in neither list is one the task did not need |
 | `expect.facts` | Details the developer gave only later, which a good rewrite carries back |
 
-No learner database is read. 16 sessions, split by hand: 8 train, 3 val, 5 test.
+No learner database is read. 19 sessions, split by hand: 8 train, 3 val, 8 test (three test sessions were added on 2026-10-22: a SQL view, a CLI flag and a front-end scroll bug; the original five test sessions are unchanged).
 
 ## The score
 
@@ -44,8 +44,8 @@ matches `expect.areas`, `clear` matches `expect.clear` and any other area expect
 
 ## Decision rule
 
-5 test sessions, 3 repeats each. A difference in mean score under 0.10 is `no difference`, and under 8
-sessions `report` says `cannot decide`; this split has 5, so it does (see [`../README.md`](../README.md#reading-a-result-all-five-targets)).
+8 test sessions, 3 repeats each. A difference in mean score under 0.10 is `no difference`, and under 8
+sessions `report` says `cannot decide`; this split has 8, so it can decide (see [`../README.md`](../README.md#reading-a-result-all-five-targets)).
 `mean_score` counts a reviewer timeout as 0; `mean_score_finished_only` leaves timeouts out; `report` prints both.
 `optimize` rejects a candidate over 1.25 x the shipped instruction words unscored and tells the reflection model the limit.
 

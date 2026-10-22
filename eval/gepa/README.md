@@ -85,8 +85,10 @@ the checks are `mcp/src/eval/question-checks.ts` through `bridge.mjs`.
 
 `dataset.json` is split by fixture (a hash rank, 50/20/30), not by example: the same code
 appears under six focus and difficulty settings, and those near-duplicates share a side.
+The build pins every fixture already in `dataset.json` to its recorded split and forces any new fixture
+to `test`, so adding fixtures never moves a scored example into the search.
 `optimize` trains on `train`, selects on `val`, and never reads `test`. Fixtures are small
-(16 codebases, 204 examples), so treat any result as a pilot.
+(19 codebases, 240 examples), so treat any result as a pilot.
 
 ## Reading a result (all five targets)
 
@@ -96,15 +98,15 @@ what "better" meant after the fact. The rule is now written here and enforced by
 
 | Target | Test fixtures | Repeats | Smallest difference that counts | Length cap in `optimize` |
 |---|---|---|---|---|
-| Tutor questions (`pilot.py`) | 5 codebases (60 examples) | 3 | 0.05 mean score | none: no product limit |
-| Prompt feedback | 5 sessions | 3 | 0.10 (the same wording scored 0.602 and 0.441) | 1.25 x shipped words |
+| Tutor questions (`pilot.py`) | 8 codebases (96 examples) | 3 | 0.05 mean score | none: no product limit |
+| Prompt feedback | 8 sessions | 3 | 0.10 (the same wording scored 0.602 and 0.441) | 1.25 x shipped words |
 | Concept extraction | 8 fixtures | 3 | 0.05 | the skill file's 1,999-word ceiling |
-| Memory observer | 5 batches | 3 | 0.03 (two runs of one prompt differed by 0.003 on the mean) | 1.25 x shipped words |
-| Concept dedup | 5 scenarios | 3 | 0.05 | the skill file's 1,999-word ceiling |
+| Memory observer | 8 batches | 3 | 0.03 (two runs of one prompt differed by 0.003 on the mean) | 1.25 x shipped words |
+| Concept dedup | 8 scenarios | 3 | 0.05 | the skill file's 1,999-word ceiling |
 
 - **Fixtures.** A comparison over fewer than 8 fixtures is reported as `cannot decide`, whatever the
-  numbers say: three repeats of one fixture are not three fixtures. Every test split above has 5, so every
-  result is `cannot decide` until fixtures are added. That is the honest answer, not a failure of the run.
+  numbers say: three repeats of one fixture are not three fixtures. Every test split above now has 8, so a result can decide.
+  Results recorded before 2026-10-22 were scored on 5-fixture splits; their markers name different fixtures, so `report` will not compare them with new runs.
 - **Difference.** With 8 or more fixtures, a mean within the threshold is `no difference`; beyond it the
   verdict is `candidate better` or `candidate worse`. Decide nothing from per-fixture wins and losses.
 - **Timeouts.** A trial that never finished scores 0 in the search and counts in `mean_score`.

@@ -288,6 +288,7 @@ the log call left `unlinked`. `eval/gepa/dedup/run.py` is the same seam pointed 
 seeds a graph, shows a diff, and checks deterministically whether the session resolved to the existing
 concept, minted a duplicate, and named new ones in 1 to 3 words. Its header lists the commands; the dated
 result and what it does not measure are in `eval/results/2026-10-16-dedup.md`.
+The test split is now 8 scenarios; three were written after the matcher change, without looking at its output.
 
 ### Reading a GEPA result
 
