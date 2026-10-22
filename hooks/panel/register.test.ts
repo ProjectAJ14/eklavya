@@ -213,6 +213,33 @@ describe('the pane, state by state', () => {
       expect((drawn.match(/"type":"Markdown"/g) ?? []).length).toBe(1)
       expect(await ticks(pane)).toBe(0)
     })
+
+    test(`a note is dim, turns light on the picked card and sits in the card beside the button, not in it, only on the desktop (${surface})`, async ($, on) => {
+      world(on)
+      await boot($)
+      const pane = await mount($, surface)
+      const card = async (id: string) => JSON.stringify(await pane.find({ key: `card-${id}` }))
+      const sibling = (c: string, note: string) => c.includes(`"children":["${note}"]`)
+      expect(sibling(await card('o2'), 'note two')).toBe(surface !== 'terminal')
+      if (surface === 'terminal') return
+      expect(await card('o2')).toContain('"dimColor":true')
+      await press($, 'opt-o2', surface)
+      expect(await card('o2')).toContain(`"color":"${PICKED.note}"`)
+      expect(await card('o2')).toContain('"dimColor":false')
+      // The other cards keep their dim note, and Other never gets one.
+      expect(await card('o1')).toContain('"dimColor":true')
+      expect(await card('other')).not.toContain('"dimColor":true')
+    })
+
+    test(`an option without a note draws no note line on ${surface}`, async ($, on) => {
+      world(on, { waiting: { ...QUESTION, options: QUESTION.options.map((o, i) => (i === 1 ? { id: o.id, label: o.label } : o)) } })
+      await boot($)
+      const pane = await mount($, surface)
+      const card = JSON.stringify(await pane.find({ key: 'card-o2' }))
+      expect(card).toContain(QUESTION.options[1].label)
+      expect(card).not.toContain('"type":"Text","props":{"wrap":"wrap","dimColor"')
+      expect(JSON.stringify(await pane.find({ key: 'card-o1' }))).toContain('note one')
+    })
   }
 
   test('a refused move of the focus mark leaves the pick standing', async ($, on) => {
