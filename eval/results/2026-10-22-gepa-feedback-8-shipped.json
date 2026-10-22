@@ -1,0 +1,1527 @@
+{
+ "prompt": "shipped REVIEW_SYSTEM",
+ "legacy": false,
+ "model": "claude-haiku-4-5",
+ "judge_model": "sonnet",
+ "split": "test",
+ "repeats": 3,
+ "marker": {
+  "split": "test",
+  "fixtures": "e576126a1e",
+  "prompt": "444422f1ef",
+  "code": "2294b61"
+ },
+ "trials": [
+  {
+   "id": "explain-then-change",
+   "repeat": 0,
+   "score": 0.0,
+   "gates_failed": [
+    "generation"
+   ],
+   "error": "transient: claude -p did not finish in 100s"
+  },
+  {
+   "id": "explain-then-change",
+   "repeat": 1,
+   "score": 0.9667,
+   "gates_failed": [],
+   "quality": {
+    "prevents": 1.0,
+    "facts": 0.6666666666666666,
+    "chosen": 1.0,
+    "tips": 1.0,
+    "areas": 1,
+    "areas_agreement": 1
+   },
+   "det": {
+    "chosen": 2,
+    "invented": [],
+    "facts_recall": 0.6666666666666666,
+    "facts_missing": [
+     "per ip"
+    ],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 3,
+     "kept": 2
+    },
+    "areas": [
+     "context",
+     "scope",
+     "check"
+    ],
+    "area_recall": 1,
+    "statuses": {
+     "outcome": "clear",
+     "context": "left_out",
+     "scope": "left_out",
+     "check": "left_out"
+    },
+    "areas_agreement": 1
+   },
+   "judge": {
+    "prevents_followups": "all",
+    "prevents_why": "The rewrite folds in the header, IP fallback, config file, and both test paths, which are exactly what prompts 3, 4 and 5 supplied.",
+    "grounded": true,
+    "grounded_why": "Each gap is backed by a later prompt that supplied the missing detail; the claim that the initial implementation would skip config is mild speculation but reasonable.",
+    "intent_kept": true,
+    "intent_why": "The rewrite asks for the same per-key change and uses only facts from prompts 2-5 (x-api-key, config/limits.json, keyed/unkeyed tests).",
+    "tips": "specific"
+   },
+   "review": {
+    "chosen": 2,
+    "review": {
+     "worked": "Prompt 2 clearly stated the main behavior shift needed: from per-IP to per-API-key rate limiting.",
+     "gaps": [
+      {
+       "area": "context",
+       "missing": "Didn't specify where the API key comes from or what happens to unauthenticated requests; later had to clarify the x-api-key header and per-IP fallback.",
+       "evidence": "the key is in the x-api-key header. requests without one should still be limited per ip"
+      },
+      {
+       "area": "scope",
+       "missing": "Didn't state that limits must come from configuration rather than hardcoded values, likely causing initial implementation to skip this constraint.",
+       "evidence": "the limits live in config/limits.json, don't hardcode them"
+      },
+      {
+       "area": "check",
+       "missing": "Didn't name which scenarios to test; agent had to be told to test both keyed and unkeyed request paths separately.",
+       "evidence": "add tests for both paths, keyed and unkeyed"
+      }
+     ],
+     "areas": {
+      "outcome": "clear",
+      "context": "left_out",
+      "scope": "left_out",
+      "check": "left_out"
+     }
+    },
+    "better": "Change the rate limiter to be per-API-key instead of per-IP. The key is in the x-api-key header\u2014requests without one should still be limited per-IP. Load limits from config/limits.json instead of hardcoding them. Add tests for both keyed and unkeyed request scenarios.",
+    "tips": [
+     "Specify where to find configuration or request data before asking to use it in changes\u2014headers, config files, environment variables.",
+     "Describe fallback behavior and edge cases upfront when implementing features with multiple code paths, not just the happy path.",
+     "Name specific test scenarios like 'keyed and unkeyed' rather than just 'add tests' to clarify what done looks like."
+    ]
+   }
+  },
+  {
+   "id": "explain-then-change",
+   "repeat": 2,
+   "score": 0.0,
+   "gates_failed": [
+    "generation"
+   ],
+   "error": "transient: claude -p did not finish in 100s"
+  },
+  {
+   "id": "migration-column",
+   "repeat": 0,
+   "score": 0.3638,
+   "gates_failed": [
+    "grounded"
+   ],
+   "quality": {
+    "prevents": 1.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 0.0,
+    "areas": 1,
+    "areas_agreement": 1
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 3,
+     "kept": 3
+    },
+    "areas": [
+     "scope",
+     "outcome",
+     "context"
+    ],
+    "area_recall": 1,
+    "statuses": {
+     "outcome": "left_out",
+     "context": "left_out",
+     "scope": "left_out",
+     "check": "not_needed"
+    },
+    "areas_agreement": 1
+   },
+   "judge": {
+    "prevents_followups": "all",
+    "prevents_why": "The rewrite includes the profiles table, nullable/IANA/no default, forward-only migration in db/migrations numbered after the last, and the Profile type update, covering all four follow-ups.",
+    "grounded": false,
+    "grounded_why": "The review claims the agent guessed wrong and added to users, and that the agent didn't know how to implement the change, but the session shows only the prompts, not the agent's actions.",
+    "intent_kept": true,
+    "intent_why": "The rewrite asks for the same column addition and merges in only details found in the follow-up prompts.",
+    "tips": "generic"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "The prompt clearly stated the core goal: add timezone tracking to user profile data.",
+     "gaps": [
+      {
+       "area": "scope",
+       "missing": "Didn't specify which table should receive the column; the agent guessed wrong and added it to users instead of profiles.",
+       "evidence": "on the profiles table, not users"
+      },
+      {
+       "area": "outcome",
+       "missing": "Left out column constraints and type format (nullable, IANA names, no default), requiring a separate follow-up clarification.",
+       "evidence": "nullable, IANA names like Europe/Berlin, no default"
+      },
+      {
+       "area": "context",
+       "missing": "Didn't explain where migrations live or the forward-only approach, so the agent didn't know how to implement the change.",
+       "evidence": "we use forward-only migrations in db/migrations, number it after the last one"
+      }
+     ],
+     "areas": {
+      "outcome": "left_out",
+      "context": "left_out",
+      "scope": "left_out",
+      "check": "not_needed"
+     }
+    },
+    "better": "Add a nullable timezone column to the profiles table with IANA names like Europe/Berlin and no default value. Create a forward-only migration in db/migrations, numbered sequentially after the last one. Update the Profile type to include the new timezone field.",
+    "tips": [
+     "Specify which table or file needs the change before describing what to add to it.",
+     "Include column constraints, type format, and defaults when requesting schema changes.",
+     "Name the implementation location and conventions when project-specific practices determine how work gets done."
+    ]
+   }
+  },
+  {
+   "id": "migration-column",
+   "repeat": 1,
+   "score": 0.975,
+   "gates_failed": [],
+   "quality": {
+    "prevents": 1.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 1.0,
+    "areas": 0.6666666666666666,
+    "areas_agreement": 0.75
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 3,
+     "kept": 3
+    },
+    "areas": [
+     "context",
+     "scope",
+     "context"
+    ],
+    "area_recall": 0.6666666666666666,
+    "statuses": {
+     "outcome": "clear",
+     "context": "left_out",
+     "scope": "left_out",
+     "check": "not_needed"
+    },
+    "areas_agreement": 0.75
+   },
+   "judge": {
+    "prevents_followups": "all",
+    "prevents_why": "The rewrite includes the profiles table, nullability, IANA format, no default, forward-only migration in db/migrations numbered after the last, and the Profile type update, covering all four follow-ups.",
+    "grounded": true,
+    "grounded_why": "Each gap is backed by a later prompt: the table correction, the column constraints, and the migration convention; the claim that the agent used users is a reasonable inference from \"not users\".",
+    "intent_kept": true,
+    "intent_why": "The rewrite asks for the same column addition and only includes details stated in the later prompts, with nothing invented.",
+    "tips": "specific"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "Prompt clearly named the goal\u2014add a column\u2014concisely, providing a focused starting point despite missing critical details.",
+     "gaps": [
+      {
+       "area": "context",
+       "missing": "Prompt didn't specify which table; agent added timezone to users table instead of profiles, requiring complete redo.",
+       "evidence": "on the profiles table, not users"
+      },
+      {
+       "area": "scope",
+       "missing": "No guidance on migration strategy, file location, or numbering meant agent couldn't structure work correctly without asking.",
+       "evidence": "we use forward-only migrations in db/migrations, number it after the last one"
+      },
+      {
+       "area": "context",
+       "missing": "Column type, nullability, and IANA format specifications weren't given, leaving agent to guess the proper definition.",
+       "evidence": "nullable, IANA names like Europe/Berlin, no default"
+      }
+     ],
+     "areas": {
+      "outcome": "clear",
+      "context": "left_out",
+      "scope": "left_out",
+      "check": "not_needed"
+     }
+    },
+    "better": "Add a timezone column to the profiles table (not users table). Make it nullable, store IANA names like Europe/Berlin, with no default value. Create a forward-only migration file in db/migrations, numbered after the last one. Also update the Profile type to include this field.",
+    "tips": [
+     "Name the table and file for each database change to prevent the agent working on wrong targets.",
+     "Specify all column constraints\u2014nullable, type, format, defaults\u2014in the initial task description.",
+     "Provide project conventions for migrations, file structure, and related updates upfront."
+    ]
+   }
+  },
+  {
+   "id": "migration-column",
+   "repeat": 2,
+   "score": 0.3712,
+   "gates_failed": [
+    "no_invented"
+   ],
+   "quality": {
+    "prevents": 1.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 1.0,
+    "areas": 0.6666666666666666,
+    "areas_agreement": 0.75
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [
+     "db/migrations/",
+     "TypeScript"
+    ],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 3,
+     "kept": 3
+    },
+    "areas": [
+     "context",
+     "scope",
+     "scope"
+    ],
+    "area_recall": 0.6666666666666666,
+    "statuses": {
+     "outcome": "clear",
+     "context": "left_out",
+     "scope": "left_out",
+     "check": "not_needed"
+    },
+    "areas_agreement": 0.75
+   },
+   "judge": {
+    "prevents_followups": "all",
+    "prevents_why": "The rewrite covers the profiles table, nullable/IANA/no default, forward-only migration in db/migrations numbered after the last, and the Profile type update, which are exactly the four follow-ups.",
+    "grounded": true,
+    "grounded_why": "Each gap is backed by a later prompt, and the claim that the agent worked on the wrong table is a reasonable inference from the \"not users\" correction.",
+    "intent_kept": true,
+    "intent_why": "The rewrite asks for the same timezone column and uses only details from the later prompts, with no invented facts.",
+    "tips": "specific"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "Clearly stated what feature to add: timezone information, establishing the goal.",
+     "gaps": [
+      {
+       "area": "context",
+       "missing": "Which table to modify was not stated, and the agent worked on the wrong table, requiring redirection.",
+       "evidence": "on the profiles table, not users"
+      },
+      {
+       "area": "scope",
+       "missing": "Column specifications (type format, nullability, default) were omitted, forcing the agent to guess or use unsuitable defaults.",
+       "evidence": "nullable, IANA names like Europe/Berlin, no default"
+      },
+      {
+       "area": "scope",
+       "missing": "The related TypeScript type update was not mentioned, so the agent didn't know this file also needed changes.",
+       "evidence": "update the Profile type too"
+      }
+     ],
+     "areas": {
+      "outcome": "clear",
+      "context": "left_out",
+      "scope": "left_out",
+      "check": "not_needed"
+     }
+    },
+    "better": "Add a timezone column to the profiles table (not users) with these specifications:\n- Data type: IANA timezone names (e.g., Europe/Berlin)\n- Nullable: yes\n- Default: none\n- Create a forward-only migration file in db/migrations/, numbered after the last one\n- Update the Profile TypeScript type to include the timezone column",
+    "tips": [
+     "Specify the exact table or file path where the change should go before asking for the modification.",
+     "List all column constraints upfront: data type, nullability, default value, and any format requirements like IANA names.",
+     "Mention which code files (types, schemas, configs) must be updated alongside the primary database change."
+    ]
+   }
+  },
+  {
+   "id": "copy-change",
+   "repeat": 0,
+   "score": 0.925,
+   "gates_failed": [],
+   "quality": {
+    "prevents": 1.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 0.0,
+    "areas": 1,
+    "areas_agreement": 1
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 2,
+     "kept": 2
+    },
+    "areas": [
+     "outcome",
+     "scope"
+    ],
+    "area_recall": 1,
+    "statuses": {
+     "outcome": "left_out",
+     "context": "clear",
+     "scope": "left_out",
+     "check": "not_needed"
+    },
+    "areas_agreement": 1
+   },
+   "judge": {
+    "prevents_followups": "all",
+    "prevents_why": "The rewrite includes the example text, second line, and the 60-character mobile limit, which are exactly what prompts 2 and 3 added.",
+    "grounded": true,
+    "grounded_why": "Both gaps are backed by the quoted follow-up prompts 2 and 3, which added the example and the character limit.",
+    "intent_kept": true,
+    "intent_why": "The rewrite asks for the same inbox empty-state text change and only adds details taken from prompts 2 and 3.",
+    "tips": "generic"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "Clearly identified the target (inbox empty state) and general intent (make text friendlier).",
+     "gaps": [
+      {
+       "area": "outcome",
+       "missing": "No example text or tone provided; required prompt 2's suggestion for concrete direction.",
+       "evidence": "something like 'You're all caught up' with a short second line"
+      },
+      {
+       "area": "scope",
+       "missing": "Character limit and mobile display context omitted; stated in prompt 3 as critical constraint.",
+       "evidence": "keep it under 60 characters, it's shown on mobile"
+      }
+     ],
+     "areas": {
+      "outcome": "left_out",
+      "context": "clear",
+      "scope": "left_out",
+      "check": "not_needed"
+     }
+    },
+    "better": "Change the empty state text on the inbox to something friendlier\u2014something like 'You're all caught up' with a short second line. Keep it under 60 characters total since it displays on mobile.",
+    "tips": [
+     "Specify desired output with concrete examples, not just subjective terms like 'friendlier.'",
+     "State all technical constraints (character limits, device support) in your initial prompt.",
+     "Flag hard constraints upfront; mid-task additions often force rework of completed output."
+    ]
+   }
+  },
+  {
+   "id": "copy-change",
+   "repeat": 1,
+   "score": 1.0,
+   "gates_failed": [],
+   "quality": {
+    "prevents": 1.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 1.0,
+    "areas": 1,
+    "areas_agreement": 1
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 2,
+     "kept": 2
+    },
+    "areas": [
+     "outcome",
+     "scope"
+    ],
+    "area_recall": 1,
+    "statuses": {
+     "outcome": "left_out",
+     "context": "clear",
+     "scope": "left_out",
+     "check": "not_needed"
+    },
+    "areas_agreement": 1
+   },
+   "judge": {
+    "prevents_followups": "all",
+    "prevents_why": "The better prompt includes the example text, second line, and 60-character mobile limit, which are exactly what prompts 2 and 3 added.",
+    "grounded": true,
+    "grounded_why": "Both gaps are directly evidenced by prompts 2 and 3, which added the example and the 60-character mobile limit.",
+    "intent_kept": true,
+    "intent_why": "It asks for the same inbox empty-state text change and only uses details from prompts 2 and 3.",
+    "tips": "specific"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "The prompt identified the correct UI element and clearly expressed the intent to make the text more friendly.",
+     "gaps": [
+      {
+       "area": "outcome",
+       "missing": "The prompt didn't specify what text to write; 'friendlier' is too vague. The agent needed the concrete example from prompt 2 to proceed.",
+       "evidence": "something like 'You're all caught up' with a short second line"
+      },
+      {
+       "area": "scope",
+       "missing": "The 60-character limit for mobile wasn't mentioned. The agent couldn't optimize for this constraint until prompt 3 added it.",
+       "evidence": "keep it under 60 characters, it's shown on mobile"
+      }
+     ],
+     "areas": {
+      "outcome": "left_out",
+      "context": "clear",
+      "scope": "left_out",
+      "check": "not_needed"
+     }
+    },
+    "better": "Change the empty state text on the inbox to something friendlier. Aim for something like 'You're all caught up' with a short second line, keeping it under 60 characters since it displays on mobile.",
+    "tips": [
+     "Specify the exact text or provide a concrete example\u2014don't just describe how it should sound.",
+     "State all constraints at once: character limits, display medium, technical or design requirements."
+    ]
+   }
+  },
+  {
+   "id": "copy-change",
+   "repeat": 2,
+   "score": 1.0,
+   "gates_failed": [],
+   "quality": {
+    "prevents": 1.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 1.0,
+    "areas": 1,
+    "areas_agreement": 0.75
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 2,
+     "kept": 2
+    },
+    "areas": [
+     "outcome",
+     "scope",
+     "context"
+    ],
+    "area_recall": 1,
+    "statuses": {
+     "outcome": "left_out",
+     "context": "left_out",
+     "scope": "left_out",
+     "check": "not_needed"
+    },
+    "areas_agreement": 0.75
+   },
+   "judge": {
+    "prevents_followups": "all",
+    "prevents_why": "The rewrite includes the example tone, the second line, and the 60-character mobile limit, which are exactly what prompts 2 and 3 added.",
+    "grounded": true,
+    "grounded_why": "Each gap is backed by later prompts adding the example, second line and character limit, and prompt 1 does not name a file or the current text.",
+    "intent_kept": true,
+    "intent_why": "The rewrite asks for the same friendlier inbox empty state and uses only details from prompts 2 and 3, with a placeholder for the file.",
+    "tips": "specific"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "The prompt clearly identified the feature (inbox empty state) and the desired improvement (friendlier tone).",
+     "gaps": [
+      {
+       "area": "outcome",
+       "missing": "Subjective 'friendlier' without an example; Prompt 2 supplied the specific tone with 'You're all caught up'.",
+       "evidence": "something like 'You're all caught up' with a short second line"
+      },
+      {
+       "area": "scope",
+       "missing": "Character limit, mobile context, and two-line format weren't mentioned; Prompts 2 and 3 added these constraints.",
+       "evidence": "keep it under 60 characters, it's shown on mobile"
+      },
+      {
+       "area": "context",
+       "missing": "Current text or file location not specified; agent had to locate the empty state without guidance."
+      }
+     ],
+     "areas": {
+      "outcome": "left_out",
+      "context": "left_out",
+      "scope": "left_out",
+      "check": "not_needed"
+     }
+    },
+    "better": "Make the inbox empty state friendlier. Keep it under 60 characters for mobile, two lines. Example tone: 'You're all caught up' with a short second line. Text location: [FILE/COMPONENT]",
+    "tips": [
+     "Provide an example when asking for subjective qualities like friendlier; show the tone you want, not just the direction.",
+     "List all constraints at the start: character limits, platform contexts like mobile, and format rules like line count.",
+     "Specify the current text or where to find it when asking for changes to existing content."
+    ]
+   }
+  },
+  {
+   "id": "refactor-no-behaviour",
+   "repeat": 0,
+   "score": 0.0,
+   "gates_failed": [
+    "generation"
+   ],
+   "error": "transient: claude -p did not finish in 100s"
+  },
+  {
+   "id": "refactor-no-behaviour",
+   "repeat": 1,
+   "score": 0.0,
+   "gates_failed": [
+    "generation"
+   ],
+   "error": "transient: claude -p did not finish in 100s"
+  },
+  {
+   "id": "refactor-no-behaviour",
+   "repeat": 2,
+   "score": 0.0,
+   "gates_failed": [
+    "generation"
+   ],
+   "error": "transient: claude -p did not finish in 100s"
+  },
+  {
+   "id": "no-followups-vague",
+   "repeat": 0,
+   "score": 0.3488,
+   "gates_failed": [
+    "grounded"
+   ],
+   "quality": {
+    "prevents": 0.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 1.0,
+    "areas": 1,
+    "areas_agreement": 0.5
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 0,
+     "kept": 0
+    },
+    "areas": [
+     "context",
+     "outcome",
+     "check"
+    ],
+    "area_recall": 1,
+    "statuses": {
+     "outcome": "left_out",
+     "context": "left_out",
+     "scope": "left_out",
+     "check": "left_out"
+    },
+    "areas_agreement": 0.5
+   },
+   "judge": {
+    "prevents_followups": "none",
+    "prevents_why": "The only follow-up (\"looks fine, merge it\") corrects nothing, and \"better\" is mostly placeholders that leave the agent only somewhat less to guess.",
+    "grounded": false,
+    "grounded_why": "The review claims the agent might test the wrong parser or use the wrong framework and location, but the session shows the developer accepted the result without any complaint.",
+    "intent_kept": true,
+    "intent_why": "It still asks for tests for the parser and uses only bracketed placeholders for missing details.",
+    "tips": "specific"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "The prompt clearly stated the core task\u2014write tests for the parser\u2014so the agent knew to create test code.",
+     "gaps": [
+      {
+       "area": "context",
+       "missing": "Missing which parser to test, where to put the test file, and what framework to use, leading the agent to guess at wrong parser, location, or framework."
+      },
+      {
+       "area": "outcome",
+       "missing": "Missing what specific behaviors, inputs, or edge cases should be tested, risking tests that don't actually verify important functionality."
+      },
+      {
+       "area": "check",
+       "missing": "Missing how to run or verify the tests pass, leaving unclear whether the task was truly complete."
+      }
+     ],
+     "areas": {
+      "outcome": "left_out",
+      "context": "left_out",
+      "scope": "left_out",
+      "check": "left_out"
+     }
+    },
+    "better": "Write tests for the parser in [parser file path]. Use [test framework] and put them in [test directory path]. Cover these cases:\n- [specific input or behavior to test]\n- [another behavior or case]\n- [edge case or error handling]\n\nRun [test command] to verify they all pass.",
+    "tips": [
+     "Name the specific file to test; 'the parser' could refer to multiple components, making it unclear which to focus on without guidance.",
+     "Describe what behaviors or inputs the tests should verify, not just request tests; vague outcomes create inadequate coverage.",
+     "State the test command or verification method; without it, the agent can't confirm tests are complete and working."
+    ]
+   }
+  },
+  {
+   "id": "no-followups-vague",
+   "repeat": 1,
+   "score": 0.3375,
+   "gates_failed": [
+    "grounded"
+   ],
+   "quality": {
+    "prevents": 0.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 0.0,
+    "areas": 1,
+    "areas_agreement": 0.75
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 0,
+     "kept": 0
+    },
+    "areas": [
+     "context",
+     "outcome",
+     "scope"
+    ],
+    "area_recall": 1,
+    "statuses": {
+     "outcome": "left_out",
+     "context": "left_out",
+     "scope": "left_out",
+     "check": "not_needed"
+    },
+    "areas_agreement": 0.75
+   },
+   "judge": {
+    "prevents_followups": "none",
+    "prevents_why": "The only later prompt approves and asks to merge, so nothing was corrected; \"better\" is mostly placeholders, so it leaves the agent only somewhat less to guess.",
+    "grounded": false,
+    "grounded_why": "The gaps are plausible for the vague prompt, but the review says the developer needed no rework, and the session doesn't show whether the agent guessed wrong or the tests were misaligned.",
+    "intent_kept": true,
+    "intent_why": "It still asks for parser tests and uses bracketed placeholders for the file, behaviors, framework and command.",
+    "tips": "generic"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "The prompt gave a clear, direct instruction to write tests, simple enough that the developer understood it without rework.",
+     "gaps": [
+      {
+       "area": "context",
+       "missing": "The prompt didn't name which parser file or module to test, forcing the agent to find or guess the target."
+      },
+      {
+       "area": "outcome",
+       "missing": "No specification of what behaviors, edge cases, or coverage the tests should verify, leaving scope to agent guessing."
+      },
+      {
+       "area": "scope",
+       "missing": "No mention of testing framework, existing test patterns, or project conventions, risking incompatible or misaligned tests."
+      }
+     ],
+     "areas": {
+      "outcome": "left_out",
+      "context": "left_out",
+      "scope": "left_out",
+      "check": "not_needed"
+     }
+    },
+    "better": "Write some tests for the parser in [file]. Tests should cover [specific parsing behaviors: valid input, error handling, boundary cases]. Use [testing framework] and follow any existing test patterns in the codebase. Verify they work by running `[test command]`.",
+    "tips": [
+     "Name the file being tested before requesting tests\u2014don't just mention the general concept.",
+     "Describe what behaviors and edge cases should be covered, not just request 'write tests'.",
+     "Specify the testing framework and command to verify tests work as expected."
+    ]
+   }
+  },
+  {
+   "id": "no-followups-vague",
+   "repeat": 2,
+   "score": 0.3375,
+   "gates_failed": [
+    "grounded"
+   ],
+   "quality": {
+    "prevents": 0.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 0.0,
+    "areas": 1,
+    "areas_agreement": 0.75
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 0,
+     "kept": 0
+    },
+    "areas": [
+     "context",
+     "outcome",
+     "scope"
+    ],
+    "area_recall": 1,
+    "statuses": {
+     "outcome": "left_out",
+     "context": "left_out",
+     "scope": "left_out",
+     "check": "not_needed"
+    },
+    "areas_agreement": 0.75
+   },
+   "judge": {
+    "prevents_followups": "none",
+    "prevents_why": "The only follow-up approves and asks to merge, correcting nothing, and the \"better\" is mostly placeholders that leave the agent only slightly less to guess.",
+    "grounded": false,
+    "grounded_why": "The gaps are plausible for a vague prompt, but the review ignores that the second prompt shows the developer was satisfied, so claims of risk like misalignment are not backed by the session.",
+    "intent_kept": true,
+    "intent_why": "The \"better\" still asks for parser tests, with unknowns left as bracketed placeholders; \"verify they all pass\" is a mild addition.",
+    "tips": "generic"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "The prompt clearly expressed the need for tests in a simple, direct way.",
+     "gaps": [
+      {
+       "area": "context",
+       "missing": "Didn't specify which parser or where its code is, leaving the agent to search or guess."
+      },
+      {
+       "area": "outcome",
+       "missing": "Didn't specify what parser behaviors or inputs the tests should verify, leaving coverage unclear."
+      },
+      {
+       "area": "scope",
+       "missing": "Didn't specify which testing framework or directory convention to use, risking misalignment."
+      }
+     ],
+     "areas": {
+      "outcome": "left_out",
+      "context": "left_out",
+      "scope": "left_out",
+      "check": "not_needed"
+     }
+    },
+    "better": "Write tests for the parser at [filepath]. Test [specific behaviors or edge cases]. Use [the project test framework], put them in [directory], and verify they all pass.",
+    "tips": [
+     "Name the file or module when referring to specific code that needs testing.",
+     "Specify what behaviors the tests should verify to avoid unclear coverage expectations.",
+     "Indicate which testing framework and where to place tests to ensure consistency."
+    ]
+   }
+  },
+  {
+   "id": "sql-monthly-revenue",
+   "repeat": 0,
+   "score": 0.975,
+   "gates_failed": [],
+   "quality": {
+    "prevents": 1.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 1.0,
+    "areas": 0.6666666666666666,
+    "areas_agreement": 0.75
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 3,
+     "kept": 3
+    },
+    "areas": [
+     "context",
+     "scope",
+     "outcome"
+    ],
+    "area_recall": 0.6666666666666666,
+    "statuses": {
+     "outcome": "left_out",
+     "context": "left_out",
+     "scope": "left_out",
+     "check": "left_out"
+    },
+    "areas_agreement": 0.75
+   },
+   "judge": {
+    "prevents_followups": "all",
+    "prevents_why": "The rewrite includes the table, column, filter, grouping, dollar format, 12-month window, file path, and March check, which covers every later prompt.",
+    "grounded": true,
+    "grounded_why": "Each gap is backed by details that appear in prompts 2 and 3 but not in prompt 1.",
+    "intent_kept": true,
+    "intent_why": "The rewrite asks for the same monthly revenue query, and all its details come from the later prompts.",
+    "tips": "specific"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "The prompt clearly named the goal (monthly revenue), pointing the agent in a reasonable direction even if critical details were missing.",
+     "gaps": [
+      {
+       "area": "context",
+       "missing": "Without specifying the invoices table, amount_cents field, status filter, and paid_at grouping, the agent cannot write the correct query logic.",
+       "evidence": "from the invoices table, sum amount_cents where status is 'paid'"
+      },
+      {
+       "area": "scope",
+       "missing": "Without the time range (last 12 months) and file path (sql/views/monthly_revenue.sql), the deliverable goes to the wrong place with the wrong data.",
+       "evidence": "last 12 months only, as a view in sql/views/monthly_revenue.sql"
+      },
+      {
+       "area": "outcome",
+       "missing": "Without specifying output format (dollars, two decimals, not cents), the numbers come out in the wrong units and precision.",
+       "evidence": "output dollars with two decimals"
+      }
+     ],
+     "areas": {
+      "outcome": "left_out",
+      "context": "left_out",
+      "scope": "left_out",
+      "check": "left_out"
+     }
+    },
+    "better": "Write a SQL view at sql/views/monthly_revenue.sql that sums amount_cents from the invoices table where status is 'paid', grouped by month of paid_at. Format output as dollars with two decimals for the last 12 months only. After creating it, verify the March total matches 41,250.00 from finance.",
+    "tips": [
+     "Name the table, field to sum, filter conditions, and grouping field you need queried.",
+     "State the file location, time range, and output units (currency, decimals) before describing the logic.",
+     "Add a concrete validation step\u2014a known total or test result the output must match."
+    ]
+   }
+  },
+  {
+   "id": "sql-monthly-revenue",
+   "repeat": 1,
+   "score": 0.0,
+   "gates_failed": [
+    "generation"
+   ],
+   "error": "transient: claude -p did not finish in 100s"
+  },
+  {
+   "id": "sql-monthly-revenue",
+   "repeat": 2,
+   "score": 0.9,
+   "gates_failed": [],
+   "quality": {
+    "prevents": 1.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 0.0,
+    "areas": 0.6666666666666666,
+    "areas_agreement": 0.75
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 3,
+     "kept": 3
+    },
+    "areas": [
+     "context",
+     "scope",
+     "outcome"
+    ],
+    "area_recall": 0.6666666666666666,
+    "statuses": {
+     "outcome": "left_out",
+     "context": "left_out",
+     "scope": "left_out",
+     "check": "left_out"
+    },
+    "areas_agreement": 0.75
+   },
+   "judge": {
+    "prevents_followups": "all",
+    "prevents_why": "The rewrite includes the table, columns, filter, grouping, format, 12-month range, file path and the March check, which cover all three follow-ups.",
+    "grounded": true,
+    "grounded_why": "Each gap matches details the developer added in prompts 2-4, though the claim that the agent \"couldn't complete\" the task is slightly overstated.",
+    "intent_kept": true,
+    "intent_why": "The rewrite uses only details from prompts 1-4 and asks for the same monthly revenue query.",
+    "tips": "generic"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "The prompt clearly stated the goal of monthly revenue, giving the agent a solid starting point for the query.",
+     "gaps": [
+      {
+       "area": "context",
+       "missing": "The prompt didn't specify the invoices table, the amount_cents column, or the status='paid' filter that the agent needed to write any working query.",
+       "evidence": "from the invoices table, sum amount_cents where status is 'paid'"
+      },
+      {
+       "area": "scope",
+       "missing": "Without stating the time range (last 12 months) and the file location for the view, the agent couldn't complete the task correctly.",
+       "evidence": "last 12 months only"
+      },
+      {
+       "area": "outcome",
+       "missing": "The prompt didn't specify the output format (dollars with two decimals instead of cents) or that it should be saved as a SQL view file, requiring a follow-up prompt.",
+       "evidence": "output dollars with two decimals"
+      }
+     ],
+     "areas": {
+      "outcome": "left_out",
+      "context": "left_out",
+      "scope": "left_out",
+      "check": "left_out"
+     }
+    },
+    "better": "Write a SQL query for monthly revenue: sum amount_cents from the invoices table where status is 'paid', grouped by month of paid_at. Output in dollars with two decimals, including only the last 12 months. Save as a view in sql/views/monthly_revenue.sql. Validate the result by checking that the March total equals 41,250.00.",
+    "tips": [
+     "Name the source table and column names when writing data queries, not assuming the agent will know them.",
+     "Include time ranges, file locations, and filter conditions in the initial prompt rather than adding them later.",
+     "Specify the output format and structure up front, including currency format and file type, not in follow-ups."
+    ]
+   }
+  },
+  {
+   "id": "cli-format-flag",
+   "repeat": 0,
+   "score": 0.8875,
+   "gates_failed": [],
+   "quality": {
+    "prevents": 1.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 0.0,
+    "areas": 0.5,
+    "areas_agreement": 0.5
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 1,
+     "kept": 1
+    },
+    "areas": [
+     "scope"
+    ],
+    "area_recall": 0.5,
+    "statuses": {
+     "outcome": "clear",
+     "context": "not_needed",
+     "scope": "left_out",
+     "check": "clear"
+    },
+    "areas_agreement": 0.5
+   },
+   "judge": {
+    "prevents_followups": "all",
+    "prevents_why": "The only follow-up was adding a changelog line, which \"better\" now includes.",
+    "grounded": true,
+    "grounded_why": "The changelog omission is directly shown by prompt 2, and the praised elements are present in prompt 1.",
+    "intent_kept": true,
+    "intent_why": "It repeats the same task and only adds the changelog line the developer later requested, with no invented files or facts.",
+    "tips": "generic"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "The prompt clearly specified flag behavior with specific values and error handling, plus test location and verification command.",
+     "gaps": [
+      {
+       "area": "scope",
+       "missing": "The changelog update was not included in scope, requiring a separate follow-up prompt to complete the feature.",
+       "evidence": "now add a line about the flag to the changelog"
+      }
+     ],
+     "areas": {
+      "outcome": "clear",
+      "context": "not_needed",
+      "scope": "left_out",
+      "check": "clear"
+     }
+    },
+    "better": "In cli/export.ts, add a --format flag to the export command that accepts json or csv, default json. Any other value exits with code 2 and the message 'unknown format'. Leave the default output unchanged. Add cases for both formats and the bad value to test/cli/export.test.ts and run npm test -- cli. Then add a line to the changelog documenting this new flag.",
+    "tips": [
+     "When listing what to implement, include all files to change: code, tests, and documentation like changelogs.",
+     "For any feature, ask yourself: what else needs updating besides code? Dependencies, docs, changelog?"
+    ]
+   }
+  },
+  {
+   "id": "cli-format-flag",
+   "repeat": 1,
+   "score": 0.0,
+   "gates_failed": [
+    "generation"
+   ],
+   "error": "transient: claude -p did not finish in 100s"
+  },
+  {
+   "id": "cli-format-flag",
+   "repeat": 2,
+   "score": 0.3262,
+   "gates_failed": [
+    "grounded"
+   ],
+   "quality": {
+    "prevents": 0.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 0.0,
+    "areas": 0,
+    "areas_agreement": 0.5
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 0,
+     "kept": 0
+    },
+    "areas": [
+     "context",
+     "scope"
+    ],
+    "area_recall": 0,
+    "statuses": {
+     "outcome": "clear",
+     "context": "left_out",
+     "scope": "left_out",
+     "check": "clear"
+    },
+    "areas_agreement": 0.5
+   },
+   "judge": {
+    "prevents_followups": "none",
+    "prevents_why": "The only follow-up asks for a changelog line, which \"better\" doesn't cover, and the first prompt was already accepted as \"perfect\".",
+    "grounded": false,
+    "grounded_why": "The prompt is already specific and the developer said \"perfect\", so the claimed gaps about conventions and context are speculation the session doesn't support.",
+    "intent_kept": true,
+    "intent_why": "The rewrite asks for the same flag, tests and test run, and it only adds bracketed placeholders for existing patterns.",
+    "tips": "generic"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "The prompt clearly specified the flag's behavior, test cases needed, and how to verify the work.",
+     "gaps": [
+      {
+       "area": "context",
+       "missing": "The prompt doesn't show the current export.ts structure or test format, requiring the agent to explore before understanding how to add the flag following existing patterns."
+      },
+      {
+       "area": "scope",
+       "missing": "The prompt doesn't specify which argument parsing approach or testing patterns the project uses, risking code that doesn't match established conventions."
+      }
+     ],
+     "areas": {
+      "outcome": "clear",
+      "context": "left_out",
+      "scope": "left_out",
+      "check": "clear"
+     }
+    },
+    "better": "In cli/export.ts, add a --format flag to the export command that accepts json or csv, default json. Any other value exits with code 2 and the message 'unknown format'. Leave the default output unchanged. Add the flag using [the pattern of existing flags in export.ts]. Add test cases for both formats and the bad value to test/cli/export.test.ts using [the structure of existing tests], then run npm test -- cli.",
+    "tips": [
+     "Provide or point to existing code whenever asking for additions that should follow project patterns.",
+     "Specify the testing framework and expected test structure when adding test cases."
+    ]
+   }
+  },
+  {
+   "id": "modal-scroll-ios",
+   "repeat": 0,
+   "score": 1.0,
+   "gates_failed": [],
+   "quality": {
+    "prevents": 1.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 1.0,
+    "areas": 1,
+    "areas_agreement": 1
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 3,
+     "kept": 3
+    },
+    "areas": [
+     "context",
+     "scope",
+     "check"
+    ],
+    "area_recall": 1,
+    "statuses": {
+     "outcome": "clear",
+     "context": "left_out",
+     "scope": "left_out",
+     "check": "left_out"
+    },
+    "areas_agreement": 1
+   },
+   "judge": {
+    "prevents_followups": "all",
+    "prevents_why": "The better prompt includes the file, scope restriction, and Playwright test on iPhone 13, covering all three follow-ups.",
+    "grounded": true,
+    "grounded_why": "Each gap matches a later prompt (file location, scope limit, Playwright test), though \"modify the wrong component\" is a mild inference.",
+    "intent_kept": true,
+    "intent_why": "The better prompt asks for the same fix and uses only details from the later prompts (Modal.tsx, e2e/checkout.spec.ts, iPhone 13).",
+    "tips": "specific"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "The prompt clearly identified a specific, reproducible bug on a target platform tied to a concrete feature.",
+     "gaps": [
+      {
+       "area": "context",
+       "missing": "Didn't specify which component file contains the scroll-locking issue, causing the agent to modify the wrong component.",
+       "evidence": "it's the shared Modal in components/Modal.tsx"
+      },
+      {
+       "area": "scope",
+       "missing": "Didn't clarify that only this Modal's scroll locking should change, not other dialogs, requiring a second correction.",
+       "evidence": "only change that component's scroll locking, the other dialogs already look right to me"
+      },
+      {
+       "area": "check",
+       "missing": "Didn't name a way to verify the fix works on iPhone, leaving testing strategy to be filled in later.",
+       "evidence": "add a Playwright test in e2e/checkout.spec.ts on the iPhone 13 device and run it"
+      }
+     ],
+     "areas": {
+      "outcome": "clear",
+      "context": "left_out",
+      "scope": "left_out",
+      "check": "left_out"
+     }
+    },
+    "better": "The address modal on the checkout page lets the page behind it scroll on iPhone. Fix this by updating scroll locking in the shared Modal component (components/Modal.tsx)\u2014don't modify how other dialogs work. Then add a Playwright test in e2e/checkout.spec.ts on the iPhone 13 device and run it to verify it works.",
+    "tips": [
+     "Specify the file path and component name when a bug requires changes to a specific module.",
+     "Clarify what to modify and what must not change when working with shared components.",
+     "Name the verification method, test file, and target platform for bugs needing checks."
+    ]
+   }
+  },
+  {
+   "id": "modal-scroll-ios",
+   "repeat": 1,
+   "score": 0.9,
+   "gates_failed": [],
+   "quality": {
+    "prevents": 1.0,
+    "facts": 0.75,
+    "chosen": 1.0,
+    "tips": 0.0,
+    "areas": 1,
+    "areas_agreement": 1
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 0.75,
+    "facts_missing": [
+     "scroll locking"
+    ],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 3,
+     "kept": 3
+    },
+    "areas": [
+     "context",
+     "scope",
+     "check"
+    ],
+    "area_recall": 1,
+    "statuses": {
+     "outcome": "clear",
+     "context": "left_out",
+     "scope": "left_out",
+     "check": "left_out"
+    },
+    "areas_agreement": 1
+   },
+   "judge": {
+    "prevents_followups": "all",
+    "prevents_why": "The better prompt includes the Modal file, the scroll-lock-only scope, and the Playwright test on iPhone 13 in the named spec file, which covers all three follow-ups.",
+    "grounded": true,
+    "grounded_why": "Each gap is backed by a later prompt that supplied the missing file, the scope limit, or the test request.",
+    "intent_kept": true,
+    "intent_why": "It asks for the same scroll-lock fix and only adds details taken from prompts 2-4, with no invented facts.",
+    "tips": "generic"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "The prompt clearly described the problem and where it manifests, making the issue easily recognizable.",
+     "gaps": [
+      {
+       "area": "context",
+       "missing": "Didn't identify which component contains the scroll-locking issue, so the agent had to search or guess where to make the fix.",
+       "evidence": "it's the shared Modal in components/Modal.tsx"
+      },
+      {
+       "area": "scope",
+       "missing": "Didn't specify to only modify scroll locking and leave other dialogs unchanged, risking changes to unrelated components.",
+       "evidence": "only change that component's scroll locking, the other dialogs already look right to me"
+      },
+      {
+       "area": "check",
+       "missing": "Didn't ask for verification of the fix, leaving no way to confirm the scrolling behavior actually changed on iPhone.",
+       "evidence": "add a Playwright test in e2e/checkout.spec.ts on the iPhone 13 device and run it"
+      }
+     ],
+     "areas": {
+      "outcome": "clear",
+      "context": "left_out",
+      "scope": "left_out",
+      "check": "left_out"
+     }
+    },
+    "better": "The address modal on the checkout page lets the page behind it scroll on iPhone. Fix the scroll-locking in the shared Modal component (components/Modal.tsx). Only modify scroll-locking behavior\u2014the other dialogs are fine. Add a Playwright test to e2e/checkout.spec.ts on iPhone 13 to verify the fix.",
+    "tips": [
+     "Identify the specific file when reporting a bug, not just the feature\u2014especially for shared components.",
+     "Specify what not to change when fixing an issue affecting multiple similar components.",
+     "Request a test command or manual verification step when asking for a bug fix."
+    ]
+   }
+  },
+  {
+   "id": "modal-scroll-ios",
+   "repeat": 2,
+   "score": 1.0,
+   "gates_failed": [],
+   "quality": {
+    "prevents": 1.0,
+    "facts": 1,
+    "chosen": 1.0,
+    "tips": 1.0,
+    "areas": 1,
+    "areas_agreement": 1
+   },
+   "det": {
+    "chosen": 1,
+    "invented": [],
+    "facts_recall": 1,
+    "facts_missing": [],
+    "chosen_right": true,
+    "valid": true,
+    "quotes": {
+     "raw": 3,
+     "kept": 3
+    },
+    "areas": [
+     "context",
+     "scope",
+     "check"
+    ],
+    "area_recall": 1,
+    "statuses": {
+     "outcome": "clear",
+     "context": "left_out",
+     "scope": "left_out",
+     "check": "left_out"
+    },
+    "areas_agreement": 1
+   },
+   "judge": {
+    "prevents_followups": "all",
+    "prevents_why": "The better prompt includes the file, the scope restriction, and the Playwright test with device and run, covering all three follow-ups.",
+    "grounded": true,
+    "grounded_why": "Each gap is backed by a later prompt; the claim that the agent worked on the wrong component is a mild inference but consistent with the corrections.",
+    "intent_kept": true,
+    "intent_why": "The rewrite only merges details from the later prompts into the same scroll-lock fix task, adding no new facts.",
+    "tips": "specific"
+   },
+   "review": {
+    "chosen": 1,
+    "review": {
+     "worked": "The prompt clearly identified the problem (address modal lets the page background scroll on iPhone) and the desired behavior (prevent that scroll).",
+     "gaps": [
+      {
+       "area": "context",
+       "missing": "The prompt didn't name which component file contains the scroll-locking logic. The agent had to guess or search, initially working on the wrong component.",
+       "evidence": "it's the shared Modal in components/Modal.tsx"
+      },
+      {
+       "area": "scope",
+       "missing": "The prompt didn't specify what to fix (scroll locking) or what to preserve (other dialogs already work). The agent attempted wrong changes, requiring clarification.",
+       "evidence": "only change that component's scroll locking, the other dialogs already look right to me"
+      },
+      {
+       "area": "check",
+       "missing": "The prompt didn't specify how to verify the fix works. The developer had to request a test separately in a follow-up.",
+       "evidence": "add a Playwright test in e2e/checkout.spec.ts on the iPhone 13 device and run it"
+      }
+     ],
+     "areas": {
+      "outcome": "clear",
+      "context": "left_out",
+      "scope": "left_out",
+      "check": "left_out"
+     }
+    },
+    "better": "In components/Modal.tsx, fix the scroll locking so the address modal on the checkout page doesn't let the background scroll on iPhone. Only change that component's scroll locking\u2014the other dialogs already look right to me. Add a Playwright test in e2e/checkout.spec.ts on the iPhone 13 device to verify, then run it.",
+    "tips": [
+     "Name the file or component to change when you describe a fix, not just the problem.",
+     "State what to preserve when modifying a shared component that affects multiple features.",
+     "Specify how to verify a fix works\u2014the test, device, or observation that confirms success."
+    ]
+   }
+  }
+ ],
+ "stopped_early": null,
+ "budget": {
+  "tokens": {
+   "input_total": 129310,
+   "cache_read": 15840,
+   "output": 131853,
+   "by_kind": {
+    "generate:cache_read": 0,
+    "generate:cache_write": 48341,
+    "generate:input": 42059,
+    "generate:output": 126280,
+    "judge:cache_read": 15840,
+    "judge:cache_write": 23036,
+    "judge:input": 34,
+    "judge:output": 5573
+   }
+  },
+  "cost_usd_list_price": 0.92,
+  "calls": {
+   "generate": 24,
+   "judge": 17
+  },
+  "total_calls": 41,
+  "seconds_by_kind": {},
+  "errors": {},
+  "cap": 200,
+  "models": {
+   "generate": [
+    "claude-haiku-4-5"
+   ],
+   "judge": [
+    "claude-sonnet-5-5"
+   ]
+  }
+ },
+ "summary": {
+  "trials": 24,
+  "all_gates_passed": 11,
+  "timeouts": 7,
+  "gate_failures": {
+   "generation": 7,
+   "grounded": 5,
+   "no_invented": 1
+  },
+  "mean_score": 0.5256,
+  "mean_score_finished_only": 0.742,
+  "quality_means": {
+   "prevents": 0.765,
+   "facts": 0.966,
+   "chosen": 1.0,
+   "tips": 0.529,
+   "areas": 0.833,
+   "areas_agreement": 0.809
+  },
+  "quotes": {
+   "raw": 34,
+   "kept": 33
+  },
+  "invented_names": [
+   "TypeScript",
+   "db/migrations/"
+  ]
+ }
+}

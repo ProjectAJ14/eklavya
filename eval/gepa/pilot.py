@@ -123,6 +123,8 @@ class Budget:
 BUDGET: Budget | None = None
 # Set by `--azure-judge`: a judge from another model family that re-reads the same prompts (see azure.py).
 AZURE: dict | None = None
+# Set by `--model`: pins the generating model, or the CLI may answer from several inside one run.
+GENERATOR: str | None = None
 
 
 def claude(prompt: str, kind: str, model: str | None = None) -> str:
@@ -322,7 +324,7 @@ def score_question(q: dict, ex: dict, det: dict, verdict: dict) -> tuple[float, 
 def run_example(guidance: str, ex: dict) -> tuple[float, dict]:
     """One generation, then the deterministic checks, then (only if those pass) the judges."""
     try:
-        raw = claude(generation_prompt(guidance, ex), "generate")
+        raw = claude(generation_prompt(guidance, ex), "generate", GENERATOR)
         q = parse_question(raw, ex["plan"]["slug"])
     except BudgetExceeded:
         raise
@@ -564,6 +566,7 @@ def main() -> None:
     o.add_argument("--val", type=int, default=12)
     o.add_argument("--minibatch", type=int, default=3)
     o.add_argument("--seed", type=int, default=0)
+    common.add_argument("--model", default=None, help="the generating model, as `claude -p --model`; pin it for any run you will compare")
     common.add_argument("--azure-judge", action="store_true", help="also judge with Azure OpenAI (credentials: see azure.py); gates still use the Claude verdicts")
     e = sub.add_parser("evaluate", parents=[common])
     e.add_argument("--prompt", default=str(SEED_FILE))
@@ -575,6 +578,8 @@ def main() -> None:
     r.add_argument("baseline")
     r.add_argument("candidate")
     args = p.parse_args()
+    global GENERATOR
+    GENERATOR = getattr(args, "model", None)
     if getattr(args, "azure_judge", False):
         global AZURE
         AZURE = azure.settings()

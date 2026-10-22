@@ -96,3 +96,30 @@ No judge errors.
   question that fails it may be a real problem or one Claude judge's strictness. Twelve questions cannot say which.
 - Where Azure was the stricter judge (one question each on `key_correct` and `cold_answerable`), Claude passed it.
 - Not done: scoring with both judges required to pass, and a run over the full test split. The gates still use the Claude verdicts.
+
+## Update: all test splits are 8; the Azure judge on 64 questions; the feedback baseline on 8 sessions
+
+Feedback, memory observer, dedup and the question pilot each got three fresh test fixtures (written after the first
+results; no existing fixture or split moved, and `build-dataset.mjs` now pins the old splits), so every target can decide.
+
+**Second-family judge, question pilot** (`2026-10-22-gepa-question-azure-judge-64.json`): shipped `writing-mcq.md`, 64 of 96 test
+examples (8 per codebase), 1 repeat. 53 questions reached the judges; 11 failed the structure check first. $26.85 on the Claude side.
+
+| Gate | Claude passed | Azure passed | Agree |
+|---|---|---|---|
+| `key_correct` | 50/53 | 50/53 | 53/53 |
+| `single_answer` | 33/53 | 44/53 | 34/53 |
+| `cold_answerable` | 53/53 | 51/53 | 51/53 |
+| `tier_match` | 42/53 | 43/53 | 46/53 |
+
+- `key_correct` agrees on every question. `single_answer` is the outlier: the families agree on 34 of 53, and Claude fails
+  20 questions where Azure fails 9. In the 12-question run Claude was also the stricter one. Treat a `single_answer` failure
+  as unconfirmed until both families flag the question; the gates still use Claude's verdict only.
+- `tier_match` agrees on 46 of 53. The 7 differences split both ways.
+- **Caveat:** this run mixed `claude-opus-5-5` and `claude-sonnet-5-5` as the generator, because the pilot had no `--model` flag.
+  The flag now exists; the numbers above compare judges on one set of questions, which the mixing does not affect, but they are not a baseline.
+
+**Feedback baseline, 8 sessions x 3** (`2026-10-22-gepa-feedback-8-shipped.json`, shipped `REVIEW_SYSTEM`, `claude-haiku-4-5`):
+mean 0.526 (finished only 0.742), 11 of 24 pass every gate, **7 of 24 reviewer timeouts**. With the 5 of 15 on the old split
+that is 12 of 39 (31%) across two runs today, against 1 of 15 in October. The timeout rate is real on this day and
+model alias; whether it is the prompt, the service or a model change is still not known.
