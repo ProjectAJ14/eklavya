@@ -1,3 +1,10 @@
+# [1.85.0](https://github.com/ProjectAJ14/eklavya/compare/v1.84.1...v1.85.0) (2026-10-23)
+
+
+### Features
+
+* **tutor:** never name a concept in four or more words; make GEPA results decidable ([#245](https://github.com/ProjectAJ14/eklavya/issues/245)) ([73e51f3](https://github.com/ProjectAJ14/eklavya/commit/73e51f3d68f2c4c2099b25c9bedae4f3b95fa353)), closes [#235](https://github.com/ProjectAJ14/eklavya/issues/235) [#235](https://github.com/ProjectAJ14/eklavya/issues/235)
+
 ## [1.84.1](https://github.com/ProjectAJ14/eklavya/compare/v1.84.0...v1.84.1) (2026-10-22)
 
 
