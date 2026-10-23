@@ -85,8 +85,58 @@ the checks are `mcp/src/eval/question-checks.ts` through `bridge.mjs`.
 
 `dataset.json` is split by fixture (a hash rank, 50/20/30), not by example: the same code
 appears under six focus and difficulty settings, and those near-duplicates share a side.
+The build pins every fixture already in `dataset.json` to its recorded split and forces any new fixture
+to `test`, so adding fixtures never moves a scored example into the search.
 `optimize` trains on `train`, selects on `val`, and never reads `test`. Fixtures are small
-(16 codebases, 204 examples), so treat any result as a pilot.
+(19 codebases, 240 examples), so treat any result as a pilot.
+
+## Reading a result (all five targets)
+
+Issue #235 found that no search produced a candidate that shipped, partly because each note re-argued
+what "better" meant after the fact. The rule is now written here and enforced by `decide.py`
+(`python3 eval/gepa/decide.py` runs its self-check); `report` prints its verdict.
+
+| Target | Test fixtures | Repeats | Smallest difference that counts | Length cap in `optimize` |
+|---|---|---|---|---|
+| Tutor questions (`pilot.py`) | 8 codebases (96 examples) | 3 | 0.05 mean score | none: no product limit |
+| Prompt feedback | 8 sessions | 3 | 0.10 (the same wording scored 0.602 and 0.441) | 1.25 x shipped words |
+| Concept extraction | 8 fixtures | 3 | 0.05 | the skill file's 1,999-word ceiling |
+| Memory observer | 8 batches | 3 | 0.03 (two runs of one prompt differed by 0.003 on the mean) | 1.25 x shipped words |
+| Concept dedup | 8 scenarios | 3 | 0.05 | the skill file's 1,999-word ceiling |
+
+- **Fixtures.** A comparison over fewer than 8 fixtures is reported as `cannot decide`, whatever the
+  numbers say: three repeats of one fixture are not three fixtures. Every test split above now has 8, so a result can decide.
+  Results recorded before 2026-10-22 were scored on 5-fixture splits; their markers name different fixtures, so `report` will not compare them with new runs.
+- **Difference.** With 8 or more fixtures, a mean within the threshold is `no difference`; beyond it the
+  verdict is `candidate better` or `candidate worse`. Decide nothing from per-fixture wins and losses.
+- **Timeouts.** A trial that never finished scores 0 in the search and counts in `mean_score`.
+  `mean_score_finished_only` leaves those trials out, and `report` prints both, so a candidate that is good
+  only when it finishes shows as two numbers.
+- **Length.** The feedback and observer searches reject a candidate over the cap without a model call
+  (gate `length_cap`), because prompt length is what makes the reviewer time out at the product's 100 s
+  limit. Every target with a limit tells the reflection model the shipped size, the limit and the headroom.
+  `summary.json` records `proposals`: how many candidates were proposed, scored and rejected unscored. A
+  search where most proposals are rejected is not searching; stop it and fix the prompt it was given.
+- **Untouched test split.** `evaluate` writes `marker` into the result: the split, a hash of its fixture
+  ids, a hash of the prompt and the last commit that touched the harness and the code it scores with
+  (`+uncommitted` when those files have edits). `report` warns when the two results have different fixtures,
+  when the scorer changed between them (re-run the baseline) or when a result has no marker. It cannot see
+  a split you read by hand while iterating: do not tune on test.
+- **Pin the generator.** Pass `--model` to every `evaluate` that will be compared: without it the CLI may answer from different models
+  inside one run, and `report` warns when it did.
+- **Models.** `budget.models` in every result and `summary.json` lists the model ids the `claude` CLI
+  resolved for each role (`generate`, `judge`, `reflect`); `report` prints them.
+- **A second seed.** A search that returns the seed unchanged or finds a candidate is run again with
+  `--seed 1` before anyone concludes either way; record both runs. This costs a search each time, so it
+  is a manual step.
+- **A judge from another model family** is `--azure-judge` on the question pilot's `evaluate`: the same audit and
+  cold-read prompts go to an Azure OpenAI deployment (`azure.py`, standard library only; credentials from the
+  `AZURE_OPENAI_*` variables or `~/.config/eklavya-eval/azure.env`, never from the repository). The gates still use the
+  Claude verdicts; `report` prints, for `key_correct`, `single_answer`, `cold_answerable` and `tier_match`, how many
+  questions each family passed and how often they agreed, and the resolved Azure model id is recorded. Self-check:
+  `python3 eval/gepa/azure.py`. Extraction already uses two Claude judges of different sizes and reports
+  how often they agree; `tier_match` and `single_answer` in the question pilot still partly measure the
+  judge. Treat those two gates with that in mind.
 
 ## Pinned
 

@@ -31,12 +31,12 @@ describe('extraction eval fixtures', () => {
   const all = load();
   const splits = JSON.parse(fs.readFileSync(path.join(fixtures, 'extraction', 'splits.json'), 'utf8')) as Record<string, string[]>;
 
-  it('has 16 fixtures, each in exactly one split', () => {
-    expect(all).toHaveLength(16);
+  it('has 19 fixtures, each in exactly one split', () => {
+    expect(all).toHaveLength(19);
     const assigned = [...splits.train, ...splits.val, ...splits.test];
     expect(new Set(assigned).size).toBe(assigned.length);
     expect(new Set(assigned)).toEqual(new Set(all.map((f) => f.id)));
-    expect([splits.train.length, splits.val.length, splits.test.length]).toEqual([8, 3, 5]);
+    expect([splits.train.length, splits.val.length, splits.test.length]).toEqual([8, 3, 8]);
   });
 
   it('labels every fixture with valid, distinct slugs, a description and a context naming the code', () => {

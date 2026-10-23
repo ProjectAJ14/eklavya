@@ -42,7 +42,7 @@ const toInput = (batch) => ({
 const envelopeOf = (text) => {
   try { return JSON.parse(text); } catch { return null; }
 };
-const usageOf = (env) => ({ usage: env?.usage ?? {}, cost: env?.total_cost_usd ?? 0 });
+const usageOf = (env) => ({ usage: { ...(env?.usage ?? {}), models: Object.keys(env?.modelUsage ?? {}) }, cost: env?.total_cost_usd ?? 0 });
 
 /** One call through the product's `runClaude`, for the judge and reflection (not the observer). */
 async function call(model, prompt, spec) {

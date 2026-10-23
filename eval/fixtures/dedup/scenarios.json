@@ -487,6 +487,118 @@
     "new": true
    },
    "split": "test"
+  },
+  {
+   "id": "rebase-vs-merge",
+   "title": "Squashing fixup commits before review",
+   "source": "scripts/tidy-branch.sh",
+   "diff": "git fetch origin main\ngit rebase -i --autosquash origin/main\ngit push --force-with-lease",
+   "existing": [
+    {
+     "slug": "git-merge",
+     "name": "Git merge",
+     "domain": "git",
+     "tier": 2,
+     "description": "Joins two branches with a merge commit that keeps both histories.",
+     "tags": [
+      "git",
+      "branches"
+     ]
+    },
+    {
+     "slug": "git-hooks",
+     "name": "Git hooks",
+     "domain": "git",
+     "tier": 2,
+     "description": "Scripts git runs at points such as pre-commit.",
+     "tags": [
+      "git",
+      "automation"
+     ]
+    }
+   ],
+   "expect": {
+    "reuse": [],
+    "dup_tokens": [],
+    "new": true
+   },
+   "split": "test"
+  },
+  {
+   "id": "debounce-reworded",
+   "title": "Waiting for typing to pause before searching",
+   "source": "src/search/useQuery.ts",
+   "diff": "let timer: ReturnType<typeof setTimeout>;\nexport function onInput(q: string) {\n  clearTimeout(timer);\n  timer = setTimeout(() => runSearch(q), 300);\n}",
+   "existing": [
+    {
+     "slug": "debouncing",
+     "name": "Debouncing",
+     "domain": "javascript",
+     "tier": 2,
+     "description": "Delaying a call until events stop arriving for a set wait, so a burst triggers one call.",
+     "tags": [
+      "javascript",
+      "events"
+     ]
+    },
+    {
+     "slug": "http-methods",
+     "name": "HTTP methods",
+     "domain": "http",
+     "tier": 2,
+     "description": "GET, POST, PUT, DELETE.",
+     "tags": [
+      "http"
+     ]
+    }
+   ],
+   "expect": {
+    "reuse": [
+     "debouncing"
+    ],
+    "dup_tokens": [
+     "debounc",
+     "delay",
+     "pause"
+    ],
+    "new": false
+   },
+   "split": "test"
+  },
+  {
+   "id": "long-name-trap",
+   "title": "Retrying a flaky call with growing waits",
+   "source": "src/net/retry.ts",
+   "diff": "for (let i = 0; i < 5; i++) {\n  try { return await fetch(url); } catch {\n    const wait = Math.min(30000, 2 ** i * 500) * (0.5 + Math.random() / 2);\n    await sleep(wait);\n  }\n}",
+   "existing": [
+    {
+     "slug": "http-methods",
+     "name": "HTTP methods",
+     "domain": "http",
+     "tier": 2,
+     "description": "GET, POST, PUT, DELETE.",
+     "tags": [
+      "http"
+     ]
+    },
+    {
+     "slug": "async-await",
+     "name": "Async and await",
+     "domain": "javascript",
+     "tier": 2,
+     "description": "Writing asynchronous code that reads top to bottom.",
+     "tags": [
+      "javascript",
+      "async"
+     ]
+    }
+   ],
+   "expect": {
+    "reuse": [],
+    "dup_tokens": [],
+    "new": true
+   },
+   "split": "test"
   }
  ]
 }

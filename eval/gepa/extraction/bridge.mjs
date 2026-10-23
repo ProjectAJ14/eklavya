@@ -215,19 +215,22 @@ async function score() {
 
 /* ------------------------------------------------------------------ judges --- */
 
+/** The envelope's token usage, plus the model ids the CLI resolved (`modelUsage` keys), which the result files record. */
+const usageOf = (env) => ({ ...(env?.usage ?? {}), models: Object.keys(env?.modelUsage ?? {}) });
+
 async function call(model, prompt, spec) {
   const { runClaude, readResult } = await dist('memory/provider.js');
   let stdout = '';
   try {
     stdout = await runClaude(model, prompt, { spec });
     const env = JSON.parse(stdout);
-    return { structured: readResult(stdout), usage: env.usage ?? {}, cost: env.total_cost_usd ?? 0 };
+    return { structured: readResult(stdout), usage: usageOf(env), cost: env.total_cost_usd ?? 0 };
   } catch (err) {
     let usage = {};
     let cost = 0;
     try {
       const env = JSON.parse(stdout);
-      usage = env.usage ?? {};
+      usage = usageOf(env);
       cost = env.total_cost_usd ?? 0;
     } catch { /* no envelope */ }
     return { error: `${err.errorClass ?? 'error'}: ${String(err.message).slice(0, 300)}`, usage, cost };

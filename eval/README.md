@@ -276,7 +276,7 @@ precision both ways — strict, and counting judge-confirmed concepts as right.
 ### The grown extraction eval
 
 `npm run eval -- extract` above is the September three-fixture run and stays as it was, so its numbers
-remain comparable. The larger one is `eval/gepa/extraction/`: 16 fixtures split train, val and test,
+remain comparable. The larger one is `eval/gepa/extraction/`: 19 fixtures split train, val and test,
 gates then weighted quality, a second coverage judge, token tracking, and a GEPA search over the
 `log_session_concepts` guidance in `skills/tutor/SKILL.md`. It runs the real `log_session_concepts` and
 `upsert_concepts` handlers, so `matched` and `created` are the shipped matcher's. See its
@@ -288,6 +288,14 @@ the log call left `unlinked`. `eval/gepa/dedup/run.py` is the same seam pointed 
 seeds a graph, shows a diff, and checks deterministically whether the session resolved to the existing
 concept, minted a duplicate, and named new ones in 1 to 3 words. Its header lists the commands; the dated
 result and what it does not measure are in `eval/results/2026-10-16-dedup.md`.
+The test split is now 8 scenarios; three were written after the matcher change, without looking at its output.
+
+### Reading a GEPA result
+
+All five GEPA-based targets share one decision rule (fixtures, repeats, the smallest difference that counts),
+finished-only and all-trials means, a test-split marker that `report` checks, and the model ids each role
+resolved to. A comparison over fewer than 8 fixtures is reported as `cannot decide`, which is every test split today.
+See [`gepa/README.md`](gepa/README.md#reading-a-result-all-five-targets); the code is `eval/gepa/decide.py`.
 
 ## The retrieval eval
 

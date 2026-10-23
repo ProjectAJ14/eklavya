@@ -35,11 +35,16 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import azure
+import decide
+
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 BRIDGE = HERE / "bridge.mjs"
 SEED_FILE = REPO / "skills" / "tutor" / "references" / "writing-mcq.md"
 SKILL_FILE = REPO / "skills" / "tutor" / "SKILL.md"
+# What a result is scored with: the marker records the last commit touching these, so a changed scorer shows.
+CODE_PATHS = ["eval/gepa/pilot.py", "eval/gepa/bridge.mjs", "eval/gepa/decide.py", "eval/judge-prompts.mjs", "mcp/src/eval"]
 
 
 class BudgetExceeded(RuntimeError):
@@ -56,6 +61,7 @@ class Budget:
         self.seconds: Counter[str] = Counter()
         self.errors: Counter[str] = Counter()
         self.tokens: Counter[str] = Counter()
+        self.models: dict[str, set[str]] = {}  # the model ids the CLI resolved, per call kind
         self.cost_usd = 0.0
         self._lock = threading.Lock()
         self._flush_lock = threading.Lock()
@@ -104,15 +110,21 @@ class Budget:
                 self.tokens[name] += u.get(key, 0)
                 self.tokens[f"{kind}:{name}"] += u.get(key, 0)
             self.cost_usd += out.get("total_cost_usd") or 0
+            # `claude -p` names the resolved model ids in `modelUsage`; the bridges pass them as `usage.models`.
+            self.models.setdefault(kind, set()).update(out.get("modelUsage") or u.get("models") or [])
         self.flush()
 
     def summary(self) -> dict:
         t = self.tokens
         total_in = t["input"] + t["cache_write"] + t["cache_read"]
-        return {"tokens": {"input_total": total_in, "cache_read": t["cache_read"], "output": t["output"], "by_kind": {k: v for k, v in sorted(t.items()) if ":" in k}}, "cost_usd_list_price": round(self.cost_usd, 2), "calls": dict(self.calls), "total_calls": sum(self.calls.values()), "seconds_by_kind": {k: round(v, 1) for k, v in self.seconds.items()}, "errors": dict(self.errors), "cap": self.max_calls}
+        return {"tokens": {"input_total": total_in, "cache_read": t["cache_read"], "output": t["output"], "by_kind": {k: v for k, v in sorted(t.items()) if ":" in k}}, "cost_usd_list_price": round(self.cost_usd, 2), "calls": dict(self.calls), "total_calls": sum(self.calls.values()), "seconds_by_kind": {k: round(v, 1) for k, v in self.seconds.items()}, "errors": dict(self.errors), "cap": self.max_calls, "models": {k: sorted(v) for k, v in sorted(self.models.items())}}
 
 
 BUDGET: Budget | None = None
+# Set by `--azure-judge`: a judge from another model family that re-reads the same prompts (see azure.py).
+AZURE: dict | None = None
+# Set by `--model`: pins the generating model, or the CLI may answer from several inside one run.
+GENERATOR: str | None = None
 
 
 def claude(prompt: str, kind: str, model: str | None = None) -> str:
@@ -220,7 +232,33 @@ def judge(q: dict, ex: dict) -> dict:
         except Exception as err:  # a judge failure is reported, never silently scored
             parsed = {"_error": str(err)}
         out[kind] = parsed if isinstance(parsed, dict) else {"_error": "unparsable verdict"}
+        if AZURE:
+            out[kind + "-azure"] = azure_verdict(bridge(cmd, body)["prompt"])
     return out
+
+
+def azure_verdict(prompt: str) -> dict:
+    """The same judge prompt, answered by the other model family. A failure is recorded, never scored as a pass."""
+    BUDGET.spend("judge-azure")
+    try:
+        got = azure.ask(prompt, AZURE)
+        with BUDGET._lock:
+            BUDGET.models.setdefault("judge-azure", set()).add(got["model"])
+        parsed = bridge("extract", {"text": got["text"]}).get("value")
+    except BudgetExceeded:
+        raise
+    except Exception as err:
+        BUDGET.errors["judge-azure"] += 1
+        return {"_error": str(err)}
+    return parsed if isinstance(parsed, dict) else {"_error": "unparsable verdict"}
+
+
+def judge_gates(audit: dict, cold: dict) -> dict:
+    """The four gates that depend on a judge, from one judge's two verdicts; None when the judge failed."""
+    if "_error" in audit or "_error" in cold:
+        return {}
+    return {"key_correct": bool(audit.get("correct_is_correct")), "single_answer": audit.get("defensible_distractors") == 0,
+            "cold_answerable": bool(cold.get("answerable_cold")), "tier_match": audit.get("tier_match") == "match"}
 
 
 # ------------------------------------------------------------------- scoring --
@@ -241,6 +279,7 @@ def score_question(q: dict, ex: dict, det: dict, verdict: dict) -> tuple[float, 
         "cold_answerable": bool(cold.get("answerable_cold")) if judged else False,
         "tier_match": audit.get("tier_match") == "match" if judged else False,
     }
+    second = judge_gates(verdict.get("judge-audit-azure", {"_error": "off"}), verdict.get("judge-cold-azure", {"_error": "off"}))
     visible = det["visible_words"]
     balanced = [det["visible_problem"] is None, checks["correct_not_conspicuous"]["ok"]]
     if "description_not_conspicuous" in checks:
@@ -274,6 +313,7 @@ def score_question(q: dict, ex: dict, det: dict, verdict: dict) -> tuple[float, 
         "visible_problem": det["visible_problem"],
         "failed_checks": [f"{c['id']}: {c['detail']}" for c in det["checks"] if not c["ok"]],
         "judge": {k: v for k, v in {**audit, **{"cold_" + a: b for a, b in cold.items()}}.items() if k.endswith("_why") or k.startswith("_") or k in ("tier_match", "unexplained_names", "cold_unexplained_names")},
+        "second_judge": {g: {"claude": gate[g], "azure": v} for g, v in second.items()} or None,
         "stem": q["stem"],
         "options": q["options"],
         "descriptions": q.get("descriptions"),
@@ -284,7 +324,7 @@ def score_question(q: dict, ex: dict, det: dict, verdict: dict) -> tuple[float, 
 def run_example(guidance: str, ex: dict) -> tuple[float, dict]:
     """One generation, then the deterministic checks, then (only if those pass) the judges."""
     try:
-        raw = claude(generation_prompt(guidance, ex), "generate")
+        raw = claude(generation_prompt(guidance, ex), "generate", GENERATOR)
         q = parse_question(raw, ex["plan"]["slug"])
     except BudgetExceeded:
         raise
@@ -361,7 +401,7 @@ def cmd_evaluate(args) -> None:
     def one(job):
         ex, r = job
         total, info = run_example(guidance, ex)
-        row = {"id": ex["id"], "group": ex["group"], "repeat": r, "tier": ex["plan"]["tier_to_ask"], "focus": ex["focus"], **info}
+        row = {"id": ex["id"], "group": ex["group"], "repeat": r, "tier": ex["plan"]["tier_to_ask"], "answer_position": ex["plan"]["answer_position"], "focus": ex["focus"], **info}
         with BUDGET._lock:
             BUDGET.done += 1
             BUDGET.trials.append(trial_record(ex, info, repeat=r))
@@ -375,11 +415,23 @@ def cmd_evaluate(args) -> None:
                 trials.append(f.result())
             except BudgetExceeded as err:
                 stopped = str(err)
-    result = {"prompt": args.prompt, "split": args.split, "repeats": args.repeats, "examples": len(rows), "trials": trials, "stopped_early": stopped, "budget": BUDGET.summary(), "summary": summarise(trials)}
+    result = {"prompt": args.prompt, "split": args.split, "repeats": args.repeats, "examples": len(rows), "marker": decide.marker(args.split, [e["group"] for e in rows], guidance, CODE_PATHS), "trials": trials, "stopped_early": stopped, "budget": BUDGET.summary(), "summary": summarise(trials)}
     Path(args.out).write_text(json.dumps(result, indent=1))
     BUDGET.state = "stopped early" if stopped else "done"
     BUDGET.flush(force=True)
     print(json.dumps({"summary": result["summary"], "budget": result["budget"], "stopped_early": stopped}, indent=1))
+
+
+def second_judge_summary(trials: list[dict]) -> dict | None:
+    """Per judged gate: how many questions each model family passed and how often they agreed. None when it was off."""
+    rows = [t["second_judge"] for t in trials if t.get("second_judge")]
+    if not rows:
+        return None
+    out = {}
+    for g in ("key_correct", "single_answer", "cold_answerable", "tier_match"):
+        pairs = [r[g] for r in rows if g in r]
+        out[g] = {"of": len(pairs), "claude_pass": sum(p["claude"] for p in pairs), "azure_pass": sum(p["azure"] for p in pairs), "agree": sum(p["claude"] == p["azure"] for p in pairs)}
+    return out
 
 
 def summarise(trials: list[dict]) -> dict:
@@ -398,10 +450,12 @@ def summarise(trials: list[dict]) -> dict:
         "trials": n,
         "all_gates_passed": len(ok),
         "gate_failures": dict(gate_fail),
-        "mean_score": round(statistics.fmean(t["score"] for t in trials), 4) if trials else None,
+        "mean_score": decide.mean_scores(trials)[0],
+        "mean_score_finished_only": decide.mean_scores(trials)[1],
         "mean_score_when_valid": round(statistics.fmean(t["score"] for t in ok), 4) if ok else None,
         "longest": {"label": rate("label"), "description": rate("description"), "combined": rate("combined")},
         "generation_errors": sum(1 for t in trials if "generation" in t.get("gates_failed", [])),
+        "second_judge": second_judge_summary(trials),
     }
 
 
@@ -418,13 +472,19 @@ def cmd_report(args) -> None:
     shared = sorted(set(b) & set(c))
     wins = sum(c[k] > b[k] + 1e-9 for k in shared)
     losses = sum(c[k] < b[k] - 1e-9 for k in shared)
+    for w in decide.warnings(base, cand):
+        print(f"WARNING: {w}")
     print(f"examples compared: {len(shared)}  candidate wins {wins}, losses {losses}, ties {len(shared) - wins - losses}")
+    print(f"decision: {decide.verdict('question', b, c)}")
     for name, r in (("baseline", base), ("candidate", cand)):
         s = r["summary"]
-        print(f"\n{name}: {s['all_gates_passed']}/{s['trials']} pass every gate, mean score {s['mean_score']}, generation errors {s['generation_errors']}")
+        print(f"\n{name}: {s['all_gates_passed']}/{s['trials']} pass every gate, mean score {s['mean_score']} (finished only {s.get('mean_score_finished_only', 'not recorded')}), generation errors {s['generation_errors']}")
+        print(f"  models: {decide.models_line(r['budget'])}")
         print(f"  gate failures: {s['gate_failures']}")
         for k, v in s["longest"].items():
             print(f"  keyed option strictly longest by {k}: {v['keyed_strictly_longest']}/{v['of']}")
+        for g, v in (s.get("second_judge") or {}).items():
+            print(f"  second-family judge, {g}: Claude passed {v['claude_pass']}/{v['of']}, Azure {v['azure_pass']}/{v['of']}, agree {v['agree']}/{v['of']}")
         print(f"  budget: {r['budget']['calls']}  stopped early: {r['stopped_early']}")
         tk = r["budget"].get("tokens")
         print(f"  tokens: {tk['input_total']:,} in ({tk['cache_read']:,} cached) + {tk['output']:,} out, ~${r['budget']['cost_usd_list_price']} at list price" if tk else "  tokens: not recorded (run predates token tracking)")
@@ -506,6 +566,8 @@ def main() -> None:
     o.add_argument("--val", type=int, default=12)
     o.add_argument("--minibatch", type=int, default=3)
     o.add_argument("--seed", type=int, default=0)
+    common.add_argument("--model", default=None, help="the generating model, as `claude -p --model`; pin it for any run you will compare")
+    common.add_argument("--azure-judge", action="store_true", help="also judge with Azure OpenAI (credentials: see azure.py); gates still use the Claude verdicts")
     e = sub.add_parser("evaluate", parents=[common])
     e.add_argument("--prompt", default=str(SEED_FILE))
     e.add_argument("--split", choices=("train", "val", "test"), default="test")
@@ -516,6 +578,13 @@ def main() -> None:
     r.add_argument("baseline")
     r.add_argument("candidate")
     args = p.parse_args()
+    global GENERATOR
+    GENERATOR = getattr(args, "model", None)
+    if getattr(args, "azure_judge", False):
+        global AZURE
+        AZURE = azure.settings()
+        if AZURE is None:
+            sys.exit("--azure-judge: set AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY and AZURE_OPENAI_DEPLOYMENT (or ~/.config/eklavya-eval/azure.env)")
     {"optimize": cmd_optimize, "evaluate": cmd_evaluate, "report": cmd_report}[args.cmd](args)
 
 

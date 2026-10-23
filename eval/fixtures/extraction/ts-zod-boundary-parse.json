@@ -1,0 +1,33 @@
+{
+ "id": "ts-zod-boundary-parse",
+ "title": "Parse request bodies once, at the edge",
+ "source": "src/routes/orders.ts",
+ "kind": "typescript",
+ "diff": "import { z } from 'zod';\n\nconst OrderBody = z.object({\n  sku: z.string().min(1),\n  quantity: z.number().int().positive().max(100),\n});\ntype OrderBody = z.infer<typeof OrderBody>;\n\nexport async function createOrder(req: Request): Promise<Response> {\n  const parsed = OrderBody.safeParse(await req.json());\n  if (!parsed.success) {\n    return Response.json({ errors: parsed.error.flatten().fieldErrors }, { status: 400 });\n  }\n  const order = await placeOrder(parsed.data);\n  return Response.json(order, { status: 201 });\n}",
+ "concepts": [
+  {
+   "slug": "runtime-schema-validation",
+   "domain": "typescript",
+   "tier": 2,
+   "description": "TypeScript types vanish at runtime, so data from outside the program must be checked by a runtime schema before it is trusted.",
+   "context": "OrderBody.safeParse in orders.ts checks the JSON body before placeOrder sees it",
+   "prerequisite_of": []
+  },
+  {
+   "slug": "infer-type-from-schema",
+   "domain": "typescript",
+   "tier": 3,
+   "description": "z.infer derives the static type from the schema, so the type and the validation cannot drift apart.",
+   "context": "type OrderBody = z.infer<typeof OrderBody> in orders.ts reuses the schema as the type",
+   "prerequisite_of": []
+  },
+  {
+   "slug": "validate-at-trust-boundary",
+   "domain": "software-design",
+   "tier": 3,
+   "description": "Validate once where untrusted data enters; code behind that edge can rely on the checked shape.",
+   "context": "createOrder in orders.ts rejects a bad body with a 400 before any business logic runs",
+   "prerequisite_of": []
+  }
+ ]
+}

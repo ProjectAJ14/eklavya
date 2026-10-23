@@ -15,6 +15,11 @@
  * settings, and those near-duplicates must land on one side of the boundary or
  * the test set would leak. The assignment is a hash of the fixture id, so it
  * does not move when a fixture is added elsewhere.
+ *
+ * Hash ranks DO shift when the fixture count changes, which would move scored
+ * test fixtures into the search. So fixtures already in the committed
+ * dataset.json keep their recorded split, and any fixture not yet there is
+ * forced to `test`.
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -114,7 +119,8 @@ async function planFor(fixtures, focus, difficulty) {
 
 async function main() {
   const fixtures = readFixtures();
-  const splits = assignSplits(fixtures.map((f) => f.id));
+  const pinned = JSON.parse(fs.readFileSync(path.join(here, 'dataset.json'), 'utf8')).fixtures;
+  const splits = Object.fromEntries(fixtures.map((f) => [f.id, pinned[f.id] ?? 'test']));
   const examples = [];
   for (const [focus, difficulty] of SETTINGS) {
     for (const it of await planFor(fixtures, focus, difficulty)) {
@@ -126,7 +132,7 @@ async function main() {
     version: 1,
     built_from: 'real get_session_quiz_plan output; fixtures are anonymised or this repository\'s own code; no learner data',
     settings: SETTINGS,
-    split_by: 'fixture id (hash-ranked); near-duplicates share a side',
+    split_by: 'fixture id (hash-ranked, then pinned; later fixtures are test); near-duplicates share a side',
     fixtures: Object.fromEntries(fixtures.map((f) => [f.id, splits[f.id]])),
     counts,
     examples,

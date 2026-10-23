@@ -1,0 +1,24 @@
+{
+ "id": "accessible-modal-focus",
+ "title": "Making a dialog usable by keyboard",
+ "source": "web/Modal.tsx",
+ "diff": "function Modal({ open, onClose, children }) {\n  const ref = useRef<HTMLDivElement>(null);\n  const opener = useRef<Element | null>(null);\n  useEffect(() => {\n    if (!open) return;\n    opener.current = document.activeElement;\n    ref.current?.focus();\n    return () => (opener.current as HTMLElement | null)?.focus();\n  }, [open]);\n  if (!open) return null;\n  return (\n    <div role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"modal-title\" tabIndex={-1} ref={ref}\n         onKeyDown={(e) => e.key === 'Escape' && onClose()}>\n      {children}\n    </div>\n  );\n}",
+ "concepts": [
+  {
+   "slug": "focus-management-dialogs",
+   "domain": "accessibility",
+   "tier": 3,
+   "description": "A dialog moves keyboard focus into itself when it opens and returns it to the control that opened it when it closes.",
+   "context": "saves the opener and restores focus in the effect cleanup",
+   "prerequisite_of": []
+  },
+  {
+   "slug": "aria-dialog-semantics",
+   "domain": "accessibility",
+   "tier": 2,
+   "description": "role=dialog with aria-modal and a label tells assistive technology what the region is and that the page behind is inert.",
+   "context": "adds role, aria-modal and aria-labelledby to the Modal root",
+   "prerequisite_of": []
+  }
+ ]
+}

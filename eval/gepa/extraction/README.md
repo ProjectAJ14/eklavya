@@ -28,16 +28,16 @@ theirs: gates, then weighted quality, a second judge, token tracking and a GEPA 
 What GEPA edits: only the `log_session_concepts` block of `SKILL.md` (from "Call `log_session_concepts`
 as you implement" to the next heading). A candidate that would push the whole file past the
 `packaging.test.ts` ceiling (2000 whitespace tokens, frontmatter included) scores 0 without a model
-call. The skill has about 30 tokens of headroom, so a longer block must pay for itself by cutting
+call. The skill has about 2 words of headroom (1,997 of 1,999), so a longer block must pay for itself by cutting
 elsewhere in the file. GEPA never edits the repository; it writes `best_candidate.md` for a person to
 review and paste.
 
 ## Fixtures and splits
 
-16 fixtures: the original four (`eval/fixtures/*.json`) and twelve in `eval/fixtures/extraction/`, same
+19 fixtures: the original four (`eval/fixtures/*.json`) and fifteen in `eval/fixtures/extraction/`, same
 shape (`id`, `title`, `source`, `diff`, `concepts` with slug, domain, tier, description, context), plus
 a `kind` and, where the profile matters, `mastered`. `eval/fixtures/extraction/splits.json` holds the
-hand-made split: 8 train, 3 val, 5 test. The test split is never shown to the search.
+hand-made split: 8 train, 3 val, 8 test (the last three test fixtures were written after the first test results, so test reaches the 8 the decision rule needs without reshuffling scored ones). The test split is never shown to the search.
 
 | Kind | Fixtures |
 |---|---|
@@ -79,20 +79,38 @@ they agree are reported. Both are still Claude models: this reduces, not removes
 concern. The strict slug recall and precision (the product's `findFuzzyMatch`) are published beside
 them, as a record of what they do not measure.
 
+## The `context_file` rule (decided)
+
+A `context` names a file when it contains a path, a name with a known extension, or the fixture's own file
+(by name, with or without the extension). A function, class or setting name alone does not count. The skill
+asks for "the real decision in the real file", so the file is the part being graded; whether the context
+also names the code and the decision is `context_decision`, and whether it shares an identifier with the
+diff is the `context` quality term. This keeps the gate strict, as the October 2026 baseline measured it:
+11 of 15 trials failed it, so expect it to stay a heavy gate until the guidance or this rule changes.
+Changing the rule means re-running the baseline: `report` warns when the scorer changed between two results.
+
+## Decision rule
+
+8 test fixtures, 3 repeats each. A difference in mean score under 0.05 is `no difference`, and under 8
+fixtures `report` says `cannot decide`; this split has 8, so it can decide (see [`../README.md`](../README.md#reading-a-result-all-five-targets)).
+The whole skill file is 1,997 of its 1,999 words, so the block has about 2 words of headroom, not the 30
+this README once said; `optimize` tells the reflection model the exact numbers and `summary.json` records
+how many proposals were scored and how many were rejected unscored.
+
 ## Run it
 
 ```bash
 cd mcp && npm ci && npm run build && cd ..           # the bridge imports mcp/dist
 
 # the shipped guidance on the untouched test split
-python3 eval/gepa/extraction/run.py evaluate --split test --repeats 3 --out eval/gepa/runs/ex-shipped.json
+python3 eval/gepa/extraction/run.py evaluate --model claude-sonnet-5-5 --split test --repeats 3 --out eval/gepa/runs/ex-shipped.json
 
 # GEPA search (needs Python 3.10+ and the pilot's venv: see ../README.md)
 eval/gepa/.venv/bin/python eval/gepa/extraction/run.py optimize --out eval/gepa/runs/ex-search \
   --metric-calls 60 --max-model-calls 400 --max-minutes 90
 
 # the candidate on the same split, then compare
-python3 eval/gepa/extraction/run.py evaluate --prompt eval/gepa/runs/ex-search/best_candidate.md \
+python3 eval/gepa/extraction/run.py evaluate --model claude-sonnet-5-5 --prompt eval/gepa/runs/ex-search/best_candidate.md \
   --split test --repeats 3 --out eval/gepa/runs/ex-cand.json
 python3 eval/gepa/extraction/run.py report eval/gepa/runs/ex-shipped.json eval/gepa/runs/ex-cand.json
 ```

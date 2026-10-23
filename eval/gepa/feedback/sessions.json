@@ -172,6 +172,37 @@
         "thanks, that looks fine, merge it"
       ],
       "expect": { "chosen": 1, "areas": ["context", "outcome"], "clear": [], "facts": [] }
+    },
+    {
+      "id": "sql-monthly-revenue",
+      "split": "test",
+      "prompts": [
+        "write a query for monthly revenue",
+        "from the invoices table, sum amount_cents where status is 'paid', grouped by month of paid_at",
+        "output dollars with two decimals, last 12 months only, as a view in sql/views/monthly_revenue.sql",
+        "check it against the March total finance gave me, 41,250.00"
+      ],
+      "expect": { "chosen": 1, "areas": ["outcome", "context", "check"], "clear": [], "facts": ["invoices", "paid_at", "sql/views/monthly_revenue.sql", "41,250.00"] }
+    },
+    {
+      "id": "cli-format-flag",
+      "split": "test",
+      "prompts": [
+        "In cli/export.ts, add a --format flag to the export command that accepts json or csv, default json. Any other value exits with code 2 and the message 'unknown format'. Leave the default output unchanged. Add cases for both formats and the bad value to test/cli/export.test.ts and run npm test -- cli.",
+        "perfect, now add a line about the flag to the changelog"
+      ],
+      "expect": { "chosen": 1, "areas": [], "clear": ["outcome", "context", "scope", "check"], "facts": [] }
+    },
+    {
+      "id": "modal-scroll-ios",
+      "split": "test",
+      "prompts": [
+        "the address modal on the checkout page lets the page behind it scroll on iPhone, fix it",
+        "it's the shared Modal in components/Modal.tsx, the address one just uses it",
+        "only change that component's scroll locking, the other dialogs already look right to me",
+        "add a Playwright test in e2e/checkout.spec.ts on the iPhone 13 device and run it"
+      ],
+      "expect": { "chosen": 1, "areas": ["context", "scope", "check"], "clear": ["outcome"], "facts": ["components/Modal.tsx", "scroll locking", "e2e/checkout.spec.ts", "iPhone 13"] }
     }
   ]
 }

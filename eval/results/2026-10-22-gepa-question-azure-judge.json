@@ -1,0 +1,964 @@
+{
+ "prompt": "/Users/ajaykumar/Workspace/ProjectAj14/eklavya-worktrees/gepa-harness-gaps/skills/tutor/references/writing-mcq.md",
+ "split": "test",
+ "repeats": 1,
+ "examples": 12,
+ "marker": {
+  "split": "test",
+  "fixtures": "e150490fd8",
+  "prompt": "7f234cac87",
+  "code": "52dca4f"
+ },
+ "trials": [
+  {
+   "id": "dart-async-await-errors:exception-translation:project:easy",
+   "group": "dart-async-await-errors",
+   "repeat": 0,
+   "tier": 2,
+   "focus": "project",
+   "score": 0.9,
+   "gates_failed": [],
+   "quality": {
+    "balance": 1.0,
+    "plausible": 0.3333333333333333,
+    "stem": 1.0,
+    "compact": 1.0
+   },
+   "visible_words_per_option": [
+    33,
+    30,
+    32,
+    31
+   ],
+   "correct_option": 3,
+   "visible_problem": null,
+   "failed_checks": [],
+   "judge": {
+    "answerable_why": "The code is shown and the question asks what the catch-and-rethrow does. Someone who understands exception translation can answer from the snippet.",
+    "correct_why": "Option 3 matches the code. It catches the low-level TimeoutException and throws the app's ApiException(408). Callers then handle one domain error type instead of the transport library's exceptions. This is exactly exception translation.",
+    "distractors_why": "Option 1 (retry) is the most believable, since a timeout handler often retries, but the code has no loop or second call. Option 2 (log and rethrow unchanged) is a common pattern, but the code visibly throws a new exception type and logs nothing. Option 4 (cancels the request on the server) misreads what .timeout() does, and it is implausible for anyone who knows that a client-side timeout does not control the server.",
+    "defensible_why": "Each wrong option contradicts the code. There is no retry, no logging, and the original exception is not passed upward. Nothing in the snippet cancels server-side work. An expert could not argue that any of them also answers the question correctly.",
+    "tier_match": "match",
+    "tier_why": "The question asks what the catch-and-rethrow does and how it works, which is a tier 2 mechanism question. It does not ask for judgement or failure analysis.",
+    "cold_answerable_cold_why": "The question includes the relevant facts: fetchUser in api_client.dart, a 5-second .timeout, a catch of TimeoutException, and a throw of ApiException(408). Option 3 is the only one that describes what a catch-and-throw of a different exception type does. A developer who understands exception handling can pick it without seeing the file. Options 1, 2 and 4 contradict the described behavior: the code throws a new exception rather than retrying, rethrowing the original, or cancelling anything server-side.",
+    "cold_unexplained_names": []
+   },
+   "second_judge": {
+    "key_correct": {
+     "claude": true,
+     "azure": true
+    },
+    "single_answer": {
+     "claude": true,
+     "azure": true
+    },
+    "cold_answerable": {
+     "claude": true,
+     "azure": true
+    },
+    "tier_match": {
+     "claude": true,
+     "azure": true
+    }
+   },
+   "stem": "In api_client.dart, fetchUser catches TimeoutException from the .timeout(5 seconds) call and throws ApiException(408). What does that catch-and-rethrow do?",
+   "options": [
+    "It retries the request once more after the five-second limit, so a slow server still gets a second chance",
+    "It logs the timeout and then lets the original TimeoutException continue up to the caller unchanged",
+    "It swaps the low-level timeout error for the app's own ApiException, so callers handle one error type",
+    "It cancels the in-flight HTTP request on the server, so the user record is never half-written"
+   ],
+   "descriptions": [
+    "Waits for the server again and sends the same GET request a second time",
+    "Records the failure somewhere and passes the same error object upward as it was",
+    "Catches the timeout error and throws the app's own exception type with status code 408",
+    "Stops the GET request at the server and discards any work the server had begun"
+   ],
+   "longest": {
+    "label": false,
+    "description": false,
+    "combined": false
+   }
+  },
+  {
+   "id": "flutter-const-widgets:stateless-vs-stateful:project:easy",
+   "group": "flutter-const-widgets",
+   "repeat": 0,
+   "tier": 2,
+   "focus": "project",
+   "score": 1.0,
+   "gates_failed": [],
+   "quality": {
+    "balance": 1.0,
+    "plausible": 1.0,
+    "stem": 1.0,
+    "compact": 1.0
+   },
+   "visible_words_per_option": [
+    32,
+    31,
+    32,
+    30
+   ],
+   "correct_option": 3,
+   "visible_problem": null,
+   "failed_checks": [],
+   "judge": {
+    "answerable_why": "The code is a StatelessWidget with only a final input field and no state. Someone who understands the concept can reason about what Flutter does after the first build.",
+    "correct_why": "A StatelessWidget's build runs again only when its parent rebuilds it with a new configuration, such as a different item. Option 3 states this. Strictly, Flutter also rebuilds it when an InheritedWidget dependency changes, but that is not shown here and option 3 is the best answer.",
+    "distractors_why": "Option 1 describes a stateful pattern that a learner could confuse with stateless. Option 2 reflects a common belief that Flutter rebuilds every frame. Option 4 mixes up StatelessWidget and StatefulWidget/State. All three are believable to a novice.",
+    "defensible_why": "Option 1 is wrong because a stateless widget has no private mutable copy. Option 2 is wrong because Flutter does not rebuild on every frame. Option 4 is wrong because a StatelessWidget has no State object. None of them is correct.",
+    "tier_match": "match",
+    "tier_why": "The question asks how rebuilds work, which is a mechanism question and fits tier 2.",
+    "cold_answerable_cold_why": "The question is self-contained and tests general Flutter knowledge: a StatelessWidget holds no mutable state and is rebuilt only when its parent rebuilds it with new configuration (a new instance with different constructor input). Option 3 states this correctly. Option 1 describes internal mutable state, option 2 misdescribes per-frame rebuilds, and option 4 describes StatefulWidget's State object. All options are full claims and the reader needs no knowledge of the surrounding code.",
+    "cold_unexplained_names": []
+   },
+   "second_judge": {
+    "key_correct": {
+     "claude": true,
+     "azure": false
+    },
+    "single_answer": {
+     "claude": true,
+     "azure": true
+    },
+    "cold_answerable": {
+     "claude": true,
+     "azure": false
+    },
+    "tier_match": {
+     "claude": true,
+     "azure": true
+    }
+   },
+   "stem": "In this Flutter widget, `ItemTile` is a StatelessWidget that shows one item's name. What does Flutter do with it after the first build?",
+   "options": [
+    "It keeps a private copy of the item and updates the tile whenever that copy changes",
+    "It rebuilds the tile on every frame so the displayed name always matches the screen",
+    "It builds the tile again only when its parent gives it a different item",
+    "It stores the tile's name in a State object that survives rebuilds of the parent"
+   ],
+   "descriptions": [
+    "Holds its own record of the item between builds and refreshes the display from that record.",
+    "Runs the build method once per drawn frame to keep the name text current on screen.",
+    "Calls the build method again when the input it was constructed with is replaced by a new one.",
+    "Keeps the displayed name in a separate object that persists while the surrounding widget redraws."
+   ],
+   "longest": {
+    "label": false,
+    "description": true,
+    "combined": false
+   }
+  },
+  {
+   "id": "git-rebase-vs-merge:force-with-lease:project:easy",
+   "group": "git-rebase-vs-merge",
+   "repeat": 0,
+   "tier": 2,
+   "focus": "project",
+   "score": 0.925,
+   "gates_failed": [],
+   "quality": {
+    "balance": 1.0,
+    "plausible": 1.0,
+    "stem": 1.0,
+    "compact": 0.0
+   },
+   "visible_words_per_option": [
+    36,
+    33,
+    38,
+    35
+   ],
+   "correct_option": 3,
+   "visible_problem": null,
+   "failed_checks": [],
+   "judge": {
+    "answerable_why": "The code shows git push --force-with-lease after a fetch, and the concept statement gives the mechanism. Someone who understands the concept can pick the remote-tip-versus-last-fetch option.",
+    "correct_why": "--force-with-lease refuses the push if the remote branch tip differs from the remote-tracking ref (the last fetch). Option 3 states exactly that.",
+    "distractors_why": "Uncommitted changes, CI status checks and branch protection are all things a developer might mix up with push safety checks. Each is a real Git or hosting concept tied to pushes or rebases, so each is believable to someone who is unsure.",
+    "defensible_why": "Lease checks only the remote ref against the expected value. It never inspects the working tree, CI results or protection rules. Branch protection can reject a force push on the server side, but that is not something the lease checks, so no distractor can be argued as also correct.",
+    "tier_match": "match",
+    "tier_why": "The question asks what the lease compares before overwriting, which is a mechanism question and fits tier 2. It is not mere recall of a definition, and it does not require judgement or failure-mode reasoning.",
+    "cold_answerable_cold_why": "The question is self-contained and uses only general Git concepts. Option 3 correctly states that --force-with-lease checks that the remote branch tip still matches the last fetched remote-tracking ref. The other options describe a different check each (working tree, CI, branch protection), and each is a plausible-sounding but wrong distractor. No project-specific names are needed.",
+    "cold_unexplained_names": []
+   },
+   "second_judge": {
+    "key_correct": {
+     "claude": true,
+     "azure": true
+    },
+    "single_answer": {
+     "claude": true,
+     "azure": true
+    },
+    "cold_answerable": {
+     "claude": true,
+     "azure": true
+    },
+    "tier_match": {
+     "claude": true,
+     "azure": true
+    }
+   },
+   "stem": "In a Git workflow, a developer pushes a rebased branch using --force-with-lease instead of --force. What does the lease check before overwriting?",
+   "options": [
+    "It checks that the local branch has no uncommitted changes, so unsaved work is not lost during the rebase",
+    "It checks that the rebased commits pass the remote's required status checks before the branch is replaced",
+    "It checks that the remote branch is still where your last fetch saw it, and refuses the push if not",
+    "It checks that the remote branch is not protected, so the push cannot rewrite shared history on that branch"
+   ],
+   "descriptions": [
+    "Looks at the local working tree and index, and blocks the push when edits are still unsaved",
+    "Looks at the remote's continuous integration results, and blocks the push when a check has failed",
+    "Looks at the remote branch tip against your last fetched copy, and blocks the push when they differ",
+    "Looks at the remote branch's protection rules, and blocks the push when rewriting history is forbidden"
+   ],
+   "longest": {
+    "label": true,
+    "description": true,
+    "combined": true
+   }
+  },
+  {
+   "id": "session-cookie-flags:samesite-lax:project:easy",
+   "group": "session-cookie-flags",
+   "repeat": 0,
+   "tier": 2,
+   "focus": "project",
+   "score": 0.925,
+   "gates_failed": [],
+   "quality": {
+    "balance": 1.0,
+    "plausible": 1.0,
+    "stem": 1.0,
+    "compact": 0.0
+   },
+   "visible_words_per_option": [
+    28,
+    29,
+    37,
+    36
+   ],
+   "correct_option": 3,
+   "visible_problem": null,
+   "failed_checks": [],
+   "judge": {
+    "answerable_why": "The code shows sameSite: 'lax' and the question asks what the browser does with that cookie. Someone who knows SameSite=Lax can answer from the options alone.",
+    "correct_why": "Option 3 is accurate. Lax withholds the cookie from cross-site subrequests such as images, iframes, fetch and POST form submissions. It still sends the cookie on top-level navigations that use safe methods, such as clicking a link. The wording 'most cross-site subrequests' is also precise.",
+    "distractors_why": "Option 1 mixes up the cookie with the Secure flag and TLS, and people confuse the two often. Option 2 describes HttpOnly, which is set in the same snippet, so it is a natural confusion. Option 4 describes SameSite=Strict, which is the closest neighbour to Lax and an easy slip.",
+    "defensible_why": "None of the wrong options can be argued correct. Option 1 is the Secure flag and TLS, not SameSite. Option 2 is HttpOnly. Option 4 says links are excluded, which is false for Lax because it sends the cookie on top-level link navigations. That is Strict behaviour. Option 4's 'exact same site' wording is accurate for Strict, but the stated consequence for links contradicts Lax.",
+    "tier_match": "match",
+    "tier_why": "Tier 2 asks for mechanism. The question asks what the browser actually does with the cookie and has the learner tell Lax apart from Secure, HttpOnly and Strict. That is more than naming the flag and does not need judgement or design reasoning.",
+    "cold_answerable_cold_why": "The question is self-contained: it names the cookie attribute (sameSite: 'lax') and asks what the browser does with it. A developer who understands SameSite semantics can pick option 3, because Lax withholds the cookie from cross-site subrequests (images, forms, fetch) but still sends it on top-level navigations such as link clicks. Options 1 (Secure/TLS), 2 (HttpOnly) and 4 (Strict) are each distinct, well-known attributes or behaviours and are stated clearly enough to rule out. The file path server/auth.ts is only context and does not need to be read.",
+    "cold_unexplained_names": []
+   },
+   "second_judge": {
+    "key_correct": {
+     "claude": true,
+     "azure": true
+    },
+    "single_answer": {
+     "claude": true,
+     "azure": true
+    },
+    "cold_answerable": {
+     "claude": true,
+     "azure": true
+    },
+    "tier_match": {
+     "claude": true,
+     "azure": true
+    }
+   },
+   "stem": "In server/auth.ts, the session cookie is set with sameSite: 'lax'. What does the browser do with that cookie?",
+   "options": [
+    "It encrypts the cookie value in transit so that a network attacker cannot read the session token",
+    "It hides the cookie from page JavaScript so that an injected script cannot read the session token",
+    "It withholds the cookie from most cross-site subrequests but still sends it when a user clicks a link to the site",
+    "It sends the cookie only for requests whose URL is on the exact same site as the page making them"
+   ],
+   "descriptions": [
+    "Scrambles the cookie contents on the wire between browser and server",
+    "Blocks document.cookie from returning this cookie to scripts running on the page",
+    "Leaves the cookie off cross-site image, form and fetch requests but keeps it on top-level navigations",
+    "Attaches the cookie to same-site requests only and leaves it off every cross-site request, links included"
+   ],
+   "longest": {
+    "label": true,
+    "description": false,
+    "combined": true
+   }
+  },
+  {
+   "id": "unit-test-isolation:test-isolation:project:easy",
+   "group": "unit-test-isolation",
+   "repeat": 0,
+   "tier": 2,
+   "focus": "project",
+   "score": 0.4167,
+   "gates_failed": [
+    "single_answer"
+   ],
+   "quality": {
+    "balance": 1.0,
+    "plausible": 0.6666666666666666,
+    "stem": 1.0,
+    "compact": 1.0
+   },
+   "visible_words_per_option": [
+    32,
+    28,
+    34,
+    33
+   ],
+   "correct_option": 3,
+   "visible_problem": null,
+   "failed_checks": [],
+   "judge": {
+    "answerable_why": "The stem states beforeEach runs before every test and creates a new Billing with an empty in-memory store, and asks what per-test creation ensures. Someone who knows test isolation can answer from the stem and code alone.",
+    "correct_why": "Option 3 is right. A fresh Billing and an empty MemoryStore for each test means no data carries over from earlier tests, so results do not depend on run order. This is the definition of the concept.",
+    "distractors_why": "Option 1 (locking for parallel safety) is believable to a novice who confuses isolation with concurrency control. Option 2 (never touches a real database) is believable because it is true of MemoryStore, though it is not what the hook ensures. Option 4 is the opposite of the code's intent, and a competent person would not believe it.",
+    "defensible_why": "Option 2 can be argued correct. The stem says the store is in-memory, and an in-memory store does keep tests off a real database. However, the question asks what creating the object inside beforeEach, rather than once at the top, ensures. Using MemoryStore is what keeps tests off a real DB, and that would hold even if the object were created once. So a strict reader rejects option 2. An expert reading loosely could still defend it as a true statement about the setup. Option 1 is false, since the hook adds no locking. Option 4 is false.",
+    "tier_match": "match",
+    "tier_why": "Tier 2 asks about mechanism. The question asks why per-test construction in beforeEach produces order independence, so it tests how the mechanism works and not just recall of a term.",
+    "cold_answerable_cold_why": "The question defines beforeEach and the setup (new Billing object with an empty in-memory store per test). A developer who understands test isolation can pick option 3. Each option states a full claim, and the distractors (locking, no real database, shared state) are plainly distinguishable. Nothing depends on unseen context.",
+    "cold_unexplained_names": []
+   },
+   "second_judge": {
+    "key_correct": {
+     "claude": true,
+     "azure": true
+    },
+    "single_answer": {
+     "claude": false,
+     "azure": true
+    },
+    "cold_answerable": {
+     "claude": true,
+     "azure": true
+    },
+    "tier_match": {
+     "claude": true,
+     "azure": true
+    }
+   },
+   "stem": "A test file uses a beforeEach hook, which runs before every single test, to create a new Billing object with an empty in-memory store. What does creating the object inside beforeEach, rather than once at the top of the file, ensure?",
+   "options": [
+    "Tests can run in parallel safely, because the hook locks the store while one test is using it",
+    "Tests never touch a real database, because the in-memory store keeps all data inside the process",
+    "Each test starts with no data left over from earlier tests, so results do not depend on run order",
+    "Tests can build on each other, because charges created in one test stay in the store for the next"
+   ],
+   "descriptions": [
+    "Claims the hook adds locking around the store so concurrent tests do not collide",
+    "Claims the store type keeps test data away from any external storage",
+    "Claims every test gets its own empty store, so no test sees another test's changes",
+    "Claims one store is shared across tests so later tests can see earlier charges"
+   ],
+   "longest": {
+    "label": false,
+    "description": true,
+    "combined": true
+   }
+  },
+  {
+   "id": "dart-async-await-errors:future-timeout:project:easy",
+   "group": "dart-async-await-errors",
+   "repeat": 0,
+   "tier": 2,
+   "focus": "project",
+   "score": 0.8083,
+   "gates_failed": [],
+   "quality": {
+    "balance": 0.6666666666666666,
+    "plausible": 0.6666666666666666,
+    "stem": 1.0,
+    "compact": 0.0
+   },
+   "visible_words_per_option": [
+    34,
+    39,
+    36,
+    34
+   ],
+   "correct_option": 3,
+   "visible_problem": "option 2 is 39 visible words (label plus description) against 36 for the next longest, so it stands out. Shorten it or give the others the same number of claims, without padding",
+   "failed_checks": [],
+   "judge": {
+    "answerable_why": "The code shows .timeout(5s) on the http.get future with an 8s server reply, and the concept (timeout stops waiting, does not cancel work) is enough to pick the answer. The catch of TimeoutException is visible, so the caller-side behavior is clear.",
+    "correct_why": "Dart's Future.timeout completes the returned future with a TimeoutException after the duration, but it does not cancel the underlying http.get. The request keeps running, so option 3 is accurate. The hedge 'may keep running unseen' is also right, because the outcome depends on the client. Also, fetchUser catches TimeoutException and throws ApiException(408), so 'throws' is correct.",
+    "distractors_why": "Option 1 (timeout cancels the request) is the classic misconception and is very believable. Option 2 (idle timeout that resets on data) is believable to someone who knows socket or HTTP client idle timeouts. Option 4 (automatic retry) is not something a competent developer would expect from Future.timeout, so it is weak.",
+    "defensible_why": "Option 1 is wrong: Future.timeout does not abort the request, and package:http's get has no cancellation. Option 2 is wrong: Future.timeout measures total elapsed time, not idle time. Option 4 is wrong: no retry occurs. Option 3 is the only correct one.",
+    "tier_match": "match",
+    "tier_why": "The question asks what happens at runtime and why, which is tier 2 (mechanism). It is not simple recall of a definition, and it does not ask for a judgement, failure-mode analysis or design choice.",
+    "cold_answerable_cold_why": "The question is self-contained: it names the call (`fetchUser`, an HTTP call with `.timeout(Duration(seconds: 5))`), gives the scenario (server replies after 8 seconds), and each option states a distinct, clear claim about timeout semantics. A developer who knows Dart's `Future.timeout` can tell that it only stops waiting on the future and throws a TimeoutException. It does not cancel the underlying request, so option 3 is correct. The other options contradict this: cancellation, idle-reset and automatic retry are not what it does.",
+    "cold_unexplained_names": []
+   },
+   "second_judge": {
+    "key_correct": {
+     "claude": true,
+     "azure": true
+    },
+    "single_answer": {
+     "claude": true,
+     "azure": true
+    },
+    "cold_answerable": {
+     "claude": true,
+     "azure": true
+    },
+    "tier_match": {
+     "claude": true,
+     "azure": true
+    }
+   },
+   "stem": "In `fetchUser`, the HTTP call has `.timeout(const Duration(seconds: 5))` chained on it. What happens when the server takes 8 seconds to reply?",
+   "options": [
+    "The request is cancelled at 5 seconds, so the connection closes and the server receives nothing further",
+    "The 5 second limit is restarted each time the server sends data, so the call keeps waiting for the reply",
+    "`fetchUser` stops waiting at 5 seconds and throws, while the HTTP request itself may keep running unseen",
+    "The request is retried automatically after 5 seconds, and `fetchUser` returns the second response if it arrives"
+   ],
+   "descriptions": [
+    "The timeout is treated as a signal that aborts the in-flight request and releases its network connection.",
+    "The timeout acts as an idle limit that measures the gap between data arriving rather than total elapsed time.",
+    "The timeout gives up on the returned future and raises an error in the caller without touching the request.",
+    "The timeout triggers a second attempt of the same request and waits on whichever response arrives first."
+   ],
+   "longest": {
+    "label": false,
+    "description": false,
+    "combined": false
+   }
+  },
+  {
+   "id": "flutter-const-widgets:const-widget-rebuild:project:easy",
+   "group": "flutter-const-widgets",
+   "repeat": 0,
+   "tier": 2,
+   "focus": "project",
+   "score": 0.4167,
+   "gates_failed": [
+    "single_answer"
+   ],
+   "quality": {
+    "balance": 1.0,
+    "plausible": 0.6666666666666666,
+    "stem": 1.0,
+    "compact": 1.0
+   },
+   "visible_words_per_option": [
+    29,
+    32,
+    31,
+    30
+   ],
+   "correct_option": 4,
+   "visible_problem": null,
+   "failed_checks": [],
+   "judge": {
+    "answerable_why": "The question asks what const lets Flutter do on parent rebuild. A person who knows the concept can answer from the snippet and the stem.",
+    "correct_why": "A const widget is canonicalized into one instance. When the parent rebuilds, Flutter sees the identical instance and skips rebuilding that subtree. Option 4 says this correctly.",
+    "distractors_why": "Option 1 sounds like a diffing optimization, and a learner might confuse it with how Flutter compares widget properties in general. Option 2 sounds like a repaint-boundary or caching optimization, which is a real Flutter feature that const does not provide. Option 3 is implausible, because Flutter builds on the UI thread and no one would credibly believe const moves build work to another thread.",
+    "defensible_why": "Option 1 is arguable. Flutter does compare widgets when it updates an element. It checks canUpdate and, for non-identical widgets, calls update, so a non-const icon would be rebuilt only when its properties change. But the option says const makes Flutter compare colour and size every frame, which is wrong. Const skips the comparison because identity is enough. A careful expert would still see it as incorrect, so it is only weakly defensible.",
+    "tier_match": "match",
+    "tier_why": "Tier 2 asks for mechanism. The question asks what const lets the framework do (reuse the instance and skip the rebuild), which is a mechanism question, not bare recall.",
+    "cold_answerable_cold_why": "The question is self-contained and tests a well-known Flutter concept: a const widget is a canonical compile-time instance, so when the parent rebuilds Flutter sees the identical instance and skips rebuilding that subtree. Option 4 states this. The other options describe things const does not do: per-frame property comparison, pixel caching, and moving work to another thread. The file path is context only and the reader does not need to open it.",
+    "cold_unexplained_names": []
+   },
+   "second_judge": {
+    "key_correct": {
+     "claude": true,
+     "azure": true
+    },
+    "single_answer": {
+     "claude": false,
+     "azure": true
+    },
+    "cold_answerable": {
+     "claude": true,
+     "azure": true
+    },
+    "tier_match": {
+     "claude": true,
+     "azure": true
+    }
+   },
+   "stem": "In the file lib/ui/item_tile.dart, a list row widget marks its leading inbox icon as const. What does const let Flutter do when the parent rebuilds?",
+   "options": [
+    "Rebuild the icon only when its colour or size changes, comparing those values on every frame",
+    "Cache the icon's rendered pixels, so its drawing step is skipped while the row's text changes",
+    "Run the icon's build method on a separate thread, so the parent's rebuild is not slowed down",
+    "Reuse the single instance built once and skip rebuilding the icon, since it cannot have changed"
+   ],
+   "descriptions": [
+    "Compares the icon's properties each frame and rebuilds it only when they differ.",
+    "Stores the icon as a bitmap so only the row's text needs to be painted again.",
+    "Moves the icon's build work off the main thread so the parent finishes sooner.",
+    "Keeps one shared icon object that stays the same when the parent builds again."
+   ],
+   "longest": {
+    "label": false,
+    "description": false,
+    "combined": false
+   }
+  },
+  {
+   "id": "git-rebase-vs-merge:rebase-rewrites-history:project:easy",
+   "group": "git-rebase-vs-merge",
+   "repeat": 0,
+   "tier": 2,
+   "focus": "project",
+   "score": 0.95,
+   "gates_failed": [],
+   "quality": {
+    "balance": 1.0,
+    "plausible": 0.6666666666666666,
+    "stem": 1.0,
+    "compact": 1.0
+   },
+   "visible_words_per_option": [
+    25,
+    31,
+    33,
+    31
+   ],
+   "correct_option": 3,
+   "visible_problem": null,
+   "failed_checks": [],
+   "judge": {
+    "answerable_why": "The code shows fetch, rebase onto origin/main, then force-push. Someone who understands that rebase replays commits can pick the one option that describes new commits with new hashes replacing the old ones.",
+    "correct_why": "Rebase creates new commits with new hashes. The force-push replaces the remote branch tip, so the old commits are no longer on the branch. Anyone who already pulled the old commits now has history that diverges from the remote.",
+    "distractors_why": "Option 4 is plausible to someone who thinks a push only adds commits. Option 1 is plausible to someone who thinks rebase 'edits' commits, and the word 'amend' invites that view. Option 2 confuses rebase with merge, and the question says 'onto the latest main', which nudges toward it. A competent person is unlikely to believe it, because the branch is force-pushed under its own name and obviously still exists.",
+    "defensible_why": "Option 1 is false because the hashes change. Option 2 is false because the branch is not merged into main and still exists as its own line. Option 4 is false because a force-push replaces the remote ref instead of adding to it. The old commits may linger in the reflog or on teammates' clones, but they are not 'kept alongside' on the remote branch. No distractor can be argued to be correct.",
+    "tier_match": "match",
+    "tier_why": "Tier 2 asks for mechanism. The question asks what rebase plus force-push does to the commits, which means knowing that rebase replays commits and gives them new hashes. It is more than recall of a definition, and it needs no judgement about whether to rebase.",
+    "cold_answerable_cold_why": "The question is self-contained and tests a well-known Git concept. Rebasing replays commits onto a new base and gives them new hashes. A force-push then replaces the remote branch's history, so teammates' old copies diverge. Option 3 is the only one consistent with this. Each option states its claim clearly enough to choose without outside context.",
+    "cold_unexplained_names": []
+   },
+   "second_judge": {
+    "key_correct": {
+     "claude": true,
+     "azure": true
+    },
+    "single_answer": {
+     "claude": true,
+     "azure": true
+    },
+    "cold_answerable": {
+     "claude": true,
+     "azure": true
+    },
+    "tier_match": {
+     "claude": true,
+     "azure": true
+    }
+   },
+   "stem": "A developer rebases a feature branch onto the latest main, then force-pushes it. What happens to the commits already on the remote branch?",
+   "options": [
+    "They are edited in place, so each keeps its original hash and teammates' copies still match",
+    "They are merged into main's history, so the branch stops existing as a separate line of work",
+    "They are replaced by new commits with new hashes, so anyone who pulled the old ones now diverges",
+    "They are kept alongside the new ones, so the remote branch holds both versions of every commit"
+   ],
+   "descriptions": [
+    "Claims rebasing changes commit contents without changing their identity.",
+    "Claims the rebase folds the branch into main and ends the branch's own history.",
+    "Claims rebasing replays each commit onto the new base and gives it a fresh identity.",
+    "Claims the force-push adds the rewritten commits on top of the existing remote ones."
+   ],
+   "longest": {
+    "label": true,
+    "description": true,
+    "combined": true
+   }
+  },
+  {
+   "id": "session-cookie-flags:httponly-cookie:project:easy",
+   "group": "session-cookie-flags",
+   "repeat": 0,
+   "tier": 2,
+   "focus": "project",
+   "score": 1.0,
+   "gates_failed": [],
+   "quality": {
+    "balance": 1.0,
+    "plausible": 1.0,
+    "stem": 1.0,
+    "compact": 1.0
+   },
+   "visible_words_per_option": [
+    27,
+    26,
+    28,
+    28
+   ],
+   "correct_option": 3,
+   "visible_problem": null,
+   "failed_checks": [],
+   "judge": {
+    "answerable_why": "The question asks what httpOnly does, and the code shows the option set alongside secure, sameSite and maxAge. Someone who knows the concept can pick the option about scripts being unable to read the cookie.",
+    "correct_why": "httpOnly stops document.cookie and other page JavaScript from reading the cookie. An injected script therefore cannot read or copy the session token. Option 3 says this accurately.",
+    "distractors_why": "Each distractor matches another option in the same code block: maxAge for option 1, sameSite lax for option 2, secure for option 4. A developer who mixes up the cookie flags could believe any of them. Option 4 is the weakest, because secure is about transport and not storage encryption, but it is still a common confusion.",
+    "defensible_why": "None of the distractors is correct for httpOnly. Option 1 describes maxAge. Option 2 describes sameSite. Option 4 is wrong on two counts: secure only restricts the cookie to HTTPS, and no cookie flag encrypts the value in storage.",
+    "tier_match": "match",
+    "tier_why": "The question asks what the browser does differently, which is a mechanism question and fits tier 2. It goes beyond recall of the flag's name, and it does not ask for a judgement about when to use the flag or how it fails.",
+    "cold_answerable_cold_why": "The question is self-contained: it names a standard cookie attribute (httpOnly) and asks about browser behavior. Each option describes a distinct, well-known mechanism (Max-Age, SameSite, HttpOnly, Secure/encryption), so a developer who knows cookies can pick option 3 without seeing server/auth.ts.",
+    "cold_unexplained_names": []
+   },
+   "second_judge": {
+    "key_correct": {
+     "claude": true,
+     "azure": true
+    },
+    "single_answer": {
+     "claude": true,
+     "azure": true
+    },
+    "cold_answerable": {
+     "claude": true,
+     "azure": true
+    },
+    "tier_match": {
+     "claude": true,
+     "azure": true
+    }
+   },
+   "stem": "In server/auth.ts, the login code sets a session cookie named sid with the httpOnly option turned on. What does the browser do differently because of httpOnly?",
+   "options": [
+    "It expires the cookie after thirty minutes, so a stolen copy stops working soon after login.",
+    "It withholds the cookie from requests that another website triggers, so cross-site forms cannot send it.",
+    "It hides the cookie from scripts running on the page, so injected JavaScript cannot read its value.",
+    "It encrypts the cookie value in storage and in transit, so anyone intercepting it cannot read the token."
+   ],
+   "descriptions": [
+    "Limits how long the browser keeps and sends the session cookie.",
+    "Limits which requests the browser attaches the session cookie to.",
+    "Limits which code in the browser can access the session cookie.",
+    "Limits who can make sense of the session cookie's contents."
+   ],
+   "longest": {
+    "label": false,
+    "description": false,
+    "combined": false
+   }
+  },
+  {
+   "id": "unit-test-isolation:injectable-clock:project:easy",
+   "group": "unit-test-isolation",
+   "repeat": 0,
+   "tier": 2,
+   "focus": "project",
+   "score": 0.875,
+   "gates_failed": [],
+   "quality": {
+    "balance": 1.0,
+    "plausible": 0.6666666666666666,
+    "stem": 1.0,
+    "compact": 0.0
+   },
+   "visible_words_per_option": [
+    32,
+    36,
+    34,
+    36
+   ],
+   "correct_option": 2,
+   "visible_problem": null,
+   "failed_checks": [],
+   "judge": {
+    "answerable_why": "The snippet shows a FakeClock injected into Billing and advanceDays(10) called before upgrade. Someone who understands injectable clocks can infer that the test moves Billing's notion of time forward deterministically.",
+    "correct_why": "Option 2 matches the mechanism. The clock is passed in as a dependency, so advancing it changes the date Billing reads, instantly and the same on every run. The assertion on the prorated charge of 2000 depends on that fixed time.",
+    "distractors_why": "Option 1 (changing the OS clock) is a believable confusion for someone who thinks of faking time as a global change. Option 3 (store expiry) is somewhat believable because the store is shown in the setup. Option 4 (pausing for ten days) is believable to a novice who thinks advancing time means waiting, but it is weaker since advanceDays is clearly not a sleep. Option 3 is the weakest, because nothing in the code ties the clock to the store.",
+    "defensible_why": "None of the wrong options can be argued to be correct. Option 1 is wrong because FakeClock is an object passed to Billing and does not touch the OS clock. Option 3 is wrong because the clock does not control store retention. Option 4 is wrong because nothing waits or fires scheduled jobs, since the advance is instant and the code shows no scheduler.",
+    "tier_match": "match",
+    "tier_why": "The question asks what the injected fake clock lets the test do, which is a mechanism question (tier 2) rather than recall of a definition or a judgement about design trade-offs.",
+    "cold_answerable_cold_why": "The question is self-contained and tests a general testing concept: injecting a fake clock into a class under test. The text explains FakeClock, Billing, advanceDays and the proration charge well enough. Option 2 is the only one that describes injected-clock behavior (Billing reads time from the clock object it was given, and the time jumps forward instantly, so the result is deterministic). Options 1, 3 and 4 each describe a different mechanism (OS clock, store expiry, real waiting), and each can be ruled out by general knowledge. Each option's trailing clause also states its claim plainly. One weakness: option 2's 'proration charge' and 'upgrade' are only implied, but that does not block answering.",
+    "cold_unexplained_names": []
+   },
+   "second_judge": {
+    "key_correct": {
+     "claude": true,
+     "azure": true
+    },
+    "single_answer": {
+     "claude": true,
+     "azure": true
+    },
+    "cold_answerable": {
+     "claude": true,
+     "azure": true
+    },
+    "tier_match": {
+     "claude": true,
+     "azure": true
+    }
+   },
+   "stem": "In the billing test, the code builds Billing with a FakeClock and calls clock.advanceDays(10). What does that let the test do?",
+   "options": [
+    "Read the real system time ten days later by speeding up the machine's clock for the test run",
+    "Move the time Billing sees forward ten days instantly, so the proration charge is the same on every run",
+    "Make the in-memory store expire its saved records after ten days so the upgrade charge can be read",
+    "Pause the test for ten days of simulated waiting so Billing's scheduled jobs have time to fire on their own"
+   ],
+   "descriptions": [
+    "Changes the time reported by the operating system for everything running on the machine",
+    "Changes the date that Billing gets from the clock object it was handed when it was built",
+    "Changes how long the test's storage object keeps the data that it was given to hold",
+    "Changes how long the test waits before it checks the charge that comes back from upgrade"
+   ],
+   "longest": {
+    "label": false,
+    "description": true,
+    "combined": false
+   }
+  },
+  {
+   "id": "dart-async-await-errors:exception-translation:project:hard",
+   "group": "dart-async-await-errors",
+   "repeat": 0,
+   "tier": 3,
+   "focus": "project",
+   "score": 0.875,
+   "gates_failed": [],
+   "quality": {
+    "balance": 1.0,
+    "plausible": 0.6666666666666666,
+    "stem": 1.0,
+    "compact": 0.0
+   },
+   "visible_words_per_option": [
+    36,
+    36,
+    36,
+    35
+   ],
+   "correct_option": 3,
+   "visible_problem": null,
+   "failed_checks": [],
+   "judge": {
+    "answerable_why": "The question states the code's behavior (timeout rethrown as ApiException(408)) and asks why translate. Someone who understands exception translation can pick the option about decoupling callers from the transport library.",
+    "correct_why": "Option 3 states the core rationale of exception translation: callers depend on the app's own ApiException, not the HTTP library's types. One caveat is that callers would still need to catch ApiException, but the option does not claim otherwise. A swap of the HTTP library leaves their catch blocks unchanged.",
+    "distractors_why": "Option 1 is plausible for a learner who confuses the timeout with the translation. Option 4 is plausible for a learner who thinks catching means swallowing. Option 2 is implausible, because 408 is plainly the client's own error code and nothing tells the server anything.",
+    "defensible_why": "Option 1 describes the benefit of the timeout, not of translating the exception, so it does not answer the 'why translate' question. Option 2 is factually wrong. Option 4 is wrong because the code rethrows, so callers still must catch ApiException.",
+    "tier_match": "match",
+    "tier_why": "It asks the reader to judge why a design choice is made (translate versus propagate) and weigh coupling to the transport library. That is a tier 3 judgement question, and it needs no recall of syntax or failure analysis.",
+    "cold_answerable_cold_why": "The question is self-contained: it describes the method, the timeout and the rethrow as ApiException(408). Option 3 is the only one that states a real reason for translating an exception at a boundary, which is decoupling callers from the transport library. Option 1 describes the timeout, not the translation. Option 2 gets HTTP semantics wrong. Option 4 contradicts the rethrow. A developer who understands error translation can choose without seeing any code.",
+    "cold_unexplained_names": []
+   },
+   "second_judge": {
+    "key_correct": {
+     "claude": true,
+     "azure": true
+    },
+    "single_answer": {
+     "claude": true,
+     "azure": true
+    },
+    "cold_answerable": {
+     "claude": true,
+     "azure": true
+    },
+    "tier_match": {
+     "claude": true,
+     "azure": true
+    }
+   },
+   "stem": "A Dart method `fetchUser` wraps an HTTP call in a five-second timeout, and its catch block rethrows the library's TimeoutException as ApiException(408). Why translate the exception here instead of letting TimeoutException reach the callers?",
+   "options": [
+    "The five-second limit is short, so callers get a failure quickly instead of waiting on a connection that has died",
+    "It tells the server to treat the request as timed out, so the server answers the client with status 408 itself",
+    "Callers handle one ApiException type whatever went wrong, so swapping the HTTP library later would not change their catch blocks",
+    "It turns the timeout into a handled case, so the screen shows no error and callers never need to catch anything"
+   ],
+   "descriptions": [
+    "Describes how long the call may run before it is abandoned and the failure is reported",
+    "Describes the 408 code as something sent back to the server side of the connection",
+    "Describes callers depending on the app's own error type instead of the transport library's error types",
+    "Describes the failure as absorbed inside the method so nothing is thrown past it"
+   ],
+   "longest": {
+    "label": false,
+    "description": false,
+    "combined": false
+   }
+  },
+  {
+   "id": "flutter-const-widgets:stateless-vs-stateful:project:hard",
+   "group": "flutter-const-widgets",
+   "repeat": 0,
+   "tier": 3,
+   "focus": "project",
+   "score": 0.3611,
+   "gates_failed": [
+    "single_answer"
+   ],
+   "quality": {
+    "balance": 0.3333333333333333,
+    "plausible": 1.0,
+    "stem": 1.0,
+    "compact": 0.0
+   },
+   "visible_words_per_option": [
+    31,
+    32,
+    40,
+    34
+   ],
+   "correct_option": 3,
+   "visible_problem": "option 3 is 40 visible words (label plus description) against 34 for the next longest, so it stands out. Shorten it or give the others the same number of claims, without padding",
+   "failed_checks": [
+    "correct_not_conspicuous: correct option is 25 words against a next-longest 20 (margin 5, limit 3)"
+   ],
+   "judge": {
+    "answerable_why": "The code and scenario show a tile whose output depends only on the item passed in; someone who knows stateless vs stateful can pick the reason.",
+    "correct_why": "Option 3 states the core stateless property: no internal mutable state, output fully determined by inputs, and a new item triggers a rebuild. This matches the concept definition and the code.",
+    "distractors_why": "Caching and skipped rebuilds (1), memory footprint (2) and self-refreshing without a parent (4) are all common misconceptions that a competent developer could believe.",
+    "defensible_why": "Option 2 is partly defensible: stateless widgets do avoid allocating a State object, so they are marginally lighter. It is a real but minor effect, and the question asks about the right choice because of what the tile does, so most experts would still pick option 3. Options 1 and 4 are factually wrong.",
+    "tier_match": "match",
+    "tier_why": "The question asks why a design choice is appropriate for a given case, which is a tier 3 judgement. It goes beyond recall or mechanism.",
+    "cold_answerable_cold_why": "The question is self-contained and tests a general Flutter concept: a widget whose output depends only on its input and holds no mutable state should be stateless. Option 3 states this directly. Option 1 is false because Flutter does not cache stateless widgets and skip rebuilds. Option 2 gives a memory-footprint reason that is not the design rationale. Option 4 is false because a stateless widget cannot redraw itself and only rebuilds when its parent does. The options are specific enough to judge, and the text needs no outside document or project context.",
+    "cold_unexplained_names": []
+   },
+   "second_judge": {
+    "key_correct": {
+     "claude": true,
+     "azure": true
+    },
+    "single_answer": {
+     "claude": false,
+     "azure": true
+    },
+    "cold_answerable": {
+     "claude": true,
+     "azure": true
+    },
+    "tier_match": {
+     "claude": true,
+     "azure": true
+    }
+   },
+   "stem": "A Flutter tile widget shows an item's name and a fixed inbox icon, and everything it displays comes from the item passed in. Why is a stateless widget the right choice here rather than a stateful one?",
+   "options": [
+    "Stateless widgets are cached by Flutter, so the tile is built once and never rebuilt again while the list scrolls",
+    "Stateless widgets are lighter objects than stateful ones, so the tile costs less memory when a long list is shown",
+    "The tile owns nothing that changes on its own, so its output is fully set by the item and a new item just rebuilds it",
+    "A stateless widget can redraw itself when the item's name changes, without waiting for a parent widget to rebuild it"
+   ],
+   "descriptions": [
+    "Claims Flutter caches the tile and skips later builds during scrolling",
+    "Claims the choice is about the memory footprint of each widget object",
+    "Claims the displayed output depends only on the given item, with no state held inside",
+    "Claims the tile refreshes its own display independently of the widget that contains it"
+   ],
+   "longest": {
+    "label": true,
+    "description": true,
+    "combined": true
+   }
+  }
+ ],
+ "stopped_early": null,
+ "budget": {
+  "tokens": {
+   "input_total": 1822437,
+   "cache_read": 479808,
+   "output": 15053,
+   "by_kind": {
+    "generate:cache_read": 159936,
+    "generate:cache_write": 511233,
+    "generate:input": 24,
+    "generate:output": 6737,
+    "judge-audit:cache_read": 159936,
+    "judge-audit:cache_write": 414007,
+    "judge-audit:input": 24,
+    "judge-audit:output": 6113,
+    "judge-cold:cache_read": 159936,
+    "judge-cold:cache_write": 417317,
+    "judge-cold:input": 24,
+    "judge-cold:output": 2203
+   }
+  },
+  "cost_usd_list_price": 5.57,
+  "calls": {
+   "generate": 12,
+   "judge-audit": 12,
+   "judge-azure": 24,
+   "judge-cold": 12
+  },
+  "total_calls": 60,
+  "seconds_by_kind": {
+   "generate": 175.2,
+   "judge-audit": 161.8,
+   "judge-cold": 133.4
+  },
+  "errors": {},
+  "cap": 120,
+  "models": {
+   "generate": [
+    "claude-sonnet-5-5"
+   ],
+   "judge-audit": [
+    "claude-sonnet-5-5"
+   ],
+   "judge-azure": [
+    "gpt-5.5-2026-04-24"
+   ],
+   "judge-cold": [
+    "claude-sonnet-5-5"
+   ]
+  }
+ },
+ "summary": {
+  "trials": 12,
+  "all_gates_passed": 9,
+  "gate_failures": {
+   "single_answer": 3
+  },
+  "mean_score": 0.7877,
+  "mean_score_finished_only": 0.7877,
+  "mean_score_when_valid": 0.9176,
+  "longest": {
+   "label": {
+    "keyed_strictly_longest": 4,
+    "of": 12
+   },
+   "description": {
+    "keyed_strictly_longest": 6,
+    "of": 12
+   },
+   "combined": {
+    "keyed_strictly_longest": 5,
+    "of": 12
+   }
+  },
+  "generation_errors": 0,
+  "second_judge": {
+   "key_correct": {
+    "of": 12,
+    "claude_pass": 12,
+    "azure_pass": 11,
+    "agree": 11
+   },
+   "single_answer": {
+    "of": 12,
+    "claude_pass": 9,
+    "azure_pass": 12,
+    "agree": 9
+   },
+   "cold_answerable": {
+    "of": 12,
+    "claude_pass": 12,
+    "azure_pass": 11,
+    "agree": 11
+   },
+   "tier_match": {
+    "of": 12,
+    "claude_pass": 12,
+    "azure_pass": 12,
+    "agree": 12
+   }
+  }
+ }
+}

@@ -1,0 +1,24 @@
+{
+ "id": "queue-consumer-idempotency",
+ "title": "Processing order events from a queue",
+ "source": "worker/orders.ts",
+ "diff": "async function onMessage(msg: Message) {\n  const { eventId, orderId } = JSON.parse(msg.body);\n  const claimed = await db.run(\n    'INSERT INTO processed_events (event_id) VALUES (?) ON CONFLICT DO NOTHING', [eventId]);\n  if (claimed.changes === 0) return msg.ack();\n  try {\n    await markPaid(orderId);\n    msg.ack();\n  } catch (err) {\n    await db.run('DELETE FROM processed_events WHERE event_id = ?', [eventId]);\n    msg.nack({ requeue: true });\n  }\n}",
+ "concepts": [
+  {
+   "slug": "at-least-once-delivery",
+   "domain": "distributed-systems",
+   "tier": 3,
+   "description": "A queue that retries until acknowledged may deliver the same message twice, so consumers must expect duplicates.",
+   "context": "acks and requeues messages in onMessage()",
+   "prerequisite_of": []
+  },
+  {
+   "slug": "idempotent-consumer-dedup-table",
+   "domain": "data-integrity",
+   "tier": 3,
+   "description": "Recording each handled event id under a unique constraint lets a consumer skip repeats instead of repeating side effects.",
+   "context": "inserts the event id with ON CONFLICT DO NOTHING before marking the order paid",
+   "prerequisite_of": []
+  }
+ ]
+}
