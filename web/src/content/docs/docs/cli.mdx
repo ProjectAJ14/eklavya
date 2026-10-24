@@ -82,7 +82,7 @@ eklavya memory status
 eklavya memory export ~/eklavya-memory-backup.json
 ```
 
-`eklavya memory status` starts with a `health:` line, `ok`, `warn` or `stalled`, followed by one line per reason. `eklavya doctor` shows the same verdict and exits nonzero when it is `stalled`. The checks are listed under [the memory health verdict](/docs/memory/#the-memory-health-verdict).
+`eklavya memory status` starts with a `health:` line, `ok`, `warn` or `stalled`, followed by one line per reason. When a summary job has failed permanently, a `last fail:` line gives the newest one's time, project and cause, for example `last fail:  2026-10-21T09:12:45.728Z · /Users/you/work/api · claude -p timed out or crashed`. `eklavya doctor` shows the same verdict and exits nonzero when it is `stalled`. The checks are listed under [the memory health verdict](/docs/memory/#the-memory-health-verdict).
 
 A memory export contains entries, tags, evidence and its links, and reuse receipts. **It is not a backup of quiz history or a full database rollback.** Restore is additive: it does not remove existing entries or undo later edits. For a complete backup, see [Your data](/docs/your-data/#backups-of-your-own-files). A restore from an unsupported newer format stops with a version error.
 

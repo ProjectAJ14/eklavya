@@ -211,6 +211,16 @@ describe('memory health verdict', () => {
     expect(memoryHealth(db, { now: NOW }).line).toMatch(/2 jobs failed this week \(claude not found on PATH\)/);
   });
 
+  it('names a timeout and a bad summary, and keeps the newest failure with its project', () => {
+    expect(memoryHealth(db, { now: NOW }).facts.last_failure).toBeNull();
+    job('failed', { cls: 'malformed', error: 'the provider output failed validation', hoursAgo: 5 });
+    expect(memoryHealth(db, { now: NOW }).facts.cause).toBe('summary failed validation');
+    job('failed', { cls: 'transient', error: 'claude -p did not finish in 100s', hoursAgo: 2 });
+    const h = memoryHealth(db, { now: NOW });
+    expect(h.line).toMatch(/^Memory · 2 jobs failed this week \(claude -p timed out or crashed\)/);
+    expect(h.facts.last_failure).toEqual({ at: ago(2), project: PROJECT, cause: 'claude -p timed out or crashed' });
+  });
+
   it('reports a pending queue by age', () => {
     job('pending', { hoursAgo: 7 });
     expect(memoryHealth(db, { now: NOW }).line).toMatch(/^Memory behind · 1 job waiting, oldest 7h · run: eklavya doctor$/);
