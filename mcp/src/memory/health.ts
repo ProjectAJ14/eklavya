@@ -38,6 +38,8 @@ export interface HealthFacts {
   queue: { pending: number; paused: number; failed: number; quarantined: number; oldest: string | null };
   /** Why the newest paused or failed job stopped, as a fixed label. */
   cause: string | null;
+  /** The newest permanently failed job: when, whose batch, and why. */
+  last_failure: { at: string; project: string; cause: string } | null;
   spool: { bytes: number; files: number; dropped: number };
   sessions_checked: number;
   recall_delivered: number;
@@ -74,10 +76,15 @@ const MIN_RECALLS = 3;
 /** Fewer answerable Reads than this is too little to say file context should have fired. */
 const MIN_FILE_READS = 10;
 
-const PAUSE_CAUSE: Record<string, string> = {
+// The first three pause the queue; the rest fail a job. Anything unlisted is
+// the provider's own refusal.
+const CAUSE: Record<string, string> = {
   auth: 'claude not logged in',
   quota: 'usage limit reached',
   missing: 'claude not found on PATH',
+  transient: 'claude -p timed out or crashed',
+  overflow: 'batch too large for the model',
+  malformed: 'summary failed validation',
 };
 
 /** Never throws: a half-built database still has to report. */
@@ -95,8 +102,8 @@ function safely<T>(fn: () => T, fallback: T): T {
  * provider prose that has carried a URL with a token in it.
  */
 function causeOf(errorClass: string | null, lastError: string | null): string {
-  if (errorClass === 'auth' || /not logged in|please run \/login|\/login/i.test(lastError ?? '')) return PAUSE_CAUSE.auth!;
-  return PAUSE_CAUSE[errorClass ?? ''] ?? 'provider failing';
+  if (errorClass === 'auth' || /not logged in|please run \/login|\/login/i.test(lastError ?? '')) return CAUSE.auth!;
+  return CAUSE[errorClass ?? ''] ?? 'provider failing';
 }
 
 function shortDate(iso: string): string {
@@ -162,6 +169,12 @@ export function memoryHealth(db: DB, opts: { project?: string | null; now?: numb
      WHERE status IN ('paused', 'failed') ORDER BY (status = 'paused') DESC, updated_at DESC LIMIT 1`,
   );
   const cause = stuck ? causeOf(stuck.error_class, stuck.last_error) : null;
+  const failed = one<{ error_class: string | null; last_error: string | null; at: string; project: string }>(
+    `SELECT j.error_class, j.last_error, j.updated_at AS at, b.project FROM memory_jobs j
+     JOIN memory_batches b ON b.id = j.batch_id
+     WHERE j.status = 'failed' ORDER BY j.updated_at DESC LIMIT 1`,
+  );
+  const lastFailure = failed ? { at: failed.at, project: failed.project, cause: causeOf(failed.error_class, failed.last_error) } : null;
   const pausedSince = one<{ since: string | null }>(
     "SELECT MIN(updated_at) AS since FROM memory_jobs WHERE status = 'paused'",
   )?.since ?? null;
@@ -284,6 +297,7 @@ export function memoryHealth(db: DB, opts: { project?: string | null; now?: numb
       behind_since: behindSince,
       queue,
       cause,
+      last_failure: lastFailure,
       spool: { bytes: spool.bytes, files: spool.files, dropped },
       sessions_checked: sessions.length,
       recall_delivered: recallDelivered,

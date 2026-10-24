@@ -371,7 +371,10 @@ describe('eklavya doctor reports the memory half', () => {
     db.close();
     const res = eklavya(['doctor']);
     expect(res.stdout).toMatch(/health warn/);
-    expect(eklavya(['memory', 'status']).stdout).toMatch(/^health:\s+warn/m);
+    const status = eklavya(['memory', 'status']).stdout;
+    expect(status).toMatch(/^health:\s+warn/m);
+    expect(status).toContain(`· ${repo} · provider failing`);
+    expect(status).toMatch(/^last fail:\s+\d{4}-/m);
   });
 
   it('fails on dropped events and points at the only remaining copy', () => {
