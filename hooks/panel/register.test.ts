@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
 import Card from './card'
-import { BRAND, DEMO_QUESTION, DEMO_RIGHT, demoResult, EMPTY, EXPLAINER, NEXT_PROMPT, STR, hintLines, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK, PICKED, TEACH, LOGO_GRID, codify, headingParagraphs, logoRows, boxRows, plainLabel } from './model'
+import { BRAND, DEMO_PNG, demoSvg, demoSvgWithPng, DEMO_QUESTION, DEMO_RIGHT, demoResult, EMPTY, EXPLAINER, NEXT_PROMPT, STR, hintLines, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK, PICKED, TEACH, LOGO_GRID, codify, headingParagraphs, logoRows, boxRows, plainLabel } from './model'
 
 const PLUGIN = 'eklavya'
 const PANE = 'eklavya-quiz'
@@ -1275,6 +1275,19 @@ describe('the mock question (/eklavya-panel-demo)', () => {
     expect(JSON.stringify(await desktop.drawn())).not.toContain('card.tsx')
   })
 
+  test('picking a second, third and fourth card in a row moves the pick each time, and the time in the mod is shown', async ($, on) => {
+    world(on)
+    await boot($)
+    await demo($)
+    const pane = await mount($, 'desktop')
+    await press($, 'style-client', 'desktop')
+    for (const id of ['o1', 'o2', 'o3', 'o4']) {
+      await pane.post({ pick: id }, { in: `card-${id}` } as any)
+      expect(chosenCards(await pane.drawn())).toBe(1)
+      expect(JSON.stringify(await pane.drawn())).toMatch(new RegExp(`${id} picked \\(whole card, \\d+ ms in the mod\\)`))
+    }
+  })
+
   test('a press anywhere on a whole card picks it; a bad id, a locked card and another pane change nothing', async ($, on) => {
     world(on)
     await boot($)
@@ -1284,7 +1297,7 @@ describe('the mock question (/eklavya-panel-demo)', () => {
     await pane.pointer({ type: 'enter', x: 1, y: 1, in: 'card-o2' } as any)
     await pane.pointer({ type: 'up', x: 1, y: 1, button: 'left', in: 'card-o2' } as any)
     expect(chosenCards(await pane.drawn())).toBe(1)
-    expect(JSON.stringify(await pane.drawn())).toContain('o2 picked (whole card)')
+    expect(JSON.stringify(await pane.drawn())).toMatch(/o2 picked \(whole card, \d+ ms in the mod\)/)
     await pane.pointer({ type: 'leave', x: 1, y: 1, in: 'card-o2' } as any)
     await pane.post({ pick: 'zzz' }, { in: 'card-o2' } as any)
     await pane.post({ pick: 7 }, { in: 'card-o2' } as any)
@@ -1391,5 +1404,71 @@ describe('the mock question: lifecycle and the whole-card module', () => {
     expect(tree.props).toMatchObject({ borderStyle: 'bold', borderColor: props.brand, backgroundColor: props.fill })
     expect(tree.props.children[0].props).toMatchObject({ bold: true, color: props.text })
     expect(tree.props.children[1].props).toMatchObject({ dimColor: false, color: props.noteText })
+  })
+})
+
+describe('the demo picture test under Teach me', () => {
+  const demo = ($: any) => $.command.run({ command: 'eklavya-panel-demo', args: '' } as any)
+  const types = (tree: unknown) => [...(typeof tree === 'string' ? tree : JSON.stringify(tree)).matchAll(/"type":"(Svg|Image)"/g)].map(m => m[1])
+
+  test('the terminal draws the PNG as an Image and no Svg, below Teach me', async ($, on) => {
+    world(on)
+    await boot($)
+    await demo($)
+    const drawn = JSON.stringify(await (await mount($, 'terminal')).drawn())
+    expect(types(drawn)).toEqual(['Image'])
+    expect(drawn).toContain(DEMO_PNG)
+    expect(drawn).toContain(STR.experimentBanner)
+    expect(drawn.indexOf('"key":"teach"')).toBeLessThan(drawn.indexOf(STR.experimentBanner))
+    expect(drawn.indexOf(STR.experimentBanner)).toBeLessThan(drawn.indexOf('"type":"Image"'))
+  })
+
+  test('the desktop draws the vector and the PNG-in-SVG as two Svg and no Image, below Teach me', async ($, on) => {
+    world(on)
+    await boot($)
+    await demo($)
+    const drawn = JSON.stringify(await (await mount($, 'desktop')).drawn())
+    expect(types(drawn)).toEqual(['Svg', 'Svg'])
+    expect(drawn).toContain(STR.experimentBanner)
+    expect(drawn).toContain(JSON.stringify(STR.experimentImageAlt))
+    expect(drawn.indexOf('"key":"teach"')).toBeLessThan(drawn.indexOf(STR.experimentBanner))
+    expect(drawn.indexOf(STR.experimentBanner)).toBeLessThan(drawn.indexOf('"type":"Svg"'))
+  })
+
+  test('a real question never carries the experiment, on either surface', async ($, on) => {
+    world(on)
+    await boot($)
+    for (const surface of SURFACES) {
+      const drawn = JSON.stringify(await (await mount($, surface)).drawn())
+      expect(types(drawn)).toEqual([])
+      expect(drawn).not.toContain(STR.experimentBanner)
+    }
+  })
+
+  test('the picture is gone once the demo is answered, and the style switch keeps it', async ($, on) => {
+    world(on)
+    await boot($)
+    await demo($)
+    const pane = await mount($, 'desktop')
+    await press($, 'style-client', 'desktop')
+    expect(types(await pane.drawn())).toEqual(['Svg', 'Svg'])
+    await press($, 'opt-other', 'desktop')
+    await press($, 'skip', 'desktop')
+    expect(types(await pane.drawn())).toEqual([])
+  })
+
+  test('the assets are what the host accepts: a PNG of the mark, and plain SVG with no script', () => {
+    expect(DEMO_PNG.startsWith('iVBORw0KGgo')).toBe(true)
+    const bytes = Uint8Array.from(atob(DEMO_PNG), c => c.charCodeAt(0))
+    const dim = (at: number) => (bytes[at]! << 24) | (bytes[at + 1]! << 16) | (bytes[at + 2]! << 8) | bytes[at + 3]!
+    expect([dim(16), dim(20)]).toEqual([208, 96])
+    const svg = demoSvg()
+    expect(svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26 12"')).toBe(true)
+    expect((svg.match(/<rect /g) ?? []).length).toBeGreaterThan(10)
+    expect(svg).toContain('#D97757')
+    expect(svg).not.toMatch(/<script|on\w+=/i)
+    const wrapped = demoSvgWithPng()
+    expect(wrapped).toContain(`href="data:image/png;base64,${DEMO_PNG}"`)
+    expect(wrapped.length).toBeLessThan(131072)
   })
 })

@@ -3,6 +3,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import {
   BRAND,
+  DEMO_PNG,
   PICKED,
   TEACH,
   EMPTY,
@@ -17,6 +18,8 @@ import {
   answerWas,
   demoLast,
   demoResult,
+  demoSvg,
+  demoSvgWithPng,
   explainerBrief,
   codify,
   gradingRequest,
@@ -414,9 +417,10 @@ export const register: Register = on => {
   on('ui.message', { component: 'Pane' }, async ($, e, next) => {
     if (e.requestId === PANE) {
       try {
+        const started = Date.now()
         const id = (e.data as { pick?: unknown } | null)?.pick
         const s: PanelState = (await $.state.get(REF)).value ?? EMPTY
-        if (typeof id === 'string' && s.question?.options.some(o => o.id === id)) await pick($, id, 'whole card')
+        if (typeof id === 'string' && s.question?.options.some(o => o.id === id)) await pick($, id, 'whole card', started)
       } catch {
         /* Fail open: the card stays as it was. */
       }
@@ -438,7 +442,7 @@ export const register: Register = on => {
   on('ui.render', { component: 'Pane', requestId: 'eklavya-quiz' }, async ($, e, next) => {
     // Only our pane: every other pane, and everything else, is the host's.
     if (e.requestId !== PANE) return next(e)
-    const { Box, Text, Button, Input, Markdown, Client } = $.ui.resolve(e) as any
+    const { Box, Text, Button, Input, Markdown, Client, Svg, Image } = $.ui.resolve(e) as any
     const s: PanelState = await read($, quiz)
     const q = s.question
 
@@ -619,6 +623,31 @@ export const register: Register = on => {
       )
     })
 
+    // The demo's picture test, under Teach me. The terminal has Image and no Svg; every other surface has Svg and no Image
+    // (a tree with an element its surface lacks is replaced whole by the host's own pane, so each surface gets only its own).
+    const experiment = s.demo ? (
+      <Box key="experiment" flexDirection="column" gap={1} borderStyle="dashed" borderColor="warning" paddingX={1} paddingY={app ? 1 : 0}>
+        <Text color="warning" bold>
+          {STR.experimentBanner}
+        </Text>
+        {app ? (
+          <Box flexDirection="column" gap={1}>
+            <Text dimColor>{STR.experimentSvg}</Text>
+            <Svg alt={STR.experimentImageAlt} width={208} height={96} source={demoSvg()} />
+            <Text dimColor>{STR.experimentSvgPng}</Text>
+            <Svg alt={STR.experimentImageAlt} width={208} height={96} source={demoSvgWithPng()} />
+          </Box>
+        ) : (
+          <Box flexDirection="column">
+            <Text dimColor wrap="wrap">
+              {STR.experimentTerminal}
+            </Text>
+            <Image key="experiment-image" source={{ png: DEMO_PNG }} columns={26} rows={6} alt={STR.experimentImageAlt} />
+          </Box>
+        )}
+      </Box>
+    ) : null
+
     return frame(
       stem,
       <Box flexDirection="column" gap={app ? 2 : 0} marginTop={app ? 1 : 0}>
@@ -673,6 +702,7 @@ export const register: Register = on => {
           </Button>
         </Box>
       ),
+      experiment,
     )
   })
 }
@@ -683,12 +713,14 @@ async function setStyle($: EngineInterface, style: 'button' | 'client'): Promise
 }
 
 /** Selecting an option records a draft and nothing else: it never submits, grades or skips. */
-async function pick($: EngineInterface, id: string, via = 'button'): Promise<void> {
+async function pick($: EngineInterface, id: string, via = 'button', since?: number): Promise<void> {
   await update($, quiz, (s: PanelState) =>
     s.step === 'awaiting' || s.step === 'error'
-      ? { ...s, draft: { ...s.draft, picked: id, other: false }, message: null, ...(s.demo ? { demo: { ...s.demo, last: demoLast(`${id} picked (${via})`) } } : {}) }
+      ? { ...s, draft: { ...s.draft, picked: id, other: false }, message: null, ...(s.demo ? { demo: { ...s.demo, last: demoLast(`${id} picked (${via}${since === undefined ? '' : `, ${Date.now() - since} ms in the mod`})`) } } : {}) }
       : s,
   )
+  // A whole card has no Button to focus, so asking the host to find `opt-…` would only make the pick wait.
+  if (via !== 'button') return
   try {
     // The host's focus mark follows the pick, so the highlighted answer is the chosen one even after a hotkey.
     await $.ui.focus({ requestId: PANE, key: `opt-${id}` })

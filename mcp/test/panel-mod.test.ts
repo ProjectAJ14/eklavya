@@ -43,6 +43,8 @@ describe('the panel mod keeps its copies in step with their sources', () => {
     expect(register).toContain("command: 'eklavya-panel-demo'");
     // The whole-card module is a literal path next to the register file, and ships with it.
     expect(register).toContain('module="./card.tsx"');
+    // A whole card has no Button, so its pick must not ask the host to focus `opt-…`: the host would make the pick wait for it.
+    expect(register).toContain("if (via !== 'button') return");
     expect(model).toContain("export const PANE = 'eklavya-quiz'");
     // The validator needs the matcher's id as a literal, so the one place it is spelled twice is pinned.
     expect(register).toContain("requestId: 'eklavya-quiz'");
