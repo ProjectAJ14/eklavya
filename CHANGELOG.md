@@ -1,3 +1,10 @@
+# [1.88.0](https://github.com/ProjectAJ14/eklavya/compare/v1.87.0...v1.88.0) (2026-10-25)
+
+
+### Features
+
+* **panel:** add a picture test to the demo panel and fix the whole-card pick delay ([#251](https://github.com/ProjectAJ14/eklavya/issues/251)) ([f7c7e1a](https://github.com/ProjectAJ14/eklavya/commit/f7c7e1ad63799a6bb26208f231f9253d2d5f5d21))
+
 # [1.87.0](https://github.com/ProjectAJ14/eklavya/compare/v1.86.0...v1.87.0) (2026-10-25)
 
 
