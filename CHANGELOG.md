@@ -1,3 +1,10 @@
+## [1.85.2](https://github.com/ProjectAJ14/eklavya/compare/v1.85.1...v1.85.2) (2026-10-25)
+
+
+### Bug Fixes
+
+* **memory:** stop warning about a failed job once a later one finishes ([#248](https://github.com/ProjectAJ14/eklavya/issues/248)) ([820da52](https://github.com/ProjectAJ14/eklavya/commit/820da522086c036ef3344e65135be17455e77cd8))
+
 ## [1.85.1](https://github.com/ProjectAJ14/eklavya/compare/v1.85.0...v1.85.1) (2026-10-25)
 
 
