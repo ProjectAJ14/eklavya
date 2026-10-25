@@ -1,3 +1,10 @@
+# [1.86.0](https://github.com/ProjectAJ14/eklavya/compare/v1.85.2...v1.86.0) (2026-10-25)
+
+
+### Features
+
+* **panel:** add /eklavya-panel-demo and a whole-card answer style to try on Desktop ([#249](https://github.com/ProjectAJ14/eklavya/issues/249)) ([ce5c53e](https://github.com/ProjectAJ14/eklavya/commit/ce5c53ef1c74246986e1e157acaf17b5d2f0eba5))
+
 ## [1.85.2](https://github.com/ProjectAJ14/eklavya/compare/v1.85.1...v1.85.2) (2026-10-25)
 
 
