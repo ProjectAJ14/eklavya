@@ -1,3 +1,10 @@
+## [1.85.1](https://github.com/ProjectAJ14/eklavya/compare/v1.85.0...v1.85.1) (2026-10-25)
+
+
+### Bug Fixes
+
+* **memory:** name the real cause of a failed summary job ([#247](https://github.com/ProjectAJ14/eklavya/issues/247)) ([b2f6812](https://github.com/ProjectAJ14/eklavya/commit/b2f68127c1ef0b9811c302735c1c3c2c5313a0bd))
+
 # [1.85.0](https://github.com/ProjectAJ14/eklavya/compare/v1.84.1...v1.85.0) (2026-10-23)
 
 
