@@ -221,6 +221,16 @@ describe('memory health verdict', () => {
     expect(h.facts.last_failure).toEqual({ at: ago(2), project: PROJECT, cause: 'claude -p timed out or crashed' });
   });
 
+  it('stops warning once a later job finishes, and counts only failures after it', () => {
+    job('failed', { cls: 'transient', hoursAgo: 5 });
+    job('done', { hoursAgo: 3 });
+    const h = memoryHealth(db, { now: NOW });
+    expect(h.verdict).toBe('ok');
+    expect(h.facts.last_failure?.cause).toBe('claude -p timed out or crashed');
+    job('failed', { cls: 'transient', hoursAgo: 1 });
+    expect(memoryHealth(db, { now: NOW }).line).toMatch(/^Memory · 1 job failed this week \(claude -p timed out or crashed\)/);
+  });
+
   it('reports a pending queue by age', () => {
     job('pending', { hoursAgo: 7 });
     expect(memoryHealth(db, { now: NOW }).line).toMatch(/^Memory behind · 1 job waiting, oldest 7h · run: eklavya doctor$/);

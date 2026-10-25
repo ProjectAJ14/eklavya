@@ -178,9 +178,11 @@ export function memoryHealth(db: DB, opts: { project?: string | null; now?: numb
   const pausedSince = one<{ since: string | null }>(
     "SELECT MIN(updated_at) AS since FROM memory_jobs WHERE status = 'paused'",
   )?.since ?? null;
+  // A failure followed by a finished job has recovered: count only the ones since.
   const failedRecent =
     one<{ n: number }>(
-      "SELECT COUNT(*) AS n FROM memory_jobs WHERE status = 'failed' AND julianday(updated_at) > julianday(?)",
+      `SELECT COUNT(*) AS n FROM memory_jobs WHERE status = 'failed' AND julianday(updated_at) > MAX(
+         julianday(?), COALESCE((SELECT MAX(julianday(updated_at)) FROM memory_jobs WHERE status = 'done'), 0))`,
       new Date(now - FAILED_RECENT_MS).toISOString(),
     )?.n ?? 0;
 
