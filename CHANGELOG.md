@@ -1,3 +1,10 @@
+# [1.89.0](https://github.com/ProjectAJ14/eklavya/compare/v1.88.0...v1.89.0) (2026-10-25)
+
+
+### Features
+
+* **panel:** Desktop polish: whole-card answers, numbers, compact Teach me, three-line Other, mascot header ([#252](https://github.com/ProjectAJ14/eklavya/issues/252)) ([8e94ceb](https://github.com/ProjectAJ14/eklavya/commit/8e94cebf41c24eb81cba5c436bc4d6fbd176bc6a))
+
 # [1.88.0](https://github.com/ProjectAJ14/eklavya/compare/v1.87.0...v1.88.0) (2026-10-25)
 
 
