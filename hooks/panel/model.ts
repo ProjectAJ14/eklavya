@@ -171,6 +171,11 @@ export const STR = {
   demoStyleClient: 'Whole card',
   demoExplanation: 'A rename inside one folder is atomic: the poller sees the finished file or none, never half of it. (This is a mock, so it was not recorded.)',
   demoTyped: 'Typed answers are not graded in the demo. (Nothing was sent or recorded.)',
+  experimentBanner: 'EXPERIMENT · picture test. Nothing here is part of a real question.',
+  experimentTerminal: 'Image: a PNG, drawn as a picture in kitty, Ghostty and iTerm2 (fullscreen); other terminals show the dim text instead. SVG is not drawn in the terminal.',
+  experimentImageAlt: 'The Eklavya mark: the Claude mascot holding a bow and arrow',
+  experimentSvg: 'SVG: the mark drawn as vector rectangles.',
+  experimentSvgPng: 'Image: the same mark as a PNG inside an SVG (Desktop has no Image element).',
 } as const
 
 /** The explainer agent the panel starts itself, so no prompt lands in the transcript. */
@@ -240,6 +245,29 @@ export function demoResult(kind: 'choice' | 'text' | 'skip' | 'dont_know', optio
   const correct = kind === 'choice' && optionId === DEMO_RIGHT
   return { phase: 'answered', attempt_id: 0, correct, correct_label: right, explanation: kind === 'text' ? STR.demoTyped : STR.demoExplanation }
 }
+
+/** The logo as a PNG (208 by 96, one grid cell is 8 pixels), for the demo's picture test: the mod has no filesystem. */
+export const DEMO_PNG =
+  'iVBORw0KGgoAAAANSUhEUgAAANAAAABgCAYAAABsbvwBAAABcElEQVR42u3dwQ2DMBBFQXdJKdRKNaYDDqDFu+t50j8mUpDnZCUZQ3pofswTFEAASQBJAEkASQABJAEkASTlBJL9/SWAJIAAEkAASQBJAEkAASSAAJJyHnDABBBAAgggCSAJIIAEEEACCCAJoLpd5zFt3aof4O2BOcQAAQQQQAABBBBAABlAABlAAAEEEEAAAQRQY0Ddga5+ftUPaHtgAAEEEEAAAQQQQAABBBBAAAEEEEAAAQQQQAAB5CLUXk7BfyDmkAEkgAwggAwggAwggAwgAWQEAGQAJQbkHskX6lykuogFCCCADCCADCCAAAIIIIAAAgggAwggAwigCGDRr9/98/lhRYAAAggggAACCCCAAHLAAAIIIIAAAggggAACCCCA1LPVBxQQAQSQAAJIAkgCCCABBJAAAkgCSKp5gAERQABJAEkASQABJIAAkgCSAJJqAgNEAkgCSAJIAgggCSAJIAkgSZIkSZIkSZIk6dduN5j9QcRn8BgAAAAASUVORK5CYII='
+
+/** The logo as SVG, one rect per run of a colour, so the demo can test a vector picture without an asset file. */
+export function demoSvg(): string {
+  const rects = boxRows()
+    .flatMap((runs, y) => {
+      let x = 0
+      return runs.map(run => {
+        const at = x
+        x += run.width
+        return run.color ? `<rect x="${at}" y="${y}" width="${run.width}" height="1" fill="${run.color}"/>` : ''
+      })
+    })
+    .join('')
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${LOGO_GRID[0]!.length} ${LOGO_GRID.length}" shape-rendering="crispEdges">${rects}</svg>`
+}
+
+/** The same picture as a PNG inside an SVG: Desktop has no Image element, so this is how a raster is tried there. */
+export const demoSvgWithPng = (): string =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 208 96"><image href="data:image/png;base64,${DEMO_PNG}" width="208" height="96"/></svg>`
 
 /** The tester's line of what was just clicked, and how the click arrived. */
 export const demoLast = (what: string): string => `Last click: ${what}`
