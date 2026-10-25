@@ -13,7 +13,10 @@ import {
   STR,
   WORDMARK,
   CLOSE_MS,
+  DEMO_QUESTION,
   answerWas,
+  demoLast,
+  demoResult,
   explainerBrief,
   codify,
   gradingRequest,
@@ -30,6 +33,7 @@ import {
   hintLines,
 } from './model'
 import type { PanelPending, PanelQuestion, PanelState } from './types'
+import type { CardProps } from './card'
 
 /**
  * The Eklavya quiz panel: a pane that shows the question the tutor model handed
@@ -168,7 +172,22 @@ async function sync($: EngineInterface): Promise<'disabled' | 'none' | 'question
 /** A throttled sync for busy events: the heartbeat, and the way a question presented elsewhere finds its pane. */
 async function beat($: EngineInterface): Promise<void> {
   if (Date.now() - lastSyncAt < HEARTBEAT_MS) return
+  // A mock question is not in the database: a sync would find nothing waiting and clear it.
+  if (await inDemo($)) return
   await sync($)
+}
+
+async function inDemo($: EngineInterface): Promise<boolean> {
+  const s: PanelState = (await $.state.get(REF)).value ?? EMPTY
+  return s.demo !== undefined
+}
+
+/** The mock question, drawn with the given answer-card style. Opened from the person's own command, so at any width. */
+async function startDemo($: EngineInterface, style: 'button' | 'client'): Promise<void> {
+  disarm()
+  openedFor = null
+  await update($, quiz, () => ({ ...EMPTY, step: 'awaiting', question: DEMO_QUESTION, demo: { style, last: STR.demoReady } }))
+  await $.ui.open({ id: PANE, title: STR.brand, closeOnEscape: true })
 }
 
 /** Says what went wrong, in words, and keeps whatever the learner had written. */
@@ -201,6 +220,21 @@ async function submit($: EngineInterface, wanted: PanelPending | null): Promise<
       } else if (!state.draft.picked) {
         return
       }
+    }
+
+    // The mock question is answered here: nothing is sent, graded by the server or recorded.
+    if (state.demo) {
+      const kind = pending ? pending.kind : state.draft.other ? 'text' : 'choice'
+      const result = demoResult(kind, pending ? null : state.draft.picked)
+      await update($, quiz, (s: PanelState) => ({
+        ...s,
+        step: result.phase === 'skipped' ? 'skipped' : 'feedback',
+        result,
+        pending: null,
+        message: null,
+        demo: s.demo && { ...s.demo, last: demoLast(`${kind} answer submitted`) },
+      }))
+      return
     }
 
     await update($, quiz, (s: PanelState) => ({ ...s, step: 'grading', message: null }))
@@ -285,6 +319,11 @@ export const register: Register = on => {
       /* Without the command the pane still opens by itself; only reopening is lost. */
     }
     try {
+      await $.command.register({ name: 'eklavya-panel-demo', description: 'Open the Eklavya quiz panel with a mock question, to try its clicks' })
+    } catch {
+      /* Only the test shortcut is lost. */
+    }
+    try {
       await sync($)
     } catch {
       /* Fail open: the question stays in the database for the next sync. */
@@ -348,6 +387,8 @@ export const register: Register = on => {
   on('command.run', { command: 'eklavya-panel' }, async $ => {
     try {
       openedFor = null
+      // A mock question on screen gives way to the real state.
+      if (await inDemo($)) await update($, quiz, () => EMPTY)
       // The person typed this, so the pane is seated at any width. Off is inert:
       // the server says so and nothing is opened.
       const found = await sync($)
@@ -357,6 +398,30 @@ export const register: Register = on => {
     } catch {
       return { text: `The Eklavya quiz panel could not open. Try ${REOPEN} again.` }
     }
+  })
+
+  // The mock question: opens at once, answered on this machine, so a card or a click can be tried with no real question waiting.
+  on('command.run', { command: 'eklavya-panel-demo' }, async $ => {
+    try {
+      await startDemo($, 'button')
+      return { text: STR.demoOpened }
+    } catch {
+      return { text: STR.demoFailed }
+    }
+  })
+
+  // A press on a whole-card `Client` (card.tsx) arrives here as data, never as a fact: only an id of the open question counts.
+  on('ui.message', { component: 'Pane' }, async ($, e, next) => {
+    if (e.requestId === PANE) {
+      try {
+        const id = (e.data as { pick?: unknown } | null)?.pick
+        const s: PanelState = (await $.state.get(REF)).value ?? EMPTY
+        if (typeof id === 'string' && s.question?.options.some(o => o.id === id)) await pick($, id, 'whole card')
+      } catch {
+        /* Fail open: the card stays as it was. */
+      }
+    }
+    return next(e)
   })
 
   // The mod's queued prompts are instructions for the model, not words for the
@@ -373,7 +438,7 @@ export const register: Register = on => {
   on('ui.render', { component: 'Pane', requestId: 'eklavya-quiz' }, async ($, e, next) => {
     // Only our pane: every other pane, and everything else, is the host's.
     if (e.requestId !== PANE) return next(e)
-    const { Box, Text, Button, Input, Markdown } = $.ui.resolve(e) as any
+    const { Box, Text, Button, Input, Markdown, Client } = $.ui.resolve(e) as any
     const s: PanelState = await read($, quiz)
     const q = s.question
 
@@ -454,9 +519,24 @@ export const register: Register = on => {
         {body}
       </Box>
     )
+    // The mock question's tester bar: what it is, the last click, and (desktop only) how the answer cards are drawn.
+    const demoBar = s.demo ? (
+      <Box key="demo-bar" flexDirection="column" gap={app ? 1 : 0}>
+        <Text color="warning">{STR.demoBanner}</Text>
+        <Text dimColor>{s.demo.last}</Text>
+        {app ? (
+          <Box flexDirection="row" gap={2} alignItems="center">
+            <Text dimColor>{STR.demoStyleLabel}</Text>
+            <Button key="style-button" label={STR.demoStyleButton} variant={s.demo.style === 'button' ? 'primary' : 'secondary'} onPress={() => setStyle($, 'button')} />
+            <Button key="style-client" label={STR.demoStyleClient} variant={s.demo.style === 'client' ? 'primary' : 'secondary'} onPress={() => setStyle($, 'client')} />
+          </Box>
+        ) : null}
+      </Box>
+    ) : null
     const frame = (...body: unknown[]) => (
       <Box flexDirection="column" paddingX={1} gap={1}>
         {head(q ? topicLabel(q) : undefined)}
+        {demoBar}
         {body}
         {hint}
       </Box>
@@ -520,8 +600,14 @@ export const register: Register = on => {
         {note && !app ? <Text wrap="wrap" dimColor={!chosen} color={chosen ? PICKED.note : undefined}>{`\n   ${note}`}</Text> : null}
       </Button>
     )
+    const wholeCard = app && s.demo?.style === 'client'
     const options = q.options.map((o, i) => {
       const chosen = !s.draft.other && s.draft.picked === o.id
+      // The whole card is one pressable region, so a click on its padding or note picks too (card.tsx).
+      if (wholeCard) {
+        const props: CardProps = { id: o.id, label: plainLabel(o.label), note: o.note ? plainLabel(o.note) : '', chosen, locked, brand: BRAND, fill: PICKED.bg, text: PICKED.text, noteText: PICKED.note }
+        return <Client key={`card-${o.id}`} module="./card.tsx" width="100%" props={props} />
+      }
       return card(
         o.id,
         chosen,
@@ -591,9 +677,18 @@ export const register: Register = on => {
   })
 }
 
+/** The demo's switch between the two ways of drawing an answer card on the desktop. */
+async function setStyle($: EngineInterface, style: 'button' | 'client'): Promise<void> {
+  await update($, quiz, (s: PanelState) => (s.demo ? { ...s, demo: { ...s.demo, style, last: demoLast(`card style set to ${style}`) } } : s))
+}
+
 /** Selecting an option records a draft and nothing else: it never submits, grades or skips. */
-async function pick($: EngineInterface, id: string): Promise<void> {
-  await update($, quiz, (s: PanelState) => (s.step === 'awaiting' || s.step === 'error' ? { ...s, draft: { ...s.draft, picked: id, other: false }, message: null } : s))
+async function pick($: EngineInterface, id: string, via = 'button'): Promise<void> {
+  await update($, quiz, (s: PanelState) =>
+    s.step === 'awaiting' || s.step === 'error'
+      ? { ...s, draft: { ...s.draft, picked: id, other: false }, message: null, ...(s.demo ? { demo: { ...s.demo, last: demoLast(`${id} picked (${via})`) } } : {}) }
+      : s,
+  )
   try {
     // The host's focus mark follows the pick, so the highlighted answer is the chosen one even after a hotkey.
     await $.ui.focus({ requestId: PANE, key: `opt-${id}` })
@@ -675,6 +770,9 @@ async function askNext($: EngineInterface): Promise<void> {
   disarm()
   try {
     openedFor = null
+    const now: PanelState = (await $.state.get(REF)).value ?? EMPTY
+    // Next in the demo starts the mock again: it must not ask the model for a real question.
+    if (now.demo) return await startDemo($, now.demo.style)
     await update($, quiz, () => ({ ...EMPTY, step: 'loading' }))
     await $.prompt.submit({ text: NEXT_PROMPT })
   } catch {

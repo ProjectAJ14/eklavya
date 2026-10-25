@@ -1,4 +1,4 @@
-import type { PanelQuestion, PanelState } from './types'
+import type { PanelQuestion, PanelResult, PanelState } from './types'
 
 /** The pane's id, as `$.ui.open` and the `ui.render` hook both name it. */
 export const PANE = 'eklavya-quiz'
@@ -162,6 +162,15 @@ export const STR = {
   focus: 'Ctrl+X then Tab moves the keys here.',
   keys: '1–4 pick · o other · s submit · k skip · t teach me · Esc back to prompt',
   off: 'The quiz panel is off. Turn it on with: eklavya config set quiz.panel true',
+  demoBanner: 'DEMO · a mock question. Nothing here is graded by the server or recorded.',
+  demoReady: 'Last click: none yet',
+  demoOpened: 'Eklavya quiz panel opened with a mock question. Nothing you answer is recorded.',
+  demoFailed: 'The demo panel could not open. Try /eklavya-panel-demo again.',
+  demoStyleLabel: 'Answer cards:',
+  demoStyleButton: 'Native button',
+  demoStyleClient: 'Whole card',
+  demoExplanation: 'A rename inside one folder is atomic: the poller sees the finished file or none, never half of it. (This is a mock, so it was not recorded.)',
+  demoTyped: 'Typed answers are not graded in the demo. (Nothing was sent or recorded.)',
 } as const
 
 /** The explainer agent the panel starts itself, so no prompt lands in the transcript. */
@@ -201,6 +210,39 @@ export function explainerBrief(x: ExplainBlock): string {
 }
 
 export const answerWas = (label: string): string => `The answer was: ${label}`
+
+/** The command that opens the mock question; it never reaches the server, so it needs no question to be waiting. */
+export const DEMO_COMMAND = 'eklavya-panel-demo'
+
+/** The mock question: long answers, each with a note, as real questions have. `o3` is the right one. */
+export const DEMO_QUESTION: PanelQuestion = {
+  question_id: 'demo',
+  repo: '*',
+  stem: 'A job writes a text file into a shared folder that another system polls every minute. Why is it safer to write the file under a temporary name and then rename it into place, rather than writing it directly under its final name?',
+  options: [
+    { id: 'o1', label: 'Renaming makes the write faster', note: 'A rename skips the disk write, so the final file appears sooner than a direct write would.' },
+    { id: 'o2', label: 'Renaming encrypts the file in transit', note: 'The temporary name keeps the contents protected until the rename publishes the finished file.' },
+    { id: 'o3', label: 'The poller never sees a half-written file', note: 'A rename within one folder is atomic, so the file appears complete or not at all to the reader.' },
+    { id: 'o4', label: 'Renaming lets two jobs write at once', note: 'Each job writes its own temporary name, so both can write the same final file without any conflict.' },
+  ],
+  concept_name: 'Atomic file replace',
+  tier: 2,
+  more: true,
+}
+
+export const DEMO_RIGHT = 'o3'
+
+/** What the server would reply, made here: a demo answer is graded on this machine and recorded nowhere. */
+export function demoResult(kind: 'choice' | 'text' | 'skip' | 'dont_know', optionId: string | null): PanelResult {
+  const right = DEMO_QUESTION.options.find(o => o.id === DEMO_RIGHT)!.label
+  if (kind === 'skip') return { phase: 'skipped', attempt_id: 0 }
+  if (kind === 'dont_know') return { phase: 'answered', attempt_id: 0, taught: true, correct: false, correct_label: right, explanation: STR.demoExplanation }
+  const correct = kind === 'choice' && optionId === DEMO_RIGHT
+  return { phase: 'answered', attempt_id: 0, correct, correct_label: right, explanation: kind === 'text' ? STR.demoTyped : STR.demoExplanation }
+}
+
+/** The tester's line of what was just clicked, and how the click arrived. */
+export const demoLast = (what: string): string => `Last click: ${what}`
 
 /**
  * The key hints. Only the terminal gets them: there Ctrl+X then Tab moves the keys into the pane. The

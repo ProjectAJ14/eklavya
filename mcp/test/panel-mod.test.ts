@@ -37,6 +37,12 @@ describe('the panel mod keeps its copies in step with their sources', () => {
     const register = read('hooks', 'panel', 'register.tsx');
     expect(model).toContain("export const REOPEN = '/eklavya-panel'");
     expect(register).toContain("name: 'eklavya-panel'");
+    // The mock-question shortcut: the manual and CONTRIBUTING name it, and the validator needs both spellings as literals.
+    expect(model).toContain("export const DEMO_COMMAND = 'eklavya-panel-demo'");
+    expect(register).toContain("name: 'eklavya-panel-demo'");
+    expect(register).toContain("command: 'eklavya-panel-demo'");
+    // The whole-card module is a literal path next to the register file, and ships with it.
+    expect(register).toContain('module="./card.tsx"');
     expect(model).toContain("export const PANE = 'eklavya-quiz'");
     // The validator needs the matcher's id as a literal, so the one place it is spelled twice is pinned.
     expect(register).toContain("requestId: 'eklavya-quiz'");
@@ -59,7 +65,7 @@ describe('the panel mod keeps its copies in step with their sources', () => {
     const shipped = path.join(repo, 'mcp', 'dist', 'plugin', 'hooks', 'panel');
     const files = (dir: string): string[] =>
       fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? files(path.join(dir, e.name)).map((f) => `${e.name}/${f}`) : [e.name]));
-    expect(files(shipped).sort()).toEqual(['model.ts', 'register.tsx', 'types/index.d.ts']);
+    expect(files(shipped).sort()).toEqual(['card.tsx', 'model.ts', 'register.tsx', 'types/index.d.ts']);
     expect(fs.readFileSync(path.join(repo, 'mcp', 'dist', 'plugin', 'hooks', 'hooks.json'), 'utf8')).toContain('./panel/register.tsx');
   });
 

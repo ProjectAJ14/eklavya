@@ -55,6 +55,11 @@ export type PanelState = {
   result: PanelResult | null
   /** Words for the learner: why the pane is in `error`, or a one-line notice in `none`. */
   message: string | null
+  /**
+   * Set only by `/eklavya-panel-demo`: the question is a mock, answered on this machine and never sent to the
+   * server. `style` is how the desktop draws the answer cards; `last` is the latest click, for the tester.
+   */
+  demo?: { style: 'button' | 'client'; last: string }
 }
 
 declare module 'claude-code' {
