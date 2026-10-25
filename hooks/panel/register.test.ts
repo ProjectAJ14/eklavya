@@ -1029,6 +1029,29 @@ describe('the logo', () => {
     expect(LOGO_GRID[0]).toHaveLength(12)
   })
 
+  test('the terminal draws exactly these rows, in these colours, and none of the old logo', async ($, on) => {
+    world(on)
+    await boot($)
+    const pane = await mount($, 'terminal')
+    const want = logoRows()
+    for (let y = 0; y < want.length; y += 1) {
+      const row: any = await pane.find({ key: `logo-${y}` })
+      expect(row.children.map((k: any) => [k.props.color, k.props.backgroundColor, k.children[0]]), `row ${y}`).toEqual(want[y].map(r => [r.fg, r.bg, r.text]))
+    }
+    expect(await pane.find({ key: `logo-${want.length}` })).toBeUndefined()
+    // The bow and the arrow were white: the logo now holds no pure white.
+    const logo = JSON.stringify(await Promise.all(want.map((_, y) => pane.find({ key: `logo-${y}` }))))
+    expect(logo).not.toContain('#FFFFFF')
+    expect(logo).toContain(LOGO_PALETTE.a)
+  })
+
+  test('a surface with neither Svg nor block characters draws the same head as boxes in the same colours', async ($, on) => {
+    world(on)
+    await boot($)
+    const drawn = JSON.stringify(await (await mount($, 'mobile' as any)).drawn())
+    for (const ch of new Set(LOGO_GRID.join('').replace(/\./g, ''))) expect(drawn, ch).toContain(`"backgroundColor":"${LOGO_PALETTE[ch]}"`)
+  })
+
   test('the head is symmetric: the same steps and ears on both sides, and the same eyes', () => {
     for (const row of LOGO_GRID) {
       expect(silhouette(row), row).toBe(mirror(silhouette(row)))
@@ -1590,7 +1613,8 @@ describe('the demo picture test under Teach me', () => {
     expect(DEMO_PNG.startsWith('iVBORw0KGgo')).toBe(true)
     const bytes = Uint8Array.from(atob(DEMO_PNG), c => c.charCodeAt(0))
     const dim = (at: number) => (bytes[at]! << 24) | (bytes[at + 1]! << 16) | (bytes[at + 2]! << 8) | bytes[at + 3]!
-    expect([dim(16), dim(20)]).toEqual([96, 96])
+    // One grid cell is 8 pixels: the picture is the logo's grid, so it grows or shrinks with it.
+    expect([dim(16), dim(20)]).toEqual([LOGO_GRID[0].length * 8, LOGO_GRID.length * 8])
     const svg = demoSvg()
     expect(svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12"')).toBe(true)
     expect((svg.match(/<rect /g) ?? []).length).toBeGreaterThan(10)
