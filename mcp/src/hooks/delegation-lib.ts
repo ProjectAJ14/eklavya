@@ -31,7 +31,7 @@ function asking(cadence: string, panel: boolean): string {
   // only has to agree with it, so with the panel on it names both and says which
   // field picks.
   return panel
-    ? 'While it builds: get_session_quiz_plan with while_waiting: true, then ask one question at a time as its presentation says -- present_question for "panel" (it returns at once, the panel records the answer and you carry on), else AskUserQuestion, record_attempt and the verdict -- until it reports or questions_needed is 0.'
+    ? 'While it builds: get_session_quiz_plan with while_waiting: true, then ask one question at a time as its presentation says -- present_question for "panel" with its did_you_know card (it returns at once, the panel records the answer and you carry on), else AskUserQuestion, record_attempt and the verdict -- until it reports or questions_needed is 0.'
     : 'While it builds: get_session_quiz_plan with while_waiting: true, then AskUserQuestion, record_attempt and the verdict, one at a time, until it reports or questions_needed is 0.';
 }
 

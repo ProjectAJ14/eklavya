@@ -56,6 +56,7 @@ These are the learning and general settings. Memory-related namespaces follow be
 | `max_questions_per_task` | `4` | Automatic-question budget shared by checkpoints, questions asked while delegated agents build (`delegate_work`), and the final sweep. Also the maximum size of each explicit `/eklavya:quiz` round; a requested round can continue after the automatic budget is spent. |
 | `min_minutes_between_quizzes` | `20` | Spacing for offered `end` quizzes. Explicit requests and enforcement bypass it. |
 | `min_minutes_between_checkpoints` | `4` | Spacing between offered as-you-go questions, including the final sweep. At `0`, checkpoints can ask at each eligible seam; the final sweep retains a one-minute floor. |
+| `min_minutes_before_first_quiz` | `5` | Quiet start. No question until the session is this many minutes old, so setup work such as creating a worktree is not quizzed. Concepts logged in that window are not asked about later either. Enforced quizzing and explicit `/eklavya:quiz` requests ignore it. At `0`, questions can start as soon as work is logged. |
 | `max_new_concepts_per_session` | `8` | Maximum new concepts the agent may create in a session. |
 | `max_stop_blocks_per_session` | `3` | Maximum times the end-of-task hook can hold a session open for questions. |
 | `domains_enabled` | `["*"]` | Filters the learner profile (including its due list) and memory-derived concept candidates. `*` includes all. It is not a strict block on explicitly selected or logged concepts. |
@@ -90,6 +91,7 @@ Lists accept comma-separated strings or JSON. Other values use the key's expecte
 | `max_questions_per_task` | Whole number, 1–10 |
 | `min_minutes_between_quizzes` | Whole number, 0–1440 |
 | `min_minutes_between_checkpoints` | Whole number, 0–120 |
+| `min_minutes_before_first_quiz` | Whole number, 0–120 |
 | `max_new_concepts_per_session` | Whole number, 0–50 |
 | `max_stop_blocks_per_session` | Whole number, 0–20 |
 | `level_up_after` | Whole number, 1–1000 |

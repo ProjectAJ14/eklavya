@@ -224,6 +224,7 @@ export const SETTING_RULES: Record<string, SettingRule> = {
   max_questions_per_task: whole(1, 10),
   min_minutes_between_quizzes: whole(0, 1440),
   min_minutes_between_checkpoints: whole(0, 120),
+  min_minutes_before_first_quiz: whole(0, 120),
   domains_enabled: lines({ maxLength: 100 }),
   quiet: bool,
   explain_on_wrong: bool,

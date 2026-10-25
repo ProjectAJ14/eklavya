@@ -135,7 +135,8 @@ function configure(patch: Record<string, unknown>): void {
 }
 
 function writeConfig(raw: Record<string, unknown>): void {
-  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify(raw));
+  // The quiet start is its own test's subject; every other test asks at once.
+  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ min_minutes_before_first_quiz: 0, ...raw }));
 }
 
 /**

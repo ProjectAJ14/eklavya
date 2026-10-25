@@ -146,7 +146,7 @@ async function sync($: EngineInterface): Promise<'disabled' | 'none' | 'question
     // a lost reply leaves nothing to Retry (Retry returns the stored result).
     if (!busy) {
       await update($, quiz, (s: PanelState) =>
-        s.step === 'awaiting' || s.step === 'grading' || s.step === 'loading' ? { ...EMPTY, message: s.step === 'loading' ? null : s.message } : s,
+        s.step === 'card' || s.step === 'awaiting' || s.step === 'grading' || s.step === 'loading' ? { ...EMPTY, message: s.step === 'loading' ? null : s.message } : s,
       )
     }
     return 'none'
@@ -156,7 +156,7 @@ async function sync($: EngineInterface): Promise<'disabled' | 'none' | 'question
   await update($, quiz, (s: PanelState) =>
     s.question?.question_id === question.question_id && s.step !== 'none' && s.step !== 'loading'
       ? { ...s, question }
-      : { ...EMPTY, step: 'awaiting', question },
+      : { ...EMPTY, step: question.card ? 'card' : 'awaiting', question },
   )
 
   // Seat the pane once per question. Opened unasked it sits from 144 columns and
@@ -572,6 +572,18 @@ export const register: Register = on => {
       )
     }
 
+    if (s.step === 'card' && q.card) {
+      return frame(
+        <Text bold color={BRAND}>{STR.dyk}</Text>,
+        <Markdown text={codify(q.card.fact)} />,
+        s.learn ? <Markdown text={codify(q.card.details)} /> : null,
+        <Box flexDirection="row" gap={2}>
+          {s.learn ? null : <Button key="knew" label={STR.knew} hotkey={hk('i')} onPress={() => askQuestion($)} />}
+          <Button key="learn" label={s.learn ? STR.gotIt : STR.learnMore} variant="primary" hotkey={hk('m')} onPress={() => (s.learn ? askQuestion($) : learnMore($))} />
+        </Box>,
+      )
+    }
+
     const stem = <Markdown text={app ? headingParagraphs(codify(q.stem)) : codify(q.stem)} />
 
     if (s.step === 'feedback' || s.step === 'skipped') {
@@ -801,6 +813,16 @@ async function keepOther($: EngineInterface): Promise<void> {
       /* Fail open: the text stays in the draft without the focus move. */
     }
   }
+}
+
+/** "I knew this" and "Got it": the card is done, the question follows. */
+async function askQuestion($: EngineInterface): Promise<void> {
+  await update($, quiz, (s: PanelState) => (s.step === 'card' ? { ...s, step: 'awaiting', learn: false } : s))
+}
+
+/** "I want to learn more": the longer version shows under the fact, and the card stays until Got it. */
+async function learnMore($: EngineInterface): Promise<void> {
+  await update($, quiz, (s: PanelState) => (s.step === 'card' ? { ...s, learn: true } : s))
 }
 
 /** "Teach me": a blank the learner asks to have taught. Recorded as dont_know; the explainer starts like it does for a miss. */

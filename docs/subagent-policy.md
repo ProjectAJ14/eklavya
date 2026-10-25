@@ -54,7 +54,7 @@ The contract:
   Under `cadence: end` all three say questions wait for the end of the task
   instead. `while_waiting` plans one question, skips the cooldown and spends the
   session's `max_questions_per_task`, counted from `attempts` as the hooks count
-  it. Under `cadence: end` it returns nothing (`cadence_end`). Passing `max`,
+  it. Under `cadence: end` it returns nothing (`cadence_end`), and nothing in the first `min_minutes_before_first_quiz` minutes of a session (`quiet_start`, unless the gate is enforced or a request is explicit). Passing `max`,
   `domain`, `slugs` or `ignore_cooldown` makes it an ordinary request instead.
 - Questions, lookups, docs or design-only work, a fix of a line or two, and
   anything the user said to do inline stay inline. If agents cannot run in the

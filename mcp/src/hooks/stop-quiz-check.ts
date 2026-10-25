@@ -40,7 +40,7 @@
  */
 import { isCowork } from '../surface.js';
 import { run, openExisting, config, cwdOf, sessionId, minutesSince } from './lib.js';
-import { isSessionOff, workSince } from '../session.js';
+import { isSessionOff, quietMinutesLeft, workSince } from '../session.js';
 import { flushAtSeam, identityOf, record, wrapUpAtSeam } from './memory-lib.js';
 import { fillOmissions } from '../memory/learning.js';
 import { dueInProject, sessionConcepts } from '../store.js';
@@ -114,6 +114,7 @@ await run(async (input) => {
     max_stop_blocks_per_session,
     min_minutes_between_quizzes,
     min_minutes_between_checkpoints,
+    min_minutes_before_first_quiz,
   } = stopConfig.config;
   const { repoRoot } = stopConfig;
 
@@ -124,12 +125,15 @@ await run(async (input) => {
   // turn for nothing -- the panel is itself the signal.) Only with the panel on.
   if (quiz.panel && hasOpenPanelQuestion(db, sid)) return 0;
 
+  // Setup minutes are not quizzed (checkpoint-quiz.ts and the planner agree).
+  if (!quiz.enforced && quietMinutesLeft(db, sid, min_minutes_before_first_quiz) > 0) return 0;
+
   // Only work logged in the current stretch is askable -- since the first prompt
   // after an idle break (`workSince`) -- so a session left open overnight is not
   // asked about yesterday. Not for an enforced gate, whose bar was frozen from
   // everything the session logged. checkpoint-quiz.ts and stop-quiz-check.ts
   // must agree on this line.
-  const since = quiz.enforced ? null : workSince(db, sid);
+  const since = quiz.enforced ? null : workSince(db, sid, min_minutes_before_first_quiz);
   const recent = since ? 'AND datetime(sc.ts) >= datetime(@since)' : '';
   const bind = since ? { sid, since } : { sid };
 

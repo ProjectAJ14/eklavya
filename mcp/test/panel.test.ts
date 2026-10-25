@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'node:fs';
+import { z } from 'zod';
 import os from 'node:os';
 import path from 'node:path';
 import { openDb, type DB } from '../src/db.js';
@@ -224,6 +225,29 @@ describe('present_question', () => {
 
   it('rejects a concept that does not exist', () => {
     expect(present({ slug: 'no-such-concept' }).error).toBe('unknown_concept');
+  });
+});
+
+describe('present_question: the Did You Know card', () => {
+  const card = { fact: 'The Origin header names the page that sent the request.', details: 'A browser sets it and a page cannot change it.' };
+
+  it('stores the card and syncs it to the mod, with no key beside it', () => {
+    expect(present({ did_you_know: card }).status).toBe('presented');
+    const q = sync();
+    expect(q.card).toEqual(card);
+    expect(JSON.stringify(q)).not.toMatch(/correct_id|grades/);
+  });
+
+  it('makes the card required by the tool schema, so a model that skips it must write it and call again', () => {
+    const schema = z.object(TOOLS.find((t) => t.name === 'present_question')!.inputSchema);
+    const base = { slug: SLUG, question: 'q', options: options(), explanation: 'e', difficulty: 2 };
+    expect(schema.safeParse(base).success).toBe(false);
+    expect(schema.safeParse({ ...base, did_you_know: card }).success).toBe(true);
+  });
+
+  it('leaves the card out of a question presented without one', () => {
+    present();
+    expect(sync().card).toBeUndefined();
   });
 });
 

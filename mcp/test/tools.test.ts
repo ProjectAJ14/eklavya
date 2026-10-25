@@ -13,7 +13,7 @@ import { upsertConcepts } from '../src/tools/upsert_concepts.js';
 import { getConceptGraph } from '../src/tools/get_concept_graph.js';
 import { gateRetryConcepts, levelCounts } from '../src/store.js';
 import { getConfig, setConfig } from '../src/tools/config_tools.js';
-import { resolveSessionId, setCurrentSession, isSessionOff, FALLBACK_SESSION_ID, noteActivity, workSince } from '../src/session.js';
+import { resolveSessionId, setCurrentSession, isSessionOff, FALLBACK_SESSION_ID, noteActivity, quietMinutesLeft, workSince } from '../src/session.js';
 import { noteEdit } from '../src/hooks/changes-lib.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
@@ -945,6 +945,62 @@ describe('get_session_quiz_plan', () => {
     const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
     expect(plan.questions_needed).toBe(0);
     expect(plan.reason).toBe('quiz_disabled');
+  });
+});
+
+describe('the quiet start of a session', () => {
+  /** Backdates the session's first activity, the way time passing would. */
+  const ageFirstActivity = (minutes: number) =>
+    db.prepare("UPDATE meta SET value = ? WHERE key = ?").run(`${new Date().toISOString()}||${new Date(Date.now() - minutes * 60_000).toISOString()}`, `activity:${SESSION}`);
+
+  it('plans nothing for the first minutes, then asks; an explicit request and the gate ignore it', () => {
+    configure({ min_minutes_before_first_quiz: 5, min_minutes_between_quizzes: 0 });
+    logAuthWork();
+    noteActivity(db, SESSION);
+    expect(call<any>(getSessionQuizPlan, { session_id: SESSION })).toMatchObject({ questions_needed: 0, reason: 'quiet_start', minutes_remaining: 5 });
+    expect(call<any>(getSessionQuizPlan, { session_id: SESSION, ignore_cooldown: true }).questions_needed).toBeGreaterThan(0);
+    configure({ min_minutes_before_first_quiz: 5, quiz: { enforced: true } });
+    expect(call<any>(getSessionQuizPlan, { session_id: SESSION, while_waiting: true }).reason).not.toBe('quiet_start');
+    configure({ min_minutes_before_first_quiz: 5 });
+    ageFirstActivity(6);
+    expect(call<any>(getSessionQuizPlan, { session_id: SESSION }).questions_needed).toBeGreaterThan(0);
+  });
+
+  it('never asks about work logged during the quiet start, only about what is logged after it', () => {
+    configure({ min_minutes_before_first_quiz: 5, min_minutes_between_quizzes: 0 });
+    logAuthWork();
+    db.prepare("UPDATE session_concepts SET ts = datetime('now', '-8 minutes')").run();
+    noteActivity(db, SESSION, new Date(Date.now() - 10 * 60_000));
+    expect(workSince(db, SESSION, 5)).not.toBeNull();
+    expect(call<any>(getSessionQuizPlan, { session_id: SESSION }).concepts.map((c: any) => c.slug)).not.toContain('csrf');
+    call<any>(logSessionConcepts, { session_id: SESSION, concepts: [{ slug: 'pkce', context: 'added PKCE to the login flow' }] });
+    expect(call<any>(getSessionQuizPlan, { session_id: SESSION }).concepts.map((c: any) => c.slug)).toEqual(['pkce']);
+  });
+
+  it('starts a stretch at the end of the quiet start, unless a later idle break already did', () => {
+    noteActivity(db, SESSION, new Date(Date.now() - 10 * 60_000));
+    expect(workSince(db, SESSION)).toBeNull();
+    expect(Date.parse(workSince(db, SESSION, 5)!)).toBeLessThan(Date.now());
+    noteActivity(db, SESSION, new Date(Date.now() - 6 * 60_000 + 61 * 60_000 * 0));
+    db.prepare('UPDATE meta SET value = ? WHERE key = ?').run(`${new Date().toISOString()}|${new Date().toISOString()}|${new Date(Date.now() - 10 * 60_000).toISOString()}`, `activity:${SESSION}`);
+    expect(Date.now() - Date.parse(workSince(db, SESSION, 5)!)).toBeLessThan(1000);
+  });
+
+  it('keeps the first activity across later ones, and counts down from it', () => {
+    noteActivity(db, SESSION, new Date(Date.now() - 2 * 60_000));
+    noteActivity(db, SESSION);
+    expect(quietMinutesLeft(db, SESSION, 5)).toBe(3);
+  });
+
+  it('is over when switched off, when the first activity is unknown or unreadable, or the database fails', () => {
+    noteActivity(db, SESSION);
+    expect(quietMinutesLeft(db, SESSION, 0)).toBe(0);
+    expect(quietMinutesLeft(db, 'never-seen', 5)).toBe(0);
+    db.prepare('INSERT INTO meta (key, value) VALUES (?, ?)').run('activity:older', `${new Date().toISOString()}|`);
+    expect(quietMinutesLeft(db, 'older', 5)).toBe(0);
+    db.prepare('INSERT INTO meta (key, value) VALUES (?, ?)').run('activity:garbled', 'x||garbage');
+    expect(quietMinutesLeft(db, 'garbled', 5)).toBe(0);
+    expect(quietMinutesLeft({ prepare: () => { throw new Error('locked'); } } as any, SESSION, 5)).toBe(0);
   });
 });
 

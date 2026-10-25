@@ -9,7 +9,7 @@ import { migrationsDir } from '../src/paths.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 /** Bump alongside the newest migration file. */
-const LATEST_SCHEMA_VERSION = 32;
+const LATEST_SCHEMA_VERSION = 33;
 
 const LEARNING_TABLES = [
   'attempt_retries',
@@ -182,6 +182,7 @@ describe('migrations', () => {
         '030_events_rollup_index.sql',
         '031_session_concept_order.sql',
         '032_concept_tags_mastery_streak.sql',
+        '033_panel_question_card.sql',
       ]);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(tableNames(db)).toEqual(EXPECTED_TABLES);
@@ -245,7 +246,7 @@ describe('migrations', () => {
       db.prepare('INSERT INTO memory_entry_events (entry_id, event_id) VALUES (1, 1)').run();
       db.prepare("INSERT INTO learning_sources (event_id, slug, project) VALUES (1, 'x', 'p')").run();
 
-      expect(runMigrations(db)).toEqual(['015_event_link_indexes.sql', '016_usage_counts.sql', '017_project_roots.sql', '018_memory_reads.sql', '019_attempt_corrections.sql', '020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql', '023_sync_received.sql', '024_purge_excluded_file_failures.sql', '025_panel_questions.sql', '026_feedback.sql', '027_invalid_questions.sql', '028_option_checks.sql', '029_feedback_rubric_2.sql', '030_events_rollup_index.sql', '031_session_concept_order.sql', '032_concept_tags_mastery_streak.sql']);
+      expect(runMigrations(db)).toEqual(['015_event_link_indexes.sql', '016_usage_counts.sql', '017_project_roots.sql', '018_memory_reads.sql', '019_attempt_corrections.sql', '020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql', '023_sync_received.sql', '024_purge_excluded_file_failures.sql', '025_panel_questions.sql', '026_feedback.sql', '027_invalid_questions.sql', '028_option_checks.sql', '029_feedback_rubric_2.sql', '030_events_rollup_index.sql', '031_session_concept_order.sql', '032_concept_tags_mastery_streak.sql', '033_panel_question_card.sql']);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(db.prepare('SELECT COUNT(*) AS n FROM memory_entry_events').get()).toEqual({ n: 1 });
       expect(db.prepare('SELECT COUNT(*) AS n FROM learning_sources WHERE event_id = 1').get()).toEqual({ n: 1 });
@@ -294,7 +295,7 @@ describe('migrations', () => {
       attempt.run('q4', 2, 5, '2026-01-04 09:00:00', null); // a fail: neither a day nor a tier
       attempt.run('q5', 3, 5, '2026-01-05 09:00:00', 1); // a correction: a day, never a tier
 
-      expect(runMigrations(db)).toEqual(['032_concept_tags_mastery_streak.sql']);
+      expect(runMigrations(db)).toEqual(['032_concept_tags_mastery_streak.sql', '033_panel_question_card.sql']);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(db.prepare('SELECT passed_days, top_passed_tier FROM mastery ORDER BY concept_id').all()).toEqual([
         { passed_days: 3, top_passed_tier: 3 },
@@ -330,7 +331,7 @@ describe('migrations', () => {
       const before = db.prepare(grouping).all();
       expect(planOf(grouping)).not.toContain('idx_events_rollup');
 
-      expect(runMigrations(db)).toEqual(['030_events_rollup_index.sql', '031_session_concept_order.sql', '032_concept_tags_mastery_streak.sql']);
+      expect(runMigrations(db)).toEqual(['030_events_rollup_index.sql', '031_session_concept_order.sql', '032_concept_tags_mastery_streak.sql', '033_panel_question_card.sql']);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       // No row moved, and the answer is the one it was.
       expect(db.prepare('SELECT COUNT(*) AS n FROM evidence_events').get()).toEqual({ n: 2 });
@@ -380,7 +381,7 @@ describe('migrations', () => {
       expect(planOf(newestContext)).toContain('TEMP B-TREE');
       expect(planOf(entryCounts)).not.toContain('idx_entries_summary');
 
-      expect(runMigrations(db)).toEqual(['031_session_concept_order.sql', '032_concept_tags_mastery_streak.sql']);
+      expect(runMigrations(db)).toEqual(['031_session_concept_order.sql', '032_concept_tags_mastery_streak.sql', '033_panel_question_card.sql']);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       // No row moved, and every answer, ties included, is the one it was.
       expect(db.prepare('SELECT COUNT(*) AS n FROM session_concepts').get()).toEqual({ n: 4 });
@@ -424,7 +425,7 @@ describe('migrations', () => {
       ).run();
       expect(() => db.prepare("UPDATE memory_entries SET deleted_at = 'again' WHERE id = 1").run()).toThrow(/malformed/);
 
-      expect(runMigrations(db)).toEqual(['020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql', '023_sync_received.sql', '024_purge_excluded_file_failures.sql', '025_panel_questions.sql', '026_feedback.sql', '027_invalid_questions.sql', '028_option_checks.sql', '029_feedback_rubric_2.sql', '030_events_rollup_index.sql', '031_session_concept_order.sql', '032_concept_tags_mastery_streak.sql']);
+      expect(runMigrations(db)).toEqual(['020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql', '023_sync_received.sql', '024_purge_excluded_file_failures.sql', '025_panel_questions.sql', '026_feedback.sql', '027_invalid_questions.sql', '028_option_checks.sql', '029_feedback_rubric_2.sql', '030_events_rollup_index.sql', '031_session_concept_order.sql', '032_concept_tags_mastery_streak.sql', '033_panel_question_card.sql']);
       db.exec("INSERT INTO memory_fts(memory_fts, rank) VALUES ('integrity-check', 1)");
       expect(db.prepare('SELECT id, deleted_at FROM memory_entries ORDER BY id').all()).toEqual([
         { id: 1, deleted_at: 'then' },
@@ -471,7 +472,7 @@ describe('migrations', () => {
       db.prepare('INSERT INTO memory_entry_events (entry_id, event_id) VALUES (1, 1), (1, 3)').run();
       db.prepare("INSERT INTO learning_sources (id, event_id, slug, project) VALUES (1, 1, 'x', 'p')").run();
 
-      expect(runMigrations(db)).toEqual(['024_purge_excluded_file_failures.sql', '025_panel_questions.sql', '026_feedback.sql', '027_invalid_questions.sql', '028_option_checks.sql', '029_feedback_rubric_2.sql', '030_events_rollup_index.sql', '031_session_concept_order.sql', '032_concept_tags_mastery_streak.sql']);
+      expect(runMigrations(db)).toEqual(['024_purge_excluded_file_failures.sql', '025_panel_questions.sql', '026_feedback.sql', '027_invalid_questions.sql', '028_option_checks.sql', '029_feedback_rubric_2.sql', '030_events_rollup_index.sql', '031_session_concept_order.sql', '032_concept_tags_mastery_streak.sql', '033_panel_question_card.sql']);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect((db.prepare('SELECT id FROM evidence_events ORDER BY id').all() as { id: number }[]).map((r) => r.id)).toEqual([3, 4, 5]);
       // The entry and the candidate stay; only the links to the purged event go.
@@ -572,7 +573,7 @@ describe('migrations', () => {
     const cols = (db.prepare('PRAGMA table_info(panel_questions)').all() as { name: string }[]).map((c) => c.name);
     expect(cols).toEqual([
       'id', 'session_id', 'repo', 'concept_id', 'tier', 'stem', 'options', 'key', 'explanation', 'more',
-      'phase', 'attempt_id', 'result', 'created_at', 'updated_at',
+      'phase', 'attempt_id', 'result', 'created_at', 'updated_at', 'card',
     ]);
     db.prepare("INSERT INTO concepts (id, slug, name, domain) VALUES (1, 'c', 'C', 'd')").run();
     const add = db.prepare(

@@ -52,7 +52,7 @@ from recall to design decisions, and how a project earns a harder level.
 
 ### Where the question appears
 
-The planner chooses how a question is shown. The experimental side panel (`presentation: "panel"`) is on by default when a supported Claude Code panel is showing. If it is off or unavailable, the planner uses Claude's question card (`"tool"`). In the card flow Claude asks, waits, records your answer and gives the verdict. In the panel flow Claude writes the question and four graded options, stores it with `present_question` and goes back to work; the panel shows it, sends your answer to the server and records it once. Hooks, the planner and the skills all read the same `presentation` field. See [Your first session](/docs/first-session/#the-quiz-side-panel-experimental).
+The planner chooses how a question is shown. The experimental side panel (`presentation: "panel"`) is on by default when a supported Claude Code panel is showing. If it is off or unavailable, the planner uses Claude's question card (`"tool"`). In the card flow Claude asks, waits, records your answer and gives the verdict. In the panel flow Claude writes a Did You Know card, the question and four graded options, stores them with `present_question` and goes back to work; the panel shows it, sends your answer to the server and records it once. Hooks, the planner and the skills all read the same `presentation` field. See [Your first session](/docs/first-session/#the-quiz-side-panel-experimental).
 
 ### After a missed question
 

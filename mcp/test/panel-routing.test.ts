@@ -40,7 +40,7 @@ function configure(panel: boolean | undefined, extra: Record<string, unknown> = 
   const quiz = { only_on_changes: false, ...(panel === undefined ? {} : { panel }) };
   fs.writeFileSync(
     path.join(home, 'config.json'),
-    JSON.stringify({ focus: 'project', cadence: 'as-you-go', min_minutes_between_checkpoints: 0, min_minutes_between_quizzes: 0, ...extra, quiz }),
+    JSON.stringify({ focus: 'project', cadence: 'as-you-go', min_minutes_between_checkpoints: 0, min_minutes_between_quizzes: 0, min_minutes_before_first_quiz: 0, ...extra, quiz }),
   );
 }
 

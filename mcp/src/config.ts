@@ -309,6 +309,15 @@ export interface EklavyaConfig {
    * eight questions back to back. Set it to 0 to ask at every seam.
    */
   min_minutes_between_checkpoints: number;
+  /**
+   * Minutes after a session's first activity before Eklavya asks anything. The
+   * first minutes of a session are setup (a worktree, a branch, an install), and
+   * a question about them teaches nothing, so work logged in that window is
+   * never asked about, even later. Read by the checkpoint and Stop hooks and the
+   * planner; an enforced gate and an explicit request ignore it. 0 asks as soon
+   * as work is logged.
+   */
+  min_minutes_before_first_quiz: number;
   domains_enabled: string[];
   quiet: boolean;
   /**
@@ -378,6 +387,7 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
   max_questions_per_task: 4,
   min_minutes_between_quizzes: 20,
   min_minutes_between_checkpoints: 4,
+  min_minutes_before_first_quiz: 5,
   domains_enabled: ['*'],
   quiet: false,
   explain_on_wrong: true,
@@ -606,6 +616,9 @@ export function coerce(raw: Record<string, unknown>, base: EklavyaConfig): Eklav
     raw.min_minutes_between_checkpoints >= 0
   ) {
     out.min_minutes_between_checkpoints = Math.floor(raw.min_minutes_between_checkpoints);
+  }
+  if (typeof raw.min_minutes_before_first_quiz === 'number' && raw.min_minutes_before_first_quiz >= 0) {
+    out.min_minutes_before_first_quiz = Math.floor(raw.min_minutes_before_first_quiz);
   }
   if (Array.isArray(raw.domains_enabled) && raw.domains_enabled.every((d) => typeof d === 'string')) {
     out.domains_enabled = raw.domains_enabled as string[];

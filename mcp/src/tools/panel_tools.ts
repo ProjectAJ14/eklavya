@@ -27,6 +27,12 @@ export const presentQuestionTool: ToolDef = {
       .describe('Exactly four options in display order.'),
     explanation: z.string().min(1).max(LIMITS.feedback).describe('The one-line why, shown after the answer.'),
     difficulty: z.number().int().min(1).max(5).describe('The tier you asked at: tier_to_ask from the plan.'),
+    did_you_know: z
+      .object({
+        fact: z.string().min(1).max(600).describe('Two or three plain sentences teaching the concept itself, about this project when it can be. Teach, never quiz: it must not give away the answer to the question.'),
+        details: z.string().min(1).max(2000).describe('The longer version shown when the learner presses "I want to learn more": the mechanism, one concrete example, the usual pitfall.'),
+      })
+      .describe('The Did You Know card the panel shows first. Pressing "I knew this" or "I want to learn more" then opens this question. Required: a call without it fails validation, so write it and call again.'),
     more: z.boolean().optional().describe('true when more questions of this round follow (an explicit quiz): the panel then offers a Next question button. Leave it out for a single question and for the last of a round.'),
   },
   handler: (args: PresentInput, { db }) => presentQuestion(db, args),
@@ -36,7 +42,7 @@ export const panelSyncTool: ToolDef = {
   name: 'panel_sync',
   title: 'Panel: is a question waiting',
   description:
-    'Called only by the Eklavya panel, never by the model. Returns the question waiting for this session and project (its repo, stem, options with ids and notes, phase, concept name, tier, more), or {none: true}; {disabled: true} when quiz.panel is off. Each call is the heartbeat of the mod: the planner chooses the panel only while one is fresh. Never returns the answer key. Reports whether the host could seat the pane (placed) so an invisible question is never counted as shown. On a host that draws no SessionStart banner (the Desktop Code tab, found by its reported surface or its entrypoint) the reply also carries a one-line `greeting` for the mod to toast once; never on the terminal, never when `quiet` is set or memory is off. Safe to call on every lifecycle event.',
+    'Called only by the Eklavya panel, never by the model. Returns the question waiting for this session and project (its repo, stem, options with ids and notes, phase, concept name, tier, more, and the Did You Know card when it has one), or {none: true}; {disabled: true} when quiz.panel is off. Each call is the heartbeat of the mod: the planner chooses the panel only while one is fresh. Never returns the answer key. Reports whether the host could seat the pane (placed) so an invisible question is never counted as shown. On a host that draws no SessionStart banner (the Desktop Code tab, found by its reported surface or its entrypoint) the reply also carries a one-line `greeting` for the mod to toast once; never on the terminal, never when `quiet` is set or memory is off. Safe to call on every lifecycle event.',
   inputSchema: {
     session_id: z.string().min(1).max(LIMITS.sessionId).describe('The host session id.'),
     cwd: z.string().max(LIMITS.cwd).describe('The session working directory.'),

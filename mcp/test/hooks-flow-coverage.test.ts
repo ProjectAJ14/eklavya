@@ -73,7 +73,7 @@ function runHookAsync(script: string, input: Record<string, unknown>, env: Recor
 
 function configure(patch: Record<string, unknown>): void {
   const quiz = { only_on_changes: false, ...(patch.quiz as Record<string, unknown> | undefined) };
-  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ min_minutes_between_quizzes: 0, ...patch, quiz }));
+  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ min_minutes_between_quizzes: 0, min_minutes_before_first_quiz: 0, ...patch, quiz }));
 }
 
 function git(dir: string, ...args: string[]): string {
@@ -189,6 +189,48 @@ describe('checkpoint-quiz', () => {
     expect(checkpoint().context).toBe('');
     db.prepare(`UPDATE attempts SET ts = datetime('now', '-60 minutes')`).run();
     expect(checkpoint().context).toMatch(/Concept: pkce/);
+  });
+});
+
+describe('the quiet start of a session', () => {
+  const checkpoint = () =>
+    runHook(CHECKPOINT, { session_id: SESSION, cwd, hook_event_name: 'PostToolUse', tool_name: 'mcp__plugin_eklavya_eklavya__log_session_concepts', tool_input: {} });
+  const stop = () => runHook(STOP_CHECK, { session_id: SESSION, cwd, hook_event_name: 'Stop' });
+  const ageFirstActivity = (minutes: number) =>
+    db.prepare('UPDATE meta SET value = ? WHERE key = ?').run(`${new Date().toISOString()}||${new Date(Date.now() - minutes * 60_000).toISOString()}`, `activity:${SESSION}`);
+
+  it('keeps the checkpoint quiet for the first minutes of a session, then asks', () => {
+    configure({ min_minutes_between_checkpoints: 0, min_minutes_before_first_quiz: 5 });
+    logConcepts(['csrf']);
+    expect(checkpoint().context).toBe('');
+    ageFirstActivity(6);
+    expect(checkpoint().context).toMatch(/Concept: csrf/);
+  });
+
+  it('does not ask about a concept logged during the quiet start, only about later ones', () => {
+    configure({ min_minutes_between_checkpoints: 0, min_minutes_before_first_quiz: 5 });
+    logConcepts(['csrf']);
+    checkpoint();
+    db.prepare("UPDATE session_concepts SET ts = datetime('now', '-8 minutes')").run();
+    ageFirstActivity(10);
+    expect(checkpoint().context).toBe('');
+    logConcepts(['pkce']);
+    expect(checkpoint().context).toMatch(/Concept: pkce/);
+  });
+
+  it('does not hold the checkpoint back for an enforced gate', () => {
+    configure({ min_minutes_between_checkpoints: 0, min_minutes_before_first_quiz: 5, quiz: { enforced: true } });
+    logConcepts(['csrf']);
+    expect(checkpoint().context).toMatch(/Concept: csrf/);
+  });
+
+  it('keeps the Stop sweep quiet too, until the session is old enough', () => {
+    configure({ min_minutes_between_checkpoints: 0, min_minutes_before_first_quiz: 5 });
+    logConcepts(['csrf']);
+    runHook(CHECKPOINT, { session_id: SESSION, cwd, hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_input: { command: 'ls' } });
+    expect(stop().context).toBe('');
+    ageFirstActivity(6);
+    expect(stop().context).not.toBe('');
   });
 });
 

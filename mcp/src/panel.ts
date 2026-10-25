@@ -43,6 +43,8 @@ export interface PresentInput {
   explanation: string;
   /** The model has more questions queued in this round: the pane offers Next. */
   more?: boolean;
+  /** Taught first, in the pane, before the question: what the concept is, and a longer version on request. The tool schema requires it; rows from before it existed have none. */
+  did_you_know?: { fact: string; details: string };
   difficulty: number;
   session_id?: string;
   cwd?: string;
@@ -59,6 +61,7 @@ interface Row {
   key: string;
   explanation: string;
   more: number;
+  card: string | null;
   created_at: string;
   phase: string;
   attempt_id: number | null;
@@ -194,9 +197,12 @@ export function presentQuestion(db: DB, args: PresentInput) {
   const more = advanceRound(db, sessionId, concept.slug) ?? Boolean(args.more);
   const id = randomUUID();
   db.prepare(
-    `INSERT INTO panel_questions (id, session_id, repo, concept_id, tier, stem, options, key, explanation, more)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(id, sessionId, repo, concept.id, args.difficulty, stem, JSON.stringify(options), JSON.stringify(key), args.explanation, more ? 1 : 0);
+    `INSERT INTO panel_questions (id, session_id, repo, concept_id, tier, stem, options, key, explanation, more, card)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    id, sessionId, repo, concept.id, args.difficulty, stem, JSON.stringify(options), JSON.stringify(key), args.explanation, more ? 1 : 0,
+    args.did_you_know ? JSON.stringify(args.did_you_know) : null,
+  );
 
   return {
     question_id: id,
@@ -288,6 +294,7 @@ function syncReply(db: DB, args: SyncInput) {
     concept_name: concept.name,
     tier: row.tier,
     more: row.more === 1,
+    ...(row.card ? { card: JSON.parse(row.card) as { fact: string; details: string } } : {}),
   };
 }
 
