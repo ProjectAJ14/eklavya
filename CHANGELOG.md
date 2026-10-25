@@ -1,3 +1,10 @@
+# [1.91.0](https://github.com/ProjectAJ14/eklavya/compare/v1.90.0...v1.91.0) (2026-10-25)
+
+
+### Features
+
+* **panel:** draw the Eklavya mascot's head as the terminal logo ([#254](https://github.com/ProjectAJ14/eklavya/issues/254)) ([aa64d6f](https://github.com/ProjectAJ14/eklavya/commit/aa64d6ffb19bc41b3c0a0ec99d0ecaf7aeab1b78))
+
 # [1.90.0](https://github.com/ProjectAJ14/eklavya/compare/v1.89.0...v1.90.0) (2026-10-25)
 
 
