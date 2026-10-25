@@ -1,5 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
+import Card from './card'
 import { BRAND, DEMO_QUESTION, DEMO_RIGHT, demoResult, EMPTY, EXPLAINER, NEXT_PROMPT, STR, hintLines, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK, PICKED, TEACH, LOGO_GRID, codify, headingParagraphs, logoRows, boxRows, plainLabel } from './model'
 
 const PLUGIN = 'eklavya'
@@ -1215,17 +1216,33 @@ describe('the mock question (/eklavya-panel-demo)', () => {
   })
 
   test('a background heartbeat does not clear it, and Next starts it again without asking the model', async ($, on) => {
-    const w = world(on, { waiting: null })
+    // The server is down at boot, so no sync has been stamped and the next busy event would sync at once.
+    let up = false
+    const seen: string[] = []
+    const prompts: string[] = []
+    on('mcp.call', async (_$: any, e: any) => {
+      seen.push(e.tool)
+      return up ? { value: reply({ none: true }) } : { deny: 'no connected MCP tool "panel_sync"' }
+    })
     on('tool.call', async () => ({ result: '{}' }) as any)
+    on('ui.open', async () => ({ value: { isPlaced: true } }))
+    on('prompt.submit', async (_$: any, e: any) => {
+      prompts.push(e.text)
+      return { text: e.text }
+    })
+    host(on)
     await boot($)
     await demo($)
     const pane = await mount($, 'terminal')
+    up = true
+    seen.length = 0
     await $.tool.call({ tool: 'Read', tool_input: { file_path: '/x' } } as any)
+    expect(seen).toEqual([])
     expect(await pane.find({ key: `opt-${DEMO_QUESTION.options[0]!.id}` })).toBeDefined()
     await press($, 'opt-o3')
     await press($, 'submit')
     await press($, 'next')
-    expect(w.log.prompts).toHaveLength(0)
+    expect(prompts).toHaveLength(0)
     expect(await pane.find({ key: 'opt-o3' })).toBeDefined()
     expect(await pane.find({ text: STR.correct })).toBeUndefined()
   })
@@ -1274,5 +1291,105 @@ describe('the mock question (/eklavya-panel-demo)', () => {
     await pane.post(null, { in: 'card-o2' } as any)
     expect(chosenCards(await pane.drawn())).toBe(1)
     expect(JSON.stringify(await pane.drawn())).toContain('o2 picked')
+  })
+})
+
+describe('the mock question: lifecycle and the whole-card module', () => {
+  const demo = ($: any) => $.command.run({ command: 'eklavya-panel-demo', args: '' } as any)
+
+  test('a session end clears it, so a /clear leaves no mock behind', async ($, on) => {
+    world(on, { waiting: null })
+    await boot($)
+    await demo($)
+    const pane = await mount($, 'terminal')
+    expect(await pane.find({ key: 'opt-o3' })).toBeDefined()
+    await $.session.end({ reason: 'clear', sessionId: 'old', resume: { id: 'old' } } as any)
+    await pane.drawn()
+    expect(await pane.find({ key: 'opt-o3' })).toBeUndefined()
+    expect(JSON.stringify(await pane.drawn())).not.toContain(STR.demoBanner)
+  })
+
+  test('a real question the model presents replaces the mock', async ($, on) => {
+    const w = world(on, { waiting: null })
+    on('tool.call', async () => ({ result: '{}' }) as any)
+    await boot($)
+    await demo($)
+    const pane = await mount($, 'terminal')
+    w.s.waiting = QUESTION
+    await $.tool.call({ tool: 'mcp__plugin_eklavya_eklavya__present_question', tool_input: {} } as any)
+    await pane.drawn()
+    const drawn = JSON.stringify(await pane.drawn())
+    expect(drawn).toContain(JSON.stringify(QUESTION.stem))
+    expect(drawn).not.toContain(STR.demoBanner)
+    await press($, 'opt-o3')
+    await press($, 'submit')
+    expect(answers(w.log)).toHaveLength(1)
+  })
+
+  test('Other keeps its native card in the whole-card style, since it holds a text box', async ($, on) => {
+    world(on)
+    await boot($)
+    await demo($)
+    const pane = await mount($, 'desktop')
+    await press($, 'style-client', 'desktop')
+    expect(await pane.find({ key: 'opt-other' })).toBeDefined()
+    expect(await pane.find({ key: 'opt-o1' })).toBeUndefined()
+  })
+
+  /** The card module alone, with a surface that records what it is handed. */
+  function cardSurface(state?: { hover: boolean }) {
+    const seen = { posts: [] as unknown[], states: [] as unknown[], listener: null as null | ((e: any) => void) }
+    const surface: any = {
+      elements: new Proxy({}, { get: (_t, tag) => (props: any) => ({ type: String(tag), props }) }),
+      state,
+      setState: (next: unknown) => seen.states.push(next),
+      post: (data: unknown) => seen.posts.push(data),
+      onPointer: (fn: (e: any) => void) => {
+        seen.listener = fn
+        return () => {}
+      },
+    }
+    return { seen, surface }
+  }
+  const props = { id: 'o2', label: 'L', note: 'N', chosen: false, locked: false, brand: '#79D5C4', fill: '#1E5A52', text: '#FFFFFF', noteText: '#C9E8E3' }
+
+  test('the card posts its id on a left or unspecified release and on nothing else', () => {
+    const { seen, surface } = cardSurface()
+    Card(props, surface)
+    for (const e of [{ type: 'up', button: 'left' }, { type: 'up' }]) seen.listener!(e)
+    expect(seen.posts).toEqual([{ pick: 'o2' }, { pick: 'o2' }])
+    for (const e of [{ type: 'up', button: 'right' }, { type: 'up', button: 'middle' }, { type: 'down', button: 'left' }, { type: 'move' }]) seen.listener!(e)
+    expect(seen.posts).toHaveLength(2)
+  })
+
+  test('a locked card posts nothing and does not light up under the pointer', () => {
+    const { seen, surface } = cardSurface({ hover: true })
+    const tree: any = Card({ ...props, locked: true }, surface)
+    seen.listener!({ type: 'up', button: 'left' })
+    expect(seen.posts).toHaveLength(0)
+    expect(tree.props.borderColor).toBe('inactive')
+  })
+
+  test('hover is local: it sets state only when it changes, and lights the border', () => {
+    const idle = cardSurface()
+    Card(props, idle.surface)
+    idle.seen.listener!({ type: 'enter' })
+    idle.seen.listener!({ type: 'leave' })
+    expect(idle.seen.states).toEqual([{ hover: true }])
+    const over = cardSurface({ hover: true })
+    const tree: any = Card(props, over.surface)
+    over.seen.listener!({ type: 'enter' })
+    over.seen.listener!({ type: 'leave' })
+    expect(over.seen.states).toEqual([{ hover: false }])
+    expect(tree.props.borderColor).toBe(props.brand)
+    expect(tree.props.borderStyle).toBe('single')
+  })
+
+  test('a picked card has the bold brand border, the fill and the picked text colours', () => {
+    const { surface } = cardSurface()
+    const tree: any = Card({ ...props, chosen: true }, surface)
+    expect(tree.props).toMatchObject({ borderStyle: 'bold', borderColor: props.brand, backgroundColor: props.fill })
+    expect(tree.props.children[0].props).toMatchObject({ bold: true, color: props.text })
+    expect(tree.props.children[1].props).toMatchObject({ dimColor: false, color: props.noteText })
   })
 })
