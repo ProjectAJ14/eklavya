@@ -1,3 +1,10 @@
+# [1.87.0](https://github.com/ProjectAJ14/eklavya/compare/v1.86.0...v1.87.0) (2026-10-25)
+
+
+### Features
+
+* **mascot:** walking loader with random verbs and 11 new expressions ([#250](https://github.com/ProjectAJ14/eklavya/issues/250)) ([60003a5](https://github.com/ProjectAJ14/eklavya/commit/60003a5bd255cfe609acda9c37e66253a5de348c))
+
 # [1.86.0](https://github.com/ProjectAJ14/eklavya/compare/v1.85.2...v1.86.0) (2026-10-25)
 
 
