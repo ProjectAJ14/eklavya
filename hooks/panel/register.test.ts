@@ -2,7 +2,7 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 
 import Card from './card'
 import Pill from './pill'
-import { BRAND, MASCOT_FACE, DEMO_PNG, demoSvg, demoSvgWithPng, DEMO_QUESTION, DEMO_RIGHT, demoResult, EMPTY, EXPLAINER, NEXT_PROMPT, STR, hintLines, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK, PICKED, TEACH, LOGO_GRID, codify, headingParagraphs, logoRows, boxRows, plainLabel } from './model'
+import { BRAND, MASCOT_FACE, DEMO_PNG, demoSvg, demoSvgWithPng, DEMO_QUESTION, DEMO_RIGHT, demoResult, EMPTY, EXPLAINER, NEXT_PROMPT, STR, hintLines, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK, PICKED, TEACH, LOGO_GRID, LOGO_PALETTE, codify, headingParagraphs, logoRows, boxRows, plainLabel } from './model'
 
 const PLUGIN = 'eklavya'
 const PANE = 'eklavya-quiz'
@@ -1018,17 +1018,50 @@ describe('code in the text', () => {
 })
 
 describe('the logo', () => {
-  test('is six text rows of thirteen cells', () => {
+  const silhouette = (row: string) => [...row].map(c => (c === '.' ? '.' : 'x')).join('')
+  const mirror = (row: string) => [...row].reverse().join('')
+
+  test('is six text rows of twelve characters: one square pixel is a character wide and half a row tall', () => {
     const rows = logoRows()
     expect(rows).toHaveLength(LOGO_GRID.length / 2)
-    for (const r of rows) expect(r.reduce((n, run) => n + run.text.length, 0)).toBe(LOGO_GRID[0].length / 2)
+    for (const r of rows) expect(r.reduce((n, run) => n + run.text.length, 0)).toBe(LOGO_GRID[0].length)
+    expect(LOGO_GRID).toHaveLength(12)
+    expect(LOGO_GRID[0]).toHaveLength(12)
   })
 
-  test('a block takes its colours as foreground and background', () => {
+  test('the head is symmetric: the same steps and ears on both sides, and the same eyes', () => {
+    for (const row of LOGO_GRID) {
+      expect(silhouette(row), row).toBe(mirror(silhouette(row)))
+      // Ink is only ever the eyes, so it mirrors too.
+      const ink = [...row].map(c => (c === 'c' ? 'c' : '.')).join('')
+      expect(ink, row).toBe(mirror(ink))
+    }
+  })
+
+  test('has eyes and no mouth: four ink pixels, two rows of two, and nothing below them', () => {
+    const inkRows = LOGO_GRID.map((row, y) => (row.includes('c') ? y : -1)).filter(y => y >= 0)
+    expect(inkRows).toHaveLength(2)
+    expect(LOGO_GRID.join('').split('c').length - 1).toBe(4)
+    expect(inkRows[1]! - inkRows[0]!).toBe(1)
+    expect(LOGO_GRID.slice(inkRows[1]! + 1).join('')).not.toContain('c')
+  })
+
+  test('every letter has a colour from the mascot identity, and no character needs a third colour', () => {
+    for (const ch of new Set(LOGO_GRID.join('').replace(/\./g, ''))) expect(LOGO_PALETTE[ch], ch).toMatch(/^#[0-9A-F]{6}$/)
+    // Two stacked pixels per character: a pixel pair holds at most two colours, so nothing is dropped.
+    for (let y = 0; y < LOGO_GRID.length; y += 2)
+      for (let x = 0; x < LOGO_GRID[0].length; x += 1) expect(new Set([LOGO_GRID[y][x], LOGO_GRID[y + 1][x]].filter(c => c !== '.')).size).toBeLessThanOrEqual(2)
+  })
+
+  test('a pixel pair takes its colours as foreground and background, and an empty pair is a blank', () => {
     const pal = { a: '#111111', b: '#222222' }
-    expect(logoRows(['a.', '.a'], pal)).toEqual([[{ text: '▚', fg: '#111111', bg: undefined }]])
-    expect(logoRows(['ab', 'ab'], pal)).toEqual([[{ text: '▌', fg: '#111111', bg: '#222222' }]])
-    expect(logoRows(['..', '..'], pal)).toEqual([[{ text: ' ' }]])
+    // Each pixel is drawn twice across, so one column of two pixels is one character.
+    expect(logoRows(['a', 'b'], pal)).toEqual([[{ text: '▀', fg: '#111111', bg: '#222222' }]])
+    expect(logoRows(['a', '.'], pal)).toEqual([[{ text: '▀', fg: '#111111', bg: undefined }]])
+    expect(logoRows(['.', 'a'], pal)).toEqual([[{ text: '▄', fg: '#111111', bg: undefined }]])
+    expect(logoRows(['.', '.'], pal)).toEqual([[{ text: ' ' }]])
+    // Runs of one colour pair join into one stretch of text.
+    expect(logoRows(['aa', 'bb'], pal)).toEqual([[{ text: '▀▀', fg: '#111111', bg: '#222222' }]])
   })
 })
 
@@ -1557,11 +1590,11 @@ describe('the demo picture test under Teach me', () => {
     expect(DEMO_PNG.startsWith('iVBORw0KGgo')).toBe(true)
     const bytes = Uint8Array.from(atob(DEMO_PNG), c => c.charCodeAt(0))
     const dim = (at: number) => (bytes[at]! << 24) | (bytes[at + 1]! << 16) | (bytes[at + 2]! << 8) | bytes[at + 3]!
-    expect([dim(16), dim(20)]).toEqual([208, 96])
+    expect([dim(16), dim(20)]).toEqual([96, 96])
     const svg = demoSvg()
-    expect(svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26 12"')).toBe(true)
+    expect(svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12"')).toBe(true)
     expect((svg.match(/<rect /g) ?? []).length).toBeGreaterThan(10)
-    expect(svg).toContain('#D97757')
+    expect(svg).toContain('#EF9875')
     expect(svg).not.toMatch(/<script|on\w+=/i)
     const wrapped = demoSvgWithPng()
     expect(wrapped).toContain(`href="data:image/png;base64,${DEMO_PNG}"`)

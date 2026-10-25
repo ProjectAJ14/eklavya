@@ -26,25 +26,25 @@ export const PICKED = { bg: '#1E5A52', text: '#FFFFFF', note: '#C9E8E3' }
 export const TEACH = { bg: '#D97757', text: '#1F1E1D', hover: '#E48866' }
 
 /**
- * The logo: the Claude mascot (orange) holding an Eklavya bow and arrow (white), drawn on a
- * grid where one cell is a quarter of a text character. Designed in the logo maker; a letter
- * names its colour in LOGO_PALETTE and a dot is empty.
+ * The logo: the Eklavya mascot's head, drawn from the same artwork as the brand's SVG (the terminal cannot draw an SVG).
+ * Square pixels, one letter each (a dot is empty, `LOGO_PALETTE` names the colours): symmetric, eyes only. A terminal
+ * cell is twice as tall as it is wide, so `logoRows` draws each pixel one character wide and half a row tall.
  */
 export const LOGO_GRID = [
-  '.................dd.......',
-  '................d..d......',
-  '................d...d.....',
-  '...aaaaaaaaaaaa.d....d....',
-  '...aa.aaaaaa.aa.d.....d...',
-  '.aaaaaaaaaaaaaaadddddddddd',
-  '...aaaaaaaaaaaa.d.....d...',
-  '....a.a....a.a..d....d....',
-  '................d...d.....',
-  '................d..d......',
-  '.................dd.......',
-  '..........................',
+  '.....ia.....',
+  '...iiaaaa...',
+  '.aaaaaaaaaa.',
+  '.aaaaaaaaaa.',
+  'aaaaaaaaaaaa',
+  'aaacaaaacaaa',
+  'aaacaaaacaaa',
+  'aaaaaaaaaaaa',
+  '.aaaaaaaaaa.',
+  '.aaaaaaaaaa.',
+  '..bbbbbbbb..',
+  '...ddkkdd...',
 ] as const
-export const LOGO_PALETTE: Record<string, string> = { a: '#D97757', d: '#FFFFFF' }
+export const LOGO_PALETTE: Record<string, string> = { a: '#EF9875', i: '#FFC8A6', c: '#302C2A', b: '#C96D51', d: '#0E6E66', k: '#5B7C73' }
 
 /** One stretch of text cells that share a colour pair. A text character holds two colours at most. */
 export type LogoRun = { text: string; fg?: string; bg?: string }
@@ -53,11 +53,13 @@ export type LogoRun = { text: string; fg?: string; bg?: string }
 const QUADRANT = ' ▘▝▀▖▌▞▛▗▚▐▜▄▙▟█'
 
 /**
- * The grid as rows of text runs: each 2 by 2 block becomes one quadrant character, the
+ * The pixel grid as rows of text runs: each 2 by 2 block becomes one quadrant character, the
  * first colour as its foreground and a second, if any, as its background. A third colour
- * in one block is dropped, so the logo degrades and never throws.
+ * in one block is dropped, so a hand-made grid degrades and never throws (the logo never has one).
  */
-export function logoRows(grid: readonly string[] = LOGO_GRID, palette: Record<string, string> = LOGO_PALETTE): LogoRun[][] {
+export function logoRows(pixels: readonly string[] = LOGO_GRID, palette: Record<string, string> = LOGO_PALETTE): LogoRun[][] {
+  // Each pixel is two grid cells wide, so a character holds two stacked pixels: never more than two colours.
+  const grid = pixels.map(row => [...row].map(c => c + c).join(''))
   const out: LogoRun[][] = []
   for (let cy = 0; cy < Math.ceil(grid.length / 2); cy++) {
     const runs: LogoRun[] = []
@@ -178,7 +180,7 @@ export const STR = {
   mascotAlt: 'The Eklavya mascot',
   experimentBanner: 'EXPERIMENT · picture test. Nothing here is part of a real question.',
   experimentTerminal: 'Image: a PNG, drawn as a picture in kitty, Ghostty and iTerm2 (fullscreen); other terminals show the dim text instead. SVG is not drawn in the terminal.',
-  experimentImageAlt: 'The Eklavya mark: the Claude mascot holding a bow and arrow',
+  experimentImageAlt: 'The Eklavya mascot, head only',
   experimentNone: 'This surface draws neither an SVG nor an image, so there is nothing to test here.',
   experimentSvg: 'SVG: the mark drawn as vector rectangles.',
   experimentSvgPng: 'Image: the same mark as a PNG inside an SVG (Desktop has no Image element).',
@@ -260,9 +262,9 @@ export function demoResult(kind: 'choice' | 'text' | 'skip' | 'dont_know', optio
 export const MASCOT_FACE =
   "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"30 12 126 128\" width=\"200\" height=\"200\" class=\"ek-mascot\" data-expression=\"neutral\" data-variant=\"face\" role=\"img\"><style>:root {/* ---------- MASCOT IDENTITY ----------\n     Archer Cloak artwork keeps its approved identity across both grounds.\n     UI chrome continues to use the surface, text and accent roles below. */\n  --mascot-coral: #ef9875;\n  --mascot-coral-dark: #c96d51;\n  --mascot-highlight: #ffc8a6;\n  --mascot-cloak: #0E6E66;\n  --mascot-cloak-dark: #07403C;\n  --mascot-thread: #C4EDE4;\n  --mascot-ink: #302c2a;\n  --mascot-metal: #5b7c73;\n  --mascot-wood: #bc9569;\n  --mascot-wood-dark: #74583f;\n  --mascot-string: #EAE7E1;\n  --mascot-shadow: #26262a;\n  /* ---------- END MASCOT IDENTITY ---------- */}/* Identity colours and UI surfaces use Eklavya's semantic tokens. */\neklavya-mascot { display:inline-flex; flex-shrink:0; vertical-align:middle; line-height:0; }\n.ek-mascot { display:block; overflow:visible; flex-shrink:0; }\n.ek-mascot[data-variant=\"face\"] { overflow:hidden; }\n.ek-mascot__face path:not([fill]) { fill:none; }\n.ek-companion { display:flex;align-items:center;gap:12px;color:var(--dim);font:13px/1.5 var(--font-body); }\n.ek-companion--hero { margin-bottom:16px; }\n.ek-companion--hero b { display:block;color:var(--ink);font-weight:600; }\n.ek-mascot-message { display:flex;align-items:center;gap:16px;padding:16px 0; }\n.ek-mascot-message p {margin:0}\n/* Secondary loader: draws and releases an arrow over 2.8 s. */\n.ek-mascot--draw .ek-mascot__character { animation:ek-breathe 2.8s ease-in-out infinite; transform-origin:95px 185px; }\n.ek-mascot--draw .ek-mascot__arrow { animation:ek-release 2.8s cubic-bezier(.3,0,.3,1) infinite; }\n.ek-mascot--draw .ek-mascot__string { animation:ek-draw 2.8s ease-in-out infinite; transform-origin:157px 125px; }\n.ek-mascot--draw .ek-mascot__ripple { animation:ek-hit 2.8s ease-out infinite; transform-origin:196px 128px; opacity:0; }\n@keyframes ek-breathe { 0%,100% {transform:translateY(0)} 35%,55% {transform:translateY(-3px) rotate(-1deg)} }\n@keyframes ek-release { 0%,12% {transform:translateX(0);opacity:1} 40%,52% {transform:translateX(-10px);opacity:1} 68% {transform:translateX(22px);opacity:0} 69%,85% {transform:translateX(0);opacity:0} 100% {transform:translateX(0);opacity:1} }\n@keyframes ek-draw { 0%,100% {transform:scaleX(1)} 40%,52% {transform:scaleX(1.11)} 60% {transform:scaleX(.08)} 68% {transform:scaleX(1)} }\n@keyframes ek-hit { 0%,60%,100% {opacity:0;transform:scale(.4)} 68% {opacity:.8;transform:scale(.7)} 88% {opacity:0;transform:scale(1.7)} }\n/* Loader: walking toward the viewer, a 1.2 s stride (two steps). Ground rungs recede on an ease-out, as perspective slows them near the horizon. */\n.ek-mascot--loading .ek-mascot__walker { animation:ek-sway 1.2s ease-in-out infinite; transform-origin:95px 185px; }\n.ek-mascot--loading .ek-mascot__torso { animation:ek-bob .6s ease-in-out infinite; }\n.ek-mascot--loading .ek-mascot__leg, .ek-mascot--loading .ek-mascot__hand { animation:ek-step 1.2s ease-in-out infinite; }\n.ek-mascot--loading .ek-mascot__leg--r, .ek-mascot--loading .ek-mascot__hand--arrow { animation-delay:-.6s; }\n.ek-mascot--loading .ek-mascot__shadow { animation:ek-shadow .6s ease-in-out infinite; transform-origin:95px 186px; }\n.ek-mascot--loading .ek-mascot__rung { animation:ek-recede 1.2s cubic-bezier(.15,.6,.4,1) infinite; transform-origin:95px 162px; }\n.ek-mascot--loading .ek-mascot__rung:nth-child(3) { animation-delay:-.3s; }\n.ek-mascot--loading .ek-mascot__rung:nth-child(4) { animation-delay:-.6s; }\n.ek-mascot--loading .ek-mascot__rung:nth-child(5) { animation-delay:-.9s; }\n@keyframes ek-sway { 0%,100% {transform:rotate(-1.5deg)} 50% {transform:rotate(1.5deg)} }\n@keyframes ek-bob { 0%,100% {transform:translateY(1px)} 50% {transform:translateY(-3px)} }\n@keyframes ek-step { 0%,50%,100% {transform:translateY(0)} 25% {transform:translateY(-6px)} }\n@keyframes ek-shadow { 0%,100% {transform:scaleX(1)} 50% {transform:scaleX(.92)} }\n@keyframes ek-recede { 0% {transform:translateY(56px) scaleX(1);opacity:0} 10% {opacity:1} 85% {opacity:1} 100% {transform:translateY(0) scaleX(.4);opacity:0} }\n@media (prefers-reduced-motion:reduce) { .ek-mascot * {animation:none !important;transition:none !important} }\n\n.ek-companion--rail { padding:12px 20px; text-decoration:none; }\n.ek-mascot-message > :last-child { min-width:0; overflow-wrap:break-word; }\n.ek-mascot-status { display:inline-flex; align-items:center; gap:6px; }\n</style><title>Eklavya, calm and attentive</title><path d=\"M48 109q44-19 88 0l-8 30-33-15-31 15Z\" fill=\"var(--mascot-cloak)\"/><g class=\"ek-mascot__head\">\n        <path d=\"M46 43h18V29h19V18h23v12h20v14h17v19h8v29h-8v16q0 12-16 15H62q-18-3-18-17V91h-9V63h11Z\" fill=\"var(--mascot-coral)\" stroke=\"var(--mascot-coral-dark)\" stroke-width=\"2\" stroke-linejoin=\"round\"/>\n        <path d=\"M48 45h18V32h18V21h19\" fill=\"none\" stroke=\"var(--mascot-highlight)\" stroke-width=\"3\" stroke-linejoin=\"round\"/>\n        <g class=\"ek-mascot__face\" fill=\"var(--mascot-ink)\" stroke=\"var(--mascot-ink)\" stroke-width=\"3.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"64\" y=\"64\" width=\"10\" height=\"19\" rx=\"5\"/><rect x=\"110\" y=\"64\" width=\"10\" height=\"19\" rx=\"5\"/><path d=\"M84 89q8 6 16 0\"/></g>\n      </g><circle cx=\"95\" cy=\"126\" r=\"6\" fill=\"var(--mascot-metal)\"/></svg>"
 
-/** The logo as a PNG (208 by 96, one grid cell is 8 pixels), for the demo's picture test: the mod has no filesystem. */
+/** The logo as a PNG (96 by 96, one grid cell is 8 pixels), for the demo's picture test: the mod has no filesystem. */
 export const DEMO_PNG =
-  'iVBORw0KGgoAAAANSUhEUgAAANAAAABgCAYAAABsbvwBAAABcElEQVR42u3dwQ2DMBBFQXdJKdRKNaYDDqDFu+t50j8mUpDnZCUZQ3pofswTFEAASQBJAEkASQABJAEkASTlBJL9/SWAJIAAEkAASQBJAEkAASSAAJJyHnDABBBAAgggCSAJIIAEEEACCCAJoLpd5zFt3aof4O2BOcQAAQQQQAABBBBAABlAABlAAAEEEEAAAQRQY0Ddga5+ftUPaHtgAAEEEEAAAQQQQAABBBBAAAEEEEAAAQQQQAAB5CLUXk7BfyDmkAEkgAwggAwggAwggAwgAWQEAGQAJQbkHskX6lykuogFCCCADCCADCCAAAIIIIAAAgggAwggAwigCGDRr9/98/lhRYAAAggggAACCCCAAHLAAAIIIIAAAggggAACCCCA1LPVBxQQAQSQAAJIAkgCCCABBJAAAkgCSKp5gAERQABJAEkASQABJIAAkgCSAJJqAgNEAkgCSAJIAgggCSAJIAkgSZIkSZIkSZIk6dduN5j9QcRn8BgAAAAASUVORK5CYII='
+  'iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAABCklEQVR42u3dsQ2CUBSG0TeBgxgLV7G2t9OG0DmIEzgLTuMIzwFMHsULuRc4f/LVkHtqQinJV6d3bfV9jc2KAQBgAAAYAAAGIN0Bew+8dAAAAAAAAAAAAAAA7BEg+gBrDwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMgA4EjBQI4AAIAAABAAANogwPl0bBZ9gOj3AwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAALYAIAAABACAAAAQAN8POLAvZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQD6AuX3ul7rnwn/wAAAAAAAAAAAAAABAwh0et9rT9Tl01fv81f9JDwAAAAAAAAAAAACA//0Aant80y9+4G8AAAAASUVORK5CYII='
 
 /** The logo as SVG, one rect per run of a colour, so the demo can test a vector picture without an asset file. */
 export function demoSvg(): string {
@@ -281,7 +283,7 @@ export function demoSvg(): string {
 
 /** The same picture as a PNG inside an SVG: Desktop has no Image element, so this is how a raster is tried there. */
 export const demoSvgWithPng = (): string =>
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 208 96"><image href="data:image/png;base64,${DEMO_PNG}" width="208" height="96"/></svg>`
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><image href="data:image/png;base64,${DEMO_PNG}" width="96" height="96"/></svg>`
 
 /** The tester's line of what was just clicked, and how the click arrived. */
 export const demoLast = (what: string): string => `Last click: ${what}`
