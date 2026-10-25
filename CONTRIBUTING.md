@@ -172,6 +172,8 @@ loaded from your checkout (`claude --plugin-dir /path/to/eklavya`), and
    confirm the result closes itself after 15 seconds, and that a round with
    **Next question** waiting never does.
 
+Run `/eklavya-panel-demo` for a fast pass over the same controls without a real question: it opens a mock question that is graded on your machine and recorded nowhere, shows a **Last click** line, and on Desktop offers the **Answer cards** switch. On Desktop, switch to **Whole card** and click an option's padding, its note and its title: each should pick it and show a click in the **Last click** line, and the border should turn teal under the pointer. Record the result in `docs/verified-schemas.md` row 18.
+
 Run `scripts/test-panel-mod.sh` for the mod's validation and tests. Say which of
 terminal and Desktop you ran; only the terminal CLI has been verified. On Desktop, also check that the pane draws no key hints and no key badges, that a click picks an answer and presses each button, and that a host that cannot seat the pane leaves the question on the card.
 

@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { BRAND, EMPTY, EXPLAINER, NEXT_PROMPT, STR, hintLines, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK, PICKED, TEACH, LOGO_GRID, codify, headingParagraphs, logoRows, boxRows, plainLabel } from './model'
+import { BRAND, DEMO_QUESTION, DEMO_RIGHT, demoResult, EMPTY, EXPLAINER, NEXT_PROMPT, STR, hintLines, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK, PICKED, TEACH, LOGO_GRID, codify, headingParagraphs, logoRows, boxRows, plainLabel } from './model'
 
 const PLUGIN = 'eklavya'
 const PANE = 'eklavya-quiz'
@@ -1124,5 +1124,155 @@ describe('the desktop layout', () => {
     expect(gaps(desktop)).toBe(gaps(terminal) + 1)
     expect(desktop).toContain('"marginTop":1')
     expect(terminal).not.toContain('"marginTop":1')
+  })
+})
+
+describe('the mock question (/eklavya-panel-demo)', () => {
+  /** A whole card is a Client, so its pick shows in its props, not in a border of the tree. */
+  const chosenCards = (tree: unknown) => (JSON.stringify(tree).match(/"chosen":true/g) ?? []).length
+  const demo = ($: any) => $.command.run({ command: 'eklavya-panel-demo', args: '' } as any)
+  const serverCalls = (log: any) => log.calls.filter((c: any) => c.tool === 'panel_sync' || c.tool === 'panel_answer')
+
+  test('opens at once with the mock question and the test bar, with nothing waiting and the panel setting off', async ($, on) => {
+    const w = world(on, { waiting: { disabled: true } })
+    await boot($)
+    const before = serverCalls(w.log).length
+    const out = await demo($)
+    expect((out as any).text).toBe(STR.demoOpened)
+    expect(w.log.opens.at(-1)).toMatchObject({ id: PANE, closeOnEscape: true })
+    const drawn = JSON.stringify(await (await mount($, 'desktop')).drawn())
+    expect(drawn).toContain(JSON.stringify(STR.demoBanner))
+    expect(drawn).toContain(JSON.stringify(STR.demoReady))
+    expect(drawn).toContain('opt-o3')
+    expect(serverCalls(w.log)).toHaveLength(before)
+  })
+
+  test('a failed open says so in words', async ($, on) => {
+    host(on)
+    on('mcp.call', async () => ({ value: reply({ none: true }) }))
+    on('ui.open', async () => {
+      throw new Error('no host')
+    })
+    await boot($)
+    expect(((await demo($)) as any).text).toBe(STR.demoFailed)
+  })
+
+  test('answers are graded here and never sent: right, wrong, typed, skipped and taught', async ($, on) => {
+    const w = world(on, { waiting: null })
+    await boot($)
+    await demo($)
+    const pane = await mount($, 'terminal')
+    // The pane draws again on the next read, so each restart is read before it is pressed.
+    const again = async () => {
+      await demo($)
+      await pane.drawn()
+    }
+    await press($, `opt-${DEMO_RIGHT}`)
+    await press($, 'submit')
+    expect(await pane.find({ text: STR.correct })).toBeDefined()
+    await press($, 'done')
+    await again()
+    await press($, 'opt-o1')
+    await press($, 'submit')
+    expect(await pane.find({ text: STR.wrong })).toBeDefined()
+    await again()
+    await press($, 'skip')
+    expect(await pane.find({ text: STR.skipped })).toBeDefined()
+    await again()
+    await press($, 'teach')
+    expect(await pane.find({ text: STR.taught })).toBeDefined()
+    await again()
+    await press($, 'opt-other')
+    await press($, 'submit')
+    expect(await pane.find({ text: STR.nothingTyped })).toBeDefined()
+    await $.ui.input({ plugin: PLUGIN, key: 'other-text', text: 'my words', kind: 'change' })
+    await press($, 'submit')
+    expect(await pane.find({ text: STR.demoTyped })).toBeDefined()
+    expect(w.log.spawns).toHaveLength(0)
+    expect(w.log.prompts).toHaveLength(0)
+    expect(w.log.graded).toHaveLength(0)
+    // Done asks the server what is waiting, as ever; no answer is sent.
+    expect(answers(w.log)).toHaveLength(0)
+    expect(serverCalls(w.log).filter((c: any) => c.tool === 'panel_answer')).toHaveLength(0)
+  })
+
+  test('demoResult grades a choice, a typed answer, a skip and a blank', () => {
+    expect(demoResult('choice', DEMO_RIGHT).correct).toBe(true)
+    expect(demoResult('choice', 'o1').correct).toBe(false)
+    expect(demoResult('choice', null).correct).toBe(false)
+    expect(demoResult('text', null)).toMatchObject({ correct: false, explanation: STR.demoTyped })
+    expect(demoResult('skip', null).phase).toBe('skipped')
+    expect(demoResult('dont_know', null)).toMatchObject({ taught: true, correct: false })
+  })
+
+  test('the last click is shown, so a tester can see what each press did', async ($, on) => {
+    world(on)
+    await boot($)
+    await demo($)
+    const pane = await mount($, 'terminal')
+    await press($, 'opt-o2')
+    expect(JSON.stringify(await pane.drawn())).toContain('o2 picked (button)')
+  })
+
+  test('a background heartbeat does not clear it, and Next starts it again without asking the model', async ($, on) => {
+    const w = world(on, { waiting: null })
+    on('tool.call', async () => ({ result: '{}' }) as any)
+    await boot($)
+    await demo($)
+    const pane = await mount($, 'terminal')
+    await $.tool.call({ tool: 'Read', tool_input: { file_path: '/x' } } as any)
+    expect(await pane.find({ key: `opt-${DEMO_QUESTION.options[0]!.id}` })).toBeDefined()
+    await press($, 'opt-o3')
+    await press($, 'submit')
+    await press($, 'next')
+    expect(w.log.prompts).toHaveLength(0)
+    expect(await pane.find({ key: 'opt-o3' })).toBeDefined()
+    expect(await pane.find({ text: STR.correct })).toBeUndefined()
+  })
+
+  test('the real reopen command leaves the demo for the real state', async ($, on) => {
+    world(on, { waiting: null })
+    await boot($)
+    await demo($)
+    const pane = await mount($, 'terminal')
+    await $.command.run({ command: 'eklavya-panel', args: '' } as any)
+    expect(await pane.find({ text: STR.empty })).toBeDefined()
+    expect(JSON.stringify(await pane.drawn())).not.toContain(STR.demoBanner)
+  })
+
+  test('only the desktop offers the whole-card style, and switching draws a Client card for each option', async ($, on) => {
+    world(on)
+    await boot($)
+    await demo($)
+    const terminal = JSON.stringify(await (await mount($, 'terminal')).drawn())
+    expect(terminal).not.toContain(STR.demoStyleClient)
+    const desktop = await mount($, 'desktop')
+    expect(JSON.stringify(await desktop.drawn())).toContain(STR.demoStyleClient)
+    expect(JSON.stringify(await desktop.drawn())).not.toContain('card.tsx')
+    await press($, 'style-client', 'desktop')
+    const drawn = JSON.stringify(await desktop.drawn())
+    for (const o of DEMO_QUESTION.options) expect(drawn).toContain(`card-${o.id}`)
+    expect(drawn).toContain('card.tsx')
+    expect(drawn).toContain('style set to client')
+    await press($, 'style-button', 'desktop')
+    expect(JSON.stringify(await desktop.drawn())).not.toContain('card.tsx')
+  })
+
+  test('a press anywhere on a whole card picks it; a bad id, a locked card and another pane change nothing', async ($, on) => {
+    world(on)
+    await boot($)
+    await demo($)
+    const pane = await mount($, 'desktop')
+    await press($, 'style-client', 'desktop')
+    await pane.pointer({ type: 'enter', x: 1, y: 1, in: 'card-o2' } as any)
+    await pane.pointer({ type: 'up', x: 1, y: 1, button: 'left', in: 'card-o2' } as any)
+    expect(chosenCards(await pane.drawn())).toBe(1)
+    expect(JSON.stringify(await pane.drawn())).toContain('o2 picked (whole card)')
+    await pane.pointer({ type: 'leave', x: 1, y: 1, in: 'card-o2' } as any)
+    await pane.post({ pick: 'zzz' }, { in: 'card-o2' } as any)
+    await pane.post({ pick: 7 }, { in: 'card-o2' } as any)
+    await pane.post(null, { in: 'card-o2' } as any)
+    expect(chosenCards(await pane.drawn())).toBe(1)
+    expect(JSON.stringify(await pane.drawn())).toContain('o2 picked')
   })
 })
