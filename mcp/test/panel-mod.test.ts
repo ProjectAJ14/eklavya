@@ -33,6 +33,12 @@ describe('the panel mod keeps its copies in step with their sources', () => {
     expect(JSON.parse(norm(mod))).toEqual(JSON.parse(norm(shown)));
   });
 
+  it('draws the mascot\'s neutral face from a copy that equals the brand export', () => {
+    const exported = read('web', 'public', 'brand', 'mascot', 'expressions', 'neutral-face.svg');
+    const copy = JSON.parse(/export const MASCOT_FACE =\s*("(?:[^"\\]|\\.)*")/.exec(model)![1]!) as string;
+    expect(copy).toBe(exported);
+  });
+
   it('opens with the reopen command the notice names, and the pane id the render hook matches', () => {
     const register = read('hooks', 'panel', 'register.tsx');
     expect(model).toContain("export const REOPEN = '/eklavya-panel'");
@@ -43,6 +49,7 @@ describe('the panel mod keeps its copies in step with their sources', () => {
     expect(register).toContain("command: 'eklavya-panel-demo'");
     // The whole-card module is a literal path next to the register file, and ships with it.
     expect(register).toContain('module="./card.tsx"');
+    expect(register).toContain('module="./pill.tsx"');
     // A whole card has no Button, so its pick must not ask the host to focus `opt-…`: the host would make the pick wait for it.
     expect(register).toContain("if (via !== 'button') return");
     expect(model).toContain("export const PANE = 'eklavya-quiz'");
@@ -67,7 +74,7 @@ describe('the panel mod keeps its copies in step with their sources', () => {
     const shipped = path.join(repo, 'mcp', 'dist', 'plugin', 'hooks', 'panel');
     const files = (dir: string): string[] =>
       fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? files(path.join(dir, e.name)).map((f) => `${e.name}/${f}`) : [e.name]));
-    expect(files(shipped).sort()).toEqual(['card.tsx', 'model.ts', 'register.tsx', 'types/index.d.ts']);
+    expect(files(shipped).sort()).toEqual(['card.tsx', 'model.ts', 'pill.tsx', 'register.tsx', 'types/index.d.ts']);
     expect(fs.readFileSync(path.join(repo, 'mcp', 'dist', 'plugin', 'hooks', 'hooks.json'), 'utf8')).toContain('./panel/register.tsx');
   });
 

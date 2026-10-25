@@ -40,7 +40,7 @@ figcaption { color:var(--dim); margin-bottom:6px; }
 .md p, .md h3 { margin:0 0 .4em; } .md :last-child { margin-bottom:0; }
 .md h3 { font-size:1.2em; line-height:1.35; }
 code { font-family:ui-monospace, Menlo, monospace; font-size:.92em; background:var(--code); padding:1px 4px; border-radius:4px; }
-input.in { font:inherit; color:inherit; background:transparent; border:1px solid #777; border-radius:6px; padding:5px 8px; width:100%; box-sizing:border-box; }
+input.in, textarea.in { font:inherit; color:inherit; background:transparent; border:1px solid #777; border-radius:6px; padding:5px 8px; width:100%; box-sizing:border-box; }
 </style></head>
 <body>
 <header>
@@ -80,6 +80,8 @@ function node(n) {
   const p = n.props || {}, kids = (n.children || []);
   if (n.type === 'Text') return '<span class="t" style="' + textStyle(p) + '">' + kids.map(textOf).join('') + '</span>';
   if (n.type === 'Markdown') return '<div class="md"' + (p.dimColor ? ' style="opacity:.6"' : '') + '>' + md(p.text) + '</div>';
+  if (n.type === 'Svg') return '<img alt="' + esc(p.alt || '') + '" width="' + (p.width || '') + '" height="' + (p.height || '') + '" src="data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(p.source))) + '">';
+  if (n.type === 'Input' && p.rows > 1) return '<textarea class="in" rows="' + p.rows + '" placeholder="' + esc(p.placeholder || '') + '">' + esc(p.value || '') + '</textarea>';
   if (n.type === 'Input') return '<input class="in" placeholder="' + esc(p.placeholder || '') + '" value="' + esc(p.value || '') + '">';
   if (n.type === 'Button') {
     if (p.role === 'dismiss') return '<button class="btn">' + esc(p.label) + '</button>';

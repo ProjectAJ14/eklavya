@@ -52,7 +52,7 @@ Code's learning loop.
 |---|---|
 | Learner state and concepts | `get_learner_profile`, `log_session_concepts`, `upsert_concepts`, `get_concept_graph` |
 | Questions and assessment (automatic questions wait for a code change, not a `git pull`; see `quiz.only_on_changes`) | `get_session_quiz_plan`, `record_attempt`, `get_gate_status` |
-| Quiz side panel (experimental) | `present_question` for the model; `panel_sync` and `panel_answer`, called only by the panel mod, never by the model; its header stacks the mark above the topic in a pane under 60 cells wide; on the desktop app each option's note is its own line under the option, and a click on the option picks it; `/eklavya-panel-demo` opens a mock question the panel answers itself, calling none of these tools |
+| Quiz side panel (experimental) | `present_question` for the model; `panel_sync` and `panel_answer`, called only by the panel mod, never by the model; its header stacks the mark above the topic in a pane under 60 cells wide; on the desktop app each option is a numbered card drawn as one pressable region (a click anywhere on it picks it), while VS Code and the terminal keep native buttons; `/eklavya-panel-demo` opens a mock question the panel answers itself, calling none of these tools |
 | Settings | `get_config`, `set_config` |
 | Find and read memory (`memory_status` includes a `health` verdict with reasons) | `memory_search`, `memory_get`, `memory_timeline`, `memory_file_history`, `memory_status` |
 | Maintain memory | `memory_write`, `memory_correct`, `memory_delete`, `memory_collections` |

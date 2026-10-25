@@ -4,6 +4,7 @@ import type { EngineInterface, Register } from 'claude-code'
 import {
   BRAND,
   DEMO_PNG,
+  MASCOT_FACE,
   PICKED,
   TEACH,
   EMPTY,
@@ -37,6 +38,7 @@ import {
 } from './model'
 import type { PanelPending, PanelQuestion, PanelState } from './types'
 import type { CardProps } from './card'
+import type { PillProps } from './pill'
 
 /**
  * The Eklavya quiz panel: a pane that shows the question the tutor model handed
@@ -406,21 +408,24 @@ export const register: Register = on => {
   // The mock question: opens at once, answered on this machine, so a card or a click can be tried with no real question waiting.
   on('command.run', { command: 'eklavya-panel-demo' }, async $ => {
     try {
-      await startDemo($, 'button')
+      await startDemo($, 'client')
       return { text: STR.demoOpened }
     } catch {
       return { text: STR.demoFailed }
     }
   })
 
-  // A press on a whole-card `Client` (card.tsx) arrives here as data, never as a fact: only an id of the open question counts.
+  // A press on a `Client` region (card.tsx, pill.tsx) arrives here as data, never as a fact: only an id of the open question, Other, or Teach me counts.
   on('ui.message', { component: 'Pane' }, async ($, e, next) => {
     if (e.requestId === PANE) {
       try {
         const started = Date.now()
-        const id = (e.data as { pick?: unknown } | null)?.pick
+        const data = e.data as { pick?: unknown; press?: unknown } | null
+        const id = data?.pick
         const s: PanelState = (await $.state.get(REF)).value ?? EMPTY
-        if (typeof id === 'string' && s.question?.options.some(o => o.id === id)) await pick($, id, 'whole card', started)
+        if (id === 'other') await chooseOther($)
+        else if (typeof id === 'string' && s.question?.options.some(o => o.id === id)) await pick($, id, 'whole card', started)
+        else if (data?.press === 'teach' && s.question && (s.step === 'awaiting' || s.step === 'error')) await teach($)
       } catch {
         /* Fail open: the card stays as it was. */
       }
@@ -449,6 +454,9 @@ export const register: Register = on => {
     // Any surface but the terminal is the desktop app's: it sets the question as a heading, spaces the
     // answers apart and draws the mark in boxes. The terminal keeps its text layout.
     const app = e.surface !== 'terminal'
+    // Only the desktop app draws a `Client` (the whole-card answers, the Teach me pill, the Other row). VS Code has `Svg` but no `Client`:
+    // a tree holding an element its surface lacks is replaced whole, so VS Code keeps the native buttons.
+    const desktop = e.surface === 'desktop'
     // The mark is drawn in text, as Claude Code draws its own, so it shows in every terminal. The
     // desktop app sets text in a proportional font with its own line height, so glyph cells do not
     // tile there: it gets the same grid as filled boxes, one per run of a colour. A cell is one unit
@@ -468,14 +476,9 @@ export const register: Register = on => {
           ))}
         </Box>
       ) : (
+        // The mascot's own neutral face, as the vector artwork the brand ships (the block grid is for the terminal's cells).
         <Box flexDirection="column" flexShrink={0}>
-          {boxRows().map((runs, y) => (
-            <Box key={`logo-${y}`} flexDirection="row" flexShrink={0} height={0.5}>
-              {runs.map((run, x) => (
-                <Box key={`logo-${y}-${x}`} width={run.width} height={0.5} flexShrink={0} backgroundColor={run.color} />
-              ))}
-            </Box>
-          ))}
+          <Svg alt={STR.mascotAlt} width={72} height={73} source={MASCOT_FACE} />
         </Box>
       )
     // A list tile: the mark on the left, the name over the topic beside it. A pane narrower than
@@ -528,7 +531,7 @@ export const register: Register = on => {
       <Box key="demo-bar" flexDirection="column" gap={app ? 1 : 0}>
         <Text color="warning">{STR.demoBanner}</Text>
         <Text dimColor>{s.demo.last}</Text>
-        {app ? (
+        {desktop ? (
           <Box flexDirection="row" gap={2} alignItems="center">
             <Text dimColor>{STR.demoStyleLabel}</Text>
             <Button key="style-button" label={STR.demoStyleButton} variant={s.demo.style === 'button' ? 'primary' : 'secondary'} onPress={() => setStyle($, 'button')} />
@@ -604,18 +607,21 @@ export const register: Register = on => {
         {note && !app ? <Text wrap="wrap" dimColor={!chosen} color={chosen ? PICKED.note : undefined}>{`\n   ${note}`}</Text> : null}
       </Button>
     )
-    const wholeCard = app && s.demo?.style === 'client'
+    // The desktop app draws each answer as one pressable region, so a click on its padding or note picks too (card.tsx);
+    // the demo can switch back to the native buttons to compare.
+    const wholeCard = desktop && (s.demo ? s.demo.style === 'client' : true)
+    const cardProps = (id: string, over: Partial<CardProps>): CardProps => ({ id, label: '', note: '', chosen: false, locked, brand: BRAND, fill: PICKED.bg, text: PICKED.text, noteText: PICKED.note, ...over })
     const options = q.options.map((o, i) => {
       const chosen = !s.draft.other && s.draft.picked === o.id
-      // The whole card is one pressable region, so a click on its padding or note picks too (card.tsx).
       if (wholeCard) {
-        const props: CardProps = { id: o.id, label: plainLabel(o.label), note: o.note ? plainLabel(o.note) : '', chosen, locked, brand: BRAND, fill: PICKED.bg, text: PICKED.text, noteText: PICKED.note }
+        const props = cardProps(o.id, { label: plainLabel(o.label), note: o.note ? plainLabel(o.note) : '', n: i + 1, chosen })
         return <Client key={`card-${o.id}`} module="./card.tsx" width="100%" props={props} />
       }
       return card(
         o.id,
         chosen,
-        answer(o.id, `opt-${o.id}`, String(i + 1), plainLabel(o.label), chosen, o.note ? plainLabel(o.note) : undefined),
+        // The terminal's plain Button draws its own `1:`; the other surfaces number the label themselves.
+        answer(o.id, `opt-${o.id}`, String(i + 1), app ? `${i + 1}  ${plainLabel(o.label)}` : plainLabel(o.label), chosen, o.note ? plainLabel(o.note) : undefined),
         // The desktop app draws only a Button's label, not its inline children, so there the note sits under the button.
         app && o.note
           ? [<Text key={`note-${o.id}`} wrap="wrap" dimColor={!chosen} color={chosen ? PICKED.note : undefined}>{plainLabel(o.note)}</Text>]
@@ -652,26 +658,48 @@ export const register: Register = on => {
       stem,
       <Box flexDirection="column" gap={app ? 2 : 0} marginTop={app ? 1 : 0}>
         {options}
-        {card(
-          'other',
-          s.draft.other,
-          answer('other', 'opt-other', 'o', STR.other, s.draft.other),
-          [
-            s.draft.other ? (
-              <Box key="other-box" paddingLeft={3}>
+        {wholeCard ? (
+          // The header row is the pressable region; the frame and the text box are ours. Three lines tall, saved on every keystroke,
+          // so the button the field draws beside itself has nothing to do: its label is left empty to try to hide it.
+          <Box key="card-other" flexDirection="column" borderStyle={s.draft.other ? 'bold' : 'single'} borderColor={s.draft.other ? BRAND : 'inactive'}>
+            <Client key="other-head" module="./card.tsx" width="100%" props={cardProps('other', { label: STR.other, chosen: s.draft.other, bare: true })} />
+            {s.draft.other ? (
+              <Box key="other-box" paddingX={2} paddingBottom={1}>
                 <Input
                   key="other-text"
                   autoFocus
+                  rows={3}
                   placeholder={STR.otherPlaceholder}
                   value={s.draft.text}
-                  submitLabel="keep"
+                  submitLabel=""
                   onInput={(value: string) => (locked ? undefined : typeOther($, value))}
                   onSubmit={() => (locked ? undefined : keepOther($))}
                 />
               </Box>
-            ) : null,
-          ],
-          s.draft.other,
+            ) : null}
+          </Box>
+        ) : (
+          card(
+            'other',
+            s.draft.other,
+            answer('other', 'opt-other', 'o', STR.other, s.draft.other),
+            [
+              s.draft.other ? (
+                <Box key="other-box" paddingLeft={3}>
+                  <Input
+                    key="other-text"
+                    autoFocus
+                    placeholder={STR.otherPlaceholder}
+                    value={s.draft.text}
+                    submitLabel="keep"
+                    onInput={(value: string) => (locked ? undefined : typeOther($, value))}
+                    onSubmit={() => (locked ? undefined : keepOther($))}
+                  />
+                </Box>
+              ) : null,
+            ],
+            s.draft.other,
+          )
         )}
       </Box>,
       locked ? <Text dimColor>{STR.grading}</Text> : null,
@@ -689,7 +717,16 @@ export const register: Register = on => {
       // Teach me has a row of its own, under Submit. A Button takes no fill, and a desktop draws a plain
       // one without its grey chrome: the orange box is the button's body, and as a column it
       // stretches the Button across its width, so all but the thin padding is pressable.
-      locked ? null : app ? (
+      locked ? null : desktop ? (
+        // A compact pill whose whole body is pressable (pill.tsx), sized to its text instead of the pane's width.
+        <Box key="teach-row" flexDirection="row">
+          <Client
+            key="teach-client"
+            module="./pill.tsx"
+            props={{ id: 'teach', label: STR.teach, locked, fill: TEACH.bg, hoverFill: TEACH.hover, text: TEACH.text } satisfies PillProps}
+          />
+        </Box>
+      ) : app ? (
         <Box key="teach-box" flexDirection="column" backgroundColor={TEACH.bg} borderStyle="round" borderColor={TEACH.bg} paddingX={1} paddingY={0.5}>
           <Button key="teach" plain label={STR.teach} onPress={() => teach($)}>
             <Text color={TEACH.text}>{STR.teach}</Text>
