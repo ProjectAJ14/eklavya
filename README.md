@@ -122,7 +122,7 @@ and never moves what you are reading. You can also
 [install it as an app](https://eklavya-run.web.app/docs/dashboard/#open-it-as-an-app)
 and open it from Spotlight, the Dock or the Start menu. On your first visits,
 [tips](https://eklavya-run.web.app/docs/dashboard/#tips) point out features;
-dismiss them one by one or switch them off under Settings, then Companion. The archer companion smiles while loading and appears beside empty states and feedback; the same tab previews its expressions and motion and has the daily card switch. On a wide window
+dismiss them one by one or switch them off under Settings, then Companion. The archer companion walks toward you with a random verb (*Pondering…*) while loading and appears beside empty states and feedback; the same tab previews its 24 expressions and its loading walk and has the daily card switch. On a wide window
 each page sits centred beside the sidebar. It has five parts:
 
 | Part | What you can see | Read more |

@@ -80,7 +80,7 @@ same role tokens. Custom properties inherit, so one attribute re-resolves the tr
 
 ## Mascot
 
-The approved Archer Cloak character has a coral face and verdigris clothes. Its identity colors are semantic `--mascot-*` roles in `tokens.css`, fixed across both grounds. This artwork exception does not change the bow mark or surrounding square chrome. Use the shared `<eklavya-mascot>` component and state mapping from `web/public/brand/mascot/mascot.js`; keep status text visible and artwork decorative unless it needs its own label. Use excited loading, encouraging tips after learner misses, and sad faces for system errors. The 2.8-second loading loop respects reduced motion; the studio also offers a pause control. See `docs/design/mascot-system.md` for reuse.
+The approved Archer Cloak character has a coral face and verdigris clothes. Its identity colors are semantic `--mascot-*` roles in `tokens.css`, fixed across both grounds. This artwork exception does not change the bow mark or surrounding square chrome. Use the shared `<eklavya-mascot>` component and state mapping from `web/public/brand/mascot/mascot.js`; keep status text visible and artwork decorative unless it needs its own label. Use the cool walking loader by default (the bow-draw `variant="draw"` is secondary), encouraging tips after learner misses, and sad faces for system errors. The 1.2-second walking loop respects reduced motion; the studio also offers a pause control. See `docs/design/mascot-system.md` for reuse.
 
 ## Type
 

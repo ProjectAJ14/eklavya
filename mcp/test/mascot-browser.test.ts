@@ -80,20 +80,20 @@ describe.skipIf(!options)('offline mascot studio in a real browser', () => {
     const page = await browser.newPage();
     try {
       await page.goto(new URL('/mascot.html',server.url).href);
-      await expect.poll(() => page.locator('#expressions button').count()).toBe(13);
+      await expect.poll(() => page.locator('#expressions button').count()).toBe(24);
       await page.getByRole('button', { name:'Sad sad', exact:true }).click();
       expect(await page.locator('#preview svg').getAttribute('data-expression')).toBe('sad');
       expect(await page.locator('#preview title').textContent()).toBe('Eklavya, sad');
       await page.getByRole('button', { name:'Show face only' }).click();
       expect(await page.locator('#preview svg').getAttribute('data-variant')).toBe('face');
       expect(await page.locator('#preview .ek-mascot__bow').count()).toBe(0);
-      expect(await page.locator('#expressions svg[aria-hidden="true"]').count()).toBe(13);
+      expect(await page.locator('#expressions svg[aria-hidden="true"]').count()).toBe(24);
       await page.locator('#states').getByRole('button', {name:'error',exact:true}).click();
       expect(await page.locator('#state-preview svg').getAttribute('data-expression')).toBe('sad');
       expect(await page.locator('#state-copy').textContent()).toContain('Try again');
       await page.locator('#states').getByRole('button', {name:'loading',exact:true}).click();
       expect(await page.locator('#state-preview svg').getAttribute('data-variant')).toBe('loading');
-      expect(await page.locator('#state-preview svg').getAttribute('data-expression')).toBe('excited');
+      expect(await page.locator('#state-preview svg').getAttribute('data-expression')).toBe('cool');
     } finally { await page.close(); }
   });
 
@@ -102,15 +102,19 @@ describe.skipIf(!options)('offline mascot studio in a real browser', () => {
     try {
       await page.goto(new URL('/mascot.html',server.url).href);
       await page.getByRole('button', {name:'Play loading loop'}).click();
-      expect(await page.locator('#preview svg').getAttribute('data-expression')).toBe('excited');
+      expect(await page.locator('#preview svg').getAttribute('data-expression')).toBe('cool');
+      const leg = page.locator('#preview .ek-mascot__leg--l');
+      expect(await leg.evaluate(e => getComputedStyle(e).animationName)).toBe('ek-step');
+      await page.getByRole('button', {name:'Pause animations'}).click();
+      expect(await leg.evaluate(e => getComputedStyle(e).animationPlayState)).toBe('paused');
+      await page.getByRole('button', {name:'Resume animations'}).click();
+      await page.getByRole('button', {name:'Play bow-draw loop'}).click();
+      expect(await page.locator('#preview svg').getAttribute('data-variant')).toBe('draw');
       const arrow = page.locator('#preview .ek-mascot__arrow');
       expect(await arrow.evaluate(e => getComputedStyle(e).animationName)).toBe('ek-release');
-      await page.getByRole('button', {name:'Pause animations'}).click();
-      expect(await arrow.evaluate(e => getComputedStyle(e).animationPlayState)).toBe('paused');
-      await page.getByRole('button', {name:'Resume animations'}).click();
       await page.emulateMedia({ reducedMotion:'reduce' });
       expect(await arrow.evaluate(e => getComputedStyle(e).animationName)).toBe('none');
-      expect(await page.getByRole('status').first().textContent()).toContain('Loading your history');
+      expect(await page.getByRole('status').first().textContent()).toContain('Pondering…');
     } finally { await page.close(); }
   });
 

@@ -17,7 +17,7 @@ Run `npm run mascot:generate` after artwork changes to refresh the standalone bo
 <eklavya-mascot expression="wink" variant="face" size="40"></eklavya-mascot>
 <div role="status" aria-live="polite">
   <eklavya-mascot state="loading" variant="loading" size="56"></eklavya-mascot>
-  Loading your history…
+  <span aria-hidden="true">Pondering…</span><span class="sr">Loading your history…</span>
 </div>
 ```
 
@@ -29,7 +29,7 @@ Run `npm run mascot:generate` after artwork changes to refresh the standalone bo
 | success | happy |
 | complete, milestone | celebrate |
 | empty, notFound | curious |
-| loading | excited |
+| loading | cool |
 | review | focused |
 | tip | wink |
 | new | surprised |
@@ -42,7 +42,7 @@ Use state for product UI and expression for editorial art. Unsupported values fa
 
 ## Accessibility and motion
 
-The mascot is decorative by default (`aria-hidden` on its SVG). Add `label` for meaningful standalone art. Loading text belongs to one surrounding status region. Do not replace copy with an emotion. The loader draws and releases an arrow over 2.8 seconds using transforms and opacity; `prefers-reduced-motion` stops it. The studio includes a pause control. No animation timers or runtime dependencies are required. `npm run mascot:check` and the website build reject stale exports.
+The mascot is decorative by default (`aria-hidden` on its SVG). Add `label` for meaningful standalone art. Loading text belongs to one surrounding status region. The dashboard's `loader()` shows a random Claude Code spinner verb (`LOADER_VERBS`, without "Clauding") instead of "Loading…", fresh for every wait and never fixed to a screen; the real label stays in a `.sr` span for screen readers. Do not replace copy with an emotion. The loader (`variant="loading"`, cool by default) faces the viewer and walks toward them, holding the arrow point-down in one hand and the bow in the other. The legs alternate over a 1.2-second stride while ground lines recede toward the horizon, so it walks in place, using only transforms and opacity. Any expression works with it. `prefers-reduced-motion` stops it on a static ground. A secondary loader, `variant="draw"`, draws and releases an arrow over 2.8 seconds; use it where a loader fits that moment better, with an expression of your choice. Reduced motion stops it too. The studio includes a pause control. No animation timers or runtime dependencies are required. `npm run mascot:check` and the website build reject stale exports.
 
 ## Current placements
 
@@ -58,4 +58,4 @@ The mascot is decorative by default (`aria-hidden` on its SVG). Add `label` for 
   "The archer who taught himself" heading. Its decorative bow, arrow and target
   scene animates once when it enters view and stays static under reduced motion.
 - Dashboard: initial and inline loaders, empty lists, missing records, feedback empty/error states, request errors, settings save/validation feedback, retry results, delete confirmation, tip bubbles (the `tip` face, with a fitting `state` on a few tips), and the Settings Companion tab, which links to the studio.
-- Studio: all 13 expressions, body/face variants, state selector, size scale, loading motion, ink/paper toggle, and copyable examples.
+- Studio: all 24 expressions, body/face variants, state selector, size scale, walking loader, secondary bow-draw loader, ink/paper toggle, and copyable examples.

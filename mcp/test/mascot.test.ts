@@ -17,7 +17,7 @@ describe('shared Archer Cloak mascot', () => {
     expect(mascot.expressionForState('tip')).toBe('wink');
     expect(mascot.expressionForState('error')).toBe('sad');
     expect(mascot.expressionForState('empty')).toBe('curious');
-    expect(mascot.expressionForState('loading')).toBe('excited');
+    expect(mascot.expressionForState('loading')).toBe('cool');
     expect(mascot.expressionForState('toString')).toBe('neutral');
     expect(mascot.svg({ expression:'__proto__' })).toContain('data-expression="neutral"');
   });
@@ -42,10 +42,27 @@ describe('shared Archer Cloak mascot', () => {
     }
   });
 
+  it('loads by walking toward the viewer with the bow and arrow, on a receding ground', () => {
+    const svg = mascot.svg({ state:'loading', variant:'loading' });
+    expect(svg).toContain('class="ek-mascot ek-mascot--loading"');
+    expect(svg).toContain('data-expression="cool"');
+    for (const part of ['ek-mascot__leg--l', 'ek-mascot__leg--r', 'ek-mascot__hand--arrow', 'ek-mascot__hand--bow']) expect(svg).toContain(part);
+    expect(svg.match(/ek-mascot__rung/g)).toHaveLength(4);
+    expect(svg).not.toContain('ek-mascot__string');
+  });
+
+  it('keeps the bow-draw loop as a secondary loader', () => {
+    const svg = mascot.svg({ expression:'excited', variant:'draw' });
+    expect(svg).toContain('class="ek-mascot ek-mascot--draw"');
+    expect(svg).toContain('ek-mascot__string');
+    expect(svg).toContain('ek-mascot__ripple');
+    expect(mascot.svg({ variant:'loading' })).not.toContain('ek-mascot__ripple');
+  });
+
   it('keeps standalone loading exports and token colours current', () => {
     execFileSync(process.execPath, [new URL('../../scripts/generate-mascot.mjs', import.meta.url).pathname, '--check']);
     const exported = fs.readFileSync(new URL('loading.svg', source), 'utf8');
-    expect(exported).toContain('data-expression="excited"');
+    expect(exported).toContain('data-expression="cool"');
     expect(exported).toContain('--mascot-coral:');
     expect(exported).toContain('prefers-reduced-motion');
   });

@@ -1295,7 +1295,7 @@
     <p class="page__eyebrow crumb inner" id="crumb" aria-label="Workflow and scope"></p>
     <div class="inner stack" id="view" aria-busy="true">
       <!-- The same markup `loader()` writes; the script has not run yet. -->
-      <div class="loader loader--page" role="status" aria-live="polite"><eklavya-mascot state="loading" variant="loading" size="96"></eklavya-mascot><span>Loading your history…</span></div>
+      <div class="loader loader--page" role="status" aria-live="polite"><eklavya-mascot state="loading" variant="loading" size="96"></eklavya-mascot><span aria-hidden="true"></span><span class="sr">Loading your history…</span></div>
     </div>
     <span class="sr" id="fb-live" role="status" aria-live="polite"></span>
     <footer class="foot inner">
@@ -2304,13 +2304,61 @@ const chart = (id, fn) => {
 let GEN = 0;
 
 /**
- * The one loading state: the companion drawing and releasing its arrow, and what is being waited
- * for. `page: true` is the full-height version the first paint uses. Every
- * placeholder a `slot()` starts with is one of these, so a wait looks
- * the same wherever it happens. `label` is plain text; it is escaped here.
+ * What a loader says while it waits: one of Claude Code's spinner verbs, instead of "Loading…".
+ * "Clauding" is left out because it is Anthropic's product name. Present tense, one word,
+ * nothing that sounds like an error.
+ */
+const LOADER_VERBS = [
+  'Accomplishing', 'Actioning', 'Actualizing', 'Architecting', 'Baking', 'Beaming', "Beboppin'",
+  'Befuddling', 'Billowing', 'Blanching', 'Bloviating', 'Boogieing', 'Boondoggling', 'Booping',
+  'Bootstrapping', 'Brewing', 'Bunning', 'Burrowing', 'Calculating', 'Canoodling', 'Caramelizing',
+  'Cascading', 'Catapulting', 'Cerebrating', 'Channeling', 'Channelling', 'Choreographing',
+  'Churning', 'Coalescing', 'Cogitating', 'Combobulating', 'Composing', 'Computing', 'Concocting',
+  'Considering', 'Contemplating', 'Cooking', 'Crafting', 'Creating', 'Crunching', 'Crystallizing',
+  'Cultivating', 'Deciphering', 'Deliberating', 'Determining', 'Dilly-dallying',
+  'Discombobulating', 'Doing', 'Doodling', 'Drizzling', 'Ebbing', 'Effecting', 'Elucidating',
+  'Embellishing', 'Enchanting', 'Envisioning', 'Evaporating', 'Fermenting', 'Fiddle-faddling',
+  'Finagling', 'Flambéing', 'Flibbertigibbeting', 'Flowing', 'Flummoxing', 'Fluttering', 'Forging',
+  'Forming', 'Frolicking', 'Frosting', 'Gallivanting', 'Galloping', 'Garnishing', 'Generating',
+  'Gesticulating', 'Germinating', 'Gitifying', 'Grooving', 'Gusting', 'Harmonizing', 'Hashing',
+  'Hatching', 'Herding', 'Honking', 'Hullaballooing', 'Hyperspacing', 'Ideating', 'Imagining',
+  'Improvising', 'Incubating', 'Inferring', 'Infusing', 'Ionizing', 'Jitterbugging', 'Julienning',
+  'Kneading', 'Leavening', 'Levitating', 'Lollygagging', 'Manifesting', 'Marinating', 'Meandering',
+  'Metamorphosing', 'Misting', 'Moonwalking', 'Moseying', 'Mulling', 'Mustering', 'Musing',
+  'Nebulizing', 'Nesting', 'Newspapering', 'Noodling', 'Nucleating', 'Orbiting', 'Orchestrating',
+  'Osmosing', 'Perambulating', 'Percolating', 'Perusing', 'Philosophising', 'Photosynthesizing',
+  'Pollinating', 'Pondering', 'Pontificating', 'Pouncing', 'Precipitating', 'Prestidigitating',
+  'Processing', 'Proofing', 'Propagating', 'Puttering', 'Puzzling', 'Quantumizing',
+  'Razzle-dazzling', 'Razzmatazzing', 'Recombobulating', 'Reticulating', 'Roosting', 'Ruminating',
+  'Sautéing', 'Scampering', 'Schlepping', 'Scurrying', 'Seasoning', 'Shenaniganing', 'Shimmying',
+  'Simmering', 'Skedaddling', 'Sketching', 'Slithering', 'Smooshing', 'Sock-hopping', 'Spelunking',
+  'Spinning', 'Sprouting', 'Stewing', 'Sublimating', 'Swirling', 'Swooping', 'Symbioting',
+  'Synthesizing', 'Tempering', 'Thinking', 'Thundering', 'Tinkering', 'Tomfoolering',
+  'Topsy-turvying', 'Transfiguring', 'Transmuting', 'Twisting', 'Undulating', 'Unfurling',
+  'Unravelling', 'Vibing', 'Waddling', 'Wandering', 'Warping', 'Whatchamacalliting',
+  'Whirlpooling', 'Whirring', 'Whisking', 'Wibbling', 'Working', 'Wrangling', 'Zesting',
+  'Zigzagging',
+];
+const randomVerb = () => LOADER_VERBS[Math.floor(Math.random() * LOADER_VERBS.length)] + '…';
+// Random for every wait, never fixed to a screen: the choices are dropped on each navigation.
+// Within one wait the verb holds, because a redraw writes the same markup and must not replace
+// a loader that is still waiting, and words changing under the reader read as progress steps.
+const loaderVerbs = new Map();
+function loaderVerb(label) {
+  if (!loaderVerbs.has(label)) loaderVerbs.set(label, randomVerb());
+  return loaderVerbs.get(label);
+}
+// The first paint's loader is in the markup, before this script; give it its verb now.
+document.querySelector('#view > .loader > span[aria-hidden="true"]')?.replaceChildren(randomVerb());
+
+/**
+ * The one loading state: the companion walking toward the reader and a random verb. `label`
+ * names what is being waited for; screen readers hear it instead of the verb. `page: true` is the
+ * full-height version the first paint uses. Every placeholder a `slot()` starts with is one of
+ * these, so a wait looks the same wherever it happens. `label` is plain text; it is escaped here.
  */
 function loader(label, { page = false } = {}) {
-  return `<div class="loader${page ? ' loader--page' : ''}" role="status" aria-live="polite"><eklavya-mascot state="loading" variant="loading" size="${page ? 96 : 56}"></eklavya-mascot><span>${esc(label)}</span></div>`;
+  return `<div class="loader${page ? ' loader--page' : ''}" role="status" aria-live="polite"><eklavya-mascot state="loading" variant="loading" size="${page ? 96 : 56}"></eklavya-mascot><span aria-hidden="true">${loaderVerb(label)}</span><span class="sr">${esc(label)}</span></div>`;
 }
 
 /* ---------- the response cache ----------
@@ -6781,7 +6829,7 @@ $('view').addEventListener('change', (e) => {
   }
 });
 
-addEventListener('hashchange', () => { if (INV) { closePicker(false); syncFromUrl(); } });
+addEventListener('hashchange', () => { loaderVerbs.clear(); if (INV) { closePicker(false); syncFromUrl(); } });
 
 let resizeTimer = 0;
 addEventListener('resize', () => {
