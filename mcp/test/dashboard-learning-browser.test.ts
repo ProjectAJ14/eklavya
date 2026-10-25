@@ -442,11 +442,11 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await page.goto(base + '/#/learning/dashboard');
       await page.waitForSelector('#view .loader[role="status"]');
       expect(await page.getAttribute('#view', 'aria-busy')).toBe('true');
-      // A verb, not "Loading…", on screen; what is being loaded stays for screen readers.
-      const said = await page.$eval('#view .loader', (l) => ({ shown: l.querySelector(':scope > span[aria-hidden="true"]')!.textContent, sr: l.querySelector('.sr')!.textContent }));
+      // A random verb is all a loader says, on screen and to screen readers: no "Loading…" anywhere.
+      const said = await page.$eval('#view .loader', (l) => ({ shown: l.querySelector(':scope > span')!.textContent, all: l.textContent!.replace(/\s+/g, '') }));
       expect(said.shown).toMatch(/^[A-Z][\p{L}'-]+…$/u);
       expect(said.shown).not.toMatch(/Loading|Clauding/);
-      expect(said.sr).toMatch(/^Loading /);
+      expect(said.all).toBe(said.shown);
       expect(await page.isDisabled('#proj')).toBe(true);
       expect(await page.evaluate(() => getComputedStyle(document.getElementById('wf')!).visibility)).toBe('hidden');
       release();
@@ -458,7 +458,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       const verbs = await page.evaluate(() => {
         const real = Math.random; let i = 0;
         Math.random = () => [0.1, 0.6][i++ % 2];
-        const shown = (html: string) => html.match(/aria-hidden="true">([^<]+)</)![1];
+        const shown = (html: string) => html.match(/<span>([^<]+)</)![1];
         try {
           const first = shown(loader('Loading sessions…'));
           const again = shown(loader('Loading sessions…'));

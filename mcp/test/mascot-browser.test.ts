@@ -114,7 +114,7 @@ describe.skipIf(!options)('offline mascot studio in a real browser', () => {
       expect(await arrow.evaluate(e => getComputedStyle(e).animationName)).toBe('ek-release');
       await page.emulateMedia({ reducedMotion:'reduce' });
       expect(await arrow.evaluate(e => getComputedStyle(e).animationName)).toBe('none');
-      expect(await page.getByRole('status').first().textContent()).toContain('Pondering…');
+      expect(await page.getByRole('status').first().textContent()).toMatch(/\b[A-Z][a-z-]+…/);
     } finally { await page.close(); }
   });
 

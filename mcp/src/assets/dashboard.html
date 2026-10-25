@@ -1295,7 +1295,7 @@
     <p class="page__eyebrow crumb inner" id="crumb" aria-label="Workflow and scope"></p>
     <div class="inner stack" id="view" aria-busy="true">
       <!-- The same markup `loader()` writes; the script has not run yet. -->
-      <div class="loader loader--page" role="status" aria-live="polite"><eklavya-mascot state="loading" variant="loading" size="96"></eklavya-mascot><span aria-hidden="true"></span><span class="sr">Loading your history…</span></div>
+      <div class="loader loader--page" role="status" aria-live="polite"><eklavya-mascot state="loading" variant="loading" size="96"></eklavya-mascot><span></span></div>
     </div>
     <span class="sr" id="fb-live" role="status" aria-live="polite"></span>
     <footer class="foot inner">
@@ -2349,16 +2349,16 @@ function loaderVerb(label) {
   return loaderVerbs.get(label);
 }
 // The first paint's loader is in the markup, before this script; give it its verb now.
-document.querySelector('#view > .loader > span[aria-hidden="true"]')?.replaceChildren(randomVerb());
+document.querySelector('#view > .loader > span')?.replaceChildren(randomVerb());
 
 /**
- * The one loading state: the companion walking toward the reader and a random verb. `label`
- * names what is being waited for; screen readers hear it instead of the verb. `page: true` is the
- * full-height version the first paint uses. Every placeholder a `slot()` starts with is one of
- * these, so a wait looks the same wherever it happens. `label` is plain text; it is escaped here.
+ * The one loading state: the companion walking toward the reader and a random verb, the only
+ * thing it says, to screen readers too. `label` names the wait and is never shown: it keeps that
+ * wait's verb through redraws. `page: true` is the full-height version the first paint uses. Every
+ * placeholder a `slot()` starts with is one of these, so a wait looks the same wherever it happens.
  */
 function loader(label, { page = false } = {}) {
-  return `<div class="loader${page ? ' loader--page' : ''}" role="status" aria-live="polite"><eklavya-mascot state="loading" variant="loading" size="${page ? 96 : 56}"></eklavya-mascot><span aria-hidden="true">${loaderVerb(label)}</span><span class="sr">${esc(label)}</span></div>`;
+  return `<div class="loader${page ? ' loader--page' : ''}" role="status" aria-live="polite"><eklavya-mascot state="loading" variant="loading" size="${page ? 96 : 56}"></eklavya-mascot><span>${loaderVerb(label)}</span></div>`;
 }
 
 /* ---------- the response cache ----------
@@ -2476,7 +2476,7 @@ const slotDone = (el) => { el.removeAttribute('aria-busy'); el.removeAttribute('
 const holdsContent = (el) => !el.hasAttribute('data-failed') && !el.querySelector(':scope > .slot__wait');
 
 /**
- * `opts`: `label` (what the loader says), `cls` (a class for the target), `region` (the target is
+ * `opts`: `label` (names the wait, so its loader keeps one verb), `cls` (a class for the target), `region` (the target is
  * a `data-region`, so a redraw replaces its contents alone). `draw` is a pure function of the
  * response, and must not change it: a cached body is drawn again. It may queue its own charts and slots.
  */
