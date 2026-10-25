@@ -663,9 +663,9 @@ export const register: Register = on => {
         {vector ? (
           <Box flexDirection="column" gap={1}>
             <Text dimColor>{STR.experimentSvg}</Text>
-            <Svg alt={STR.experimentImageAlt} width={208} height={96} source={demoSvg()} />
+            <Svg alt={STR.experimentImageAlt} width={96} height={96} source={demoSvg()} />
             <Text dimColor>{STR.experimentSvgPng}</Text>
-            <Svg alt={STR.experimentImageAlt} width={208} height={96} source={demoSvgWithPng()} />
+            <Svg alt={STR.experimentImageAlt} width={96} height={96} source={demoSvgWithPng()} />
           </Box>
         ) : app ? (
           <Text dimColor wrap="wrap">
@@ -676,7 +676,7 @@ export const register: Register = on => {
             <Text dimColor wrap="wrap">
               {STR.experimentTerminal}
             </Text>
-            <Image key="experiment-image" source={{ png: DEMO_PNG }} columns={26} rows={6} alt={STR.experimentImageAlt} />
+            <Image key="experiment-image" source={{ png: DEMO_PNG }} columns={12} rows={6} alt={STR.experimentImageAlt} />
           </Box>
         )}
       </Box>

@@ -33,6 +33,14 @@ describe('the panel mod keeps its copies in step with their sources', () => {
     expect(JSON.parse(norm(mod))).toEqual(JSON.parse(norm(shown)));
   });
 
+  it('draws the terminal head in the mascot identity colours, copied from tokens.css', () => {
+    const tokens = read('web', 'public', 'tokens.css');
+    const role = (name: string) => new RegExp(`--mascot-${name}:\\s*(#[0-9a-fA-F]{6})`).exec(tokens)![1]!.toUpperCase();
+    const body = /export const LOGO_PALETTE[^=]*= (\{[^}]*\})/.exec(model)![1]!;
+    const palette = JSON.parse(body.replace(/(\w+):/g, '"$1":').replace(/'/g, '"')) as Record<string, string>;
+    expect(palette).toEqual({ a: role('coral'), i: role('highlight'), c: role('ink'), b: role('coral-dark'), d: role('cloak'), k: role('metal') });
+  });
+
   it('draws the mascot\'s neutral face from a copy that equals the brand export', () => {
     const exported = read('web', 'public', 'brand', 'mascot', 'expressions', 'neutral-face.svg');
     const copy = JSON.parse(/export const MASCOT_FACE =\s*("(?:[^"\\]|\\.)*")/.exec(model)![1]!) as string;
