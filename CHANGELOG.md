@@ -1,3 +1,10 @@
+# [1.90.0](https://github.com/ProjectAJ14/eklavya/compare/v1.89.0...v1.90.0) (2026-10-25)
+
+
+### Features
+
+* **panel:** Did You Know card before each question, quiet first 5 minutes ([#253](https://github.com/ProjectAJ14/eklavya/issues/253)) ([3853e5a](https://github.com/ProjectAJ14/eklavya/commit/3853e5af05f57a78dd4f20c192b99319b0751449))
+
 # [1.89.0](https://github.com/ProjectAJ14/eklavya/compare/v1.88.0...v1.89.0) (2026-10-25)
 
 
