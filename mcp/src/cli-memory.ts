@@ -200,8 +200,10 @@ function memoryStatus(): void {
       delivery: totalsDelivery(totals),
     });
 
+    const health = config.memory.enabled ? memoryHealth(db, { project }) : null;
+    const failure = health?.facts.last_failure;
     const lines = [
-      ...(config.memory.enabled ? healthLines(memoryHealth(db, { project })) : []),
+      ...(health ? healthLines(health) : []),
       `project:    ${project}`,
       `capture:    ${config.memory.enabled ? config.memory.capture : 'off (memory.enabled is false)'}`,
       `entries:    ${countEntries(db, project)} here, ${countEntries(db)} in total`,
@@ -210,6 +212,7 @@ function memoryStatus(): void {
       `queue:      ${queue.pending} pending · ${queue.paused} paused · ${queue.failed} failed${
         queue.quarantined ? ` · ${queue.quarantined} quarantined` : ''
       }`,
+      ...(failure ? [`last fail:  ${failure.at} · ${failure.project} · ${failure.cause}`] : []),
       `oldest job: ${queue.oldest ?? '—'}`,
       ...(pauseLine(db) ? [`paused:     ${paint.warn(`${pauseLine(db)} — fix it, then: eklavya memory process`)}`] : []),
       `worker:     ${workerLine(db)}`,
