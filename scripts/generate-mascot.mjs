@@ -17,7 +17,7 @@ for (const [expression, label] of Object.entries(mascot.expressions)) {
     exports.set(`expressions/${expression}-${variant}.svg`, svg.replace('><title>', `>${style}<title>`));
   }
 }
-exports.set('loading.svg', mascot.svg({ state:'loading', variant:'loading', size:200, label:'Eklavya drawing a bow' }).replace('><title>', `>${style}<title>`));
+exports.set('loading.svg', mascot.svg({ state:'loading', variant:'loading', size:200, label:'Eklavya walking toward you' }).replace('><title>', `>${style}<title>`));
 if (process.argv.includes('--check')) {
   for (const [file, expected] of exports) {
     const actual = await fs.readFile(new URL(file, base), 'utf8').catch(() => null);

@@ -3,19 +3,35 @@ eklavya-mascot { display:inline-flex; flex-shrink:0; vertical-align:middle; line
 .ek-mascot { display:block; overflow:visible; flex-shrink:0; }
 .ek-mascot[data-variant="face"] { overflow:hidden; }
 .ek-mascot__face path:not([fill]) { fill:none; }
-.ek-mascot--loading .ek-mascot__character { animation:ek-breathe 2.8s ease-in-out infinite; transform-origin:95px 185px; }
-.ek-mascot--loading .ek-mascot__arrow { animation:ek-release 2.8s cubic-bezier(.3,0,.3,1) infinite; }
-.ek-mascot--loading .ek-mascot__string { animation:ek-draw 2.8s ease-in-out infinite; transform-origin:157px 125px; }
-.ek-mascot--loading .ek-mascot__ripple { animation:ek-hit 2.8s ease-out infinite; transform-origin:196px 128px; opacity:0; }
-@keyframes ek-breathe { 0%,100% {transform:translateY(0)} 35%,55% {transform:translateY(-3px) rotate(-1deg)} }
-@keyframes ek-release { 0%,12% {transform:translateX(0);opacity:1} 40%,52% {transform:translateX(-10px);opacity:1} 68% {transform:translateX(22px);opacity:0} 69%,85% {transform:translateX(0);opacity:0} 100% {transform:translateX(0);opacity:1} }
-@keyframes ek-draw { 0%,100% {transform:scaleX(1)} 40%,52% {transform:scaleX(1.11)} 60% {transform:scaleX(.08)} 68% {transform:scaleX(1)} }
-@keyframes ek-hit { 0%,60%,100% {opacity:0;transform:scale(.4)} 68% {opacity:.8;transform:scale(.7)} 88% {opacity:0;transform:scale(1.7)} }
 .ek-companion { display:flex;align-items:center;gap:12px;color:var(--dim);font:13px/1.5 var(--font-body); }
 .ek-companion--hero { margin-bottom:16px; }
 .ek-companion--hero b { display:block;color:var(--ink);font-weight:600; }
 .ek-mascot-message { display:flex;align-items:center;gap:16px;padding:16px 0; }
 .ek-mascot-message p {margin:0}
+/* Secondary loader: draws and releases an arrow over 2.8 s. */
+.ek-mascot--draw .ek-mascot__character { animation:ek-breathe 2.8s ease-in-out infinite; transform-origin:95px 185px; }
+.ek-mascot--draw .ek-mascot__arrow { animation:ek-release 2.8s cubic-bezier(.3,0,.3,1) infinite; }
+.ek-mascot--draw .ek-mascot__string { animation:ek-draw 2.8s ease-in-out infinite; transform-origin:157px 125px; }
+.ek-mascot--draw .ek-mascot__ripple { animation:ek-hit 2.8s ease-out infinite; transform-origin:196px 128px; opacity:0; }
+@keyframes ek-breathe { 0%,100% {transform:translateY(0)} 35%,55% {transform:translateY(-3px) rotate(-1deg)} }
+@keyframes ek-release { 0%,12% {transform:translateX(0);opacity:1} 40%,52% {transform:translateX(-10px);opacity:1} 68% {transform:translateX(22px);opacity:0} 69%,85% {transform:translateX(0);opacity:0} 100% {transform:translateX(0);opacity:1} }
+@keyframes ek-draw { 0%,100% {transform:scaleX(1)} 40%,52% {transform:scaleX(1.11)} 60% {transform:scaleX(.08)} 68% {transform:scaleX(1)} }
+@keyframes ek-hit { 0%,60%,100% {opacity:0;transform:scale(.4)} 68% {opacity:.8;transform:scale(.7)} 88% {opacity:0;transform:scale(1.7)} }
+/* Loader: walking toward the viewer, a 1.2 s stride (two steps). Ground rungs recede on an ease-out, as perspective slows them near the horizon. */
+.ek-mascot--loading .ek-mascot__walker { animation:ek-sway 1.2s ease-in-out infinite; transform-origin:95px 185px; }
+.ek-mascot--loading .ek-mascot__torso { animation:ek-bob .6s ease-in-out infinite; }
+.ek-mascot--loading .ek-mascot__leg, .ek-mascot--loading .ek-mascot__hand { animation:ek-step 1.2s ease-in-out infinite; }
+.ek-mascot--loading .ek-mascot__leg--r, .ek-mascot--loading .ek-mascot__hand--arrow { animation-delay:-.6s; }
+.ek-mascot--loading .ek-mascot__shadow { animation:ek-shadow .6s ease-in-out infinite; transform-origin:95px 186px; }
+.ek-mascot--loading .ek-mascot__rung { animation:ek-recede 1.2s cubic-bezier(.15,.6,.4,1) infinite; transform-origin:95px 162px; }
+.ek-mascot--loading .ek-mascot__rung:nth-child(3) { animation-delay:-.3s; }
+.ek-mascot--loading .ek-mascot__rung:nth-child(4) { animation-delay:-.6s; }
+.ek-mascot--loading .ek-mascot__rung:nth-child(5) { animation-delay:-.9s; }
+@keyframes ek-sway { 0%,100% {transform:rotate(-1.5deg)} 50% {transform:rotate(1.5deg)} }
+@keyframes ek-bob { 0%,100% {transform:translateY(1px)} 50% {transform:translateY(-3px)} }
+@keyframes ek-step { 0%,50%,100% {transform:translateY(0)} 25% {transform:translateY(-6px)} }
+@keyframes ek-shadow { 0%,100% {transform:scaleX(1)} 50% {transform:scaleX(.92)} }
+@keyframes ek-recede { 0% {transform:translateY(56px) scaleX(1);opacity:0} 10% {opacity:1} 85% {opacity:1} 100% {transform:translateY(0) scaleX(.4);opacity:0} }
 @media (prefers-reduced-motion:reduce) { .ek-mascot * {animation:none !important;transition:none !important} }
 
 .ek-companion--rail { padding:12px 20px; text-decoration:none; }

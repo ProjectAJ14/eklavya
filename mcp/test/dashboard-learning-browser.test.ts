@@ -13,6 +13,8 @@ declare let S: { daily: unknown[]; concepts: unknown[]; logged: { slug: string }
 declare function inScope(repo: unknown, sid: unknown): boolean;
 declare let INV: { projects: unknown[] };
 declare const toast: any;
+declare function loader(label: string): string;
+declare const LOADER_VERBS: string[];
 declare function ekDialog(o: unknown): Promise<{ ok: boolean; value: string }>;
 declare function startCommand(concepts: unknown[]): { name: string; count: number; command: string; note: string }[];
 declare function streaks(map: Map<string, { day: string; total: number }>): { current: number; best: number; days: number };
@@ -440,6 +442,11 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await page.goto(base + '/#/learning/dashboard');
       await page.waitForSelector('#view .loader[role="status"]');
       expect(await page.getAttribute('#view', 'aria-busy')).toBe('true');
+      // A random verb is all a loader says, on screen and to screen readers: no "Loading…" anywhere.
+      const said = await page.$eval('#view .loader', (l) => ({ shown: l.querySelector(':scope > span')!.textContent, all: l.textContent!.replace(/\s+/g, '') }));
+      expect(said.shown).toMatch(/^[A-Z][\p{L}'-]+…$/u);
+      expect(said.shown).not.toMatch(/Loading|Clauding/);
+      expect(said.all).toBe(said.shown);
       expect(await page.isDisabled('#proj')).toBe(true);
       expect(await page.evaluate(() => getComputedStyle(document.getElementById('wf')!).visibility)).toBe('hidden');
       release();
@@ -447,6 +454,23 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       expect(await page.getAttribute('#view', 'aria-busy')).toBeNull();
       expect(await page.isEnabled('#proj')).toBe(true);
       expect(await page.textContent('#proj-name')).toBe('All projects');
+      // One verb holds through a wait's redraws; every navigation picks again, whatever the screen.
+      const verbs = await page.evaluate(() => {
+        const real = Math.random; let i = 0;
+        Math.random = () => [0.1, 0.6][i++ % 2];
+        const shown = (html: string) => html.match(/<span>([^<]+)</)![1];
+        try {
+          const first = shown(loader('Loading sessions…'));
+          const again = shown(loader('Loading sessions…'));
+          dispatchEvent(new HashChangeEvent('hashchange'));
+          return { first, again, next: shown(loader('Loading sessions…')), list: LOADER_VERBS.map((v) => v + '…') };
+        } finally { Math.random = real; }
+      });
+      expect(verbs.again).toBe(verbs.first);
+      expect(verbs.next).not.toBe(verbs.first);
+      expect(verbs.list).toContain(verbs.first);
+      expect(verbs.list).toContain(verbs.next);
+      expect(verbs.list).not.toContain('Clauding…');
       await ctx.close();
     });
 
