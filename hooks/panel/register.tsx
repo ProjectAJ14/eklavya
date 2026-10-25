@@ -417,9 +417,10 @@ export const register: Register = on => {
   on('ui.message', { component: 'Pane' }, async ($, e, next) => {
     if (e.requestId === PANE) {
       try {
+        const started = Date.now()
         const id = (e.data as { pick?: unknown } | null)?.pick
         const s: PanelState = (await $.state.get(REF)).value ?? EMPTY
-        if (typeof id === 'string' && s.question?.options.some(o => o.id === id)) await pick($, id, 'whole card')
+        if (typeof id === 'string' && s.question?.options.some(o => o.id === id)) await pick($, id, 'whole card', started)
       } catch {
         /* Fail open: the card stays as it was. */
       }
@@ -712,12 +713,14 @@ async function setStyle($: EngineInterface, style: 'button' | 'client'): Promise
 }
 
 /** Selecting an option records a draft and nothing else: it never submits, grades or skips. */
-async function pick($: EngineInterface, id: string, via = 'button'): Promise<void> {
+async function pick($: EngineInterface, id: string, via = 'button', since?: number): Promise<void> {
   await update($, quiz, (s: PanelState) =>
     s.step === 'awaiting' || s.step === 'error'
-      ? { ...s, draft: { ...s.draft, picked: id, other: false }, message: null, ...(s.demo ? { demo: { ...s.demo, last: demoLast(`${id} picked (${via})`) } } : {}) }
+      ? { ...s, draft: { ...s.draft, picked: id, other: false }, message: null, ...(s.demo ? { demo: { ...s.demo, last: demoLast(`${id} picked (${via}${since === undefined ? '' : `, ${Date.now() - since} ms in the mod`})`) } } : {}) }
       : s,
   )
+  // A whole card has no Button to focus, so asking the host to find `opt-…` would only make the pick wait.
+  if (via !== 'button') return
   try {
     // The host's focus mark follows the pick, so the highlighted answer is the chosen one even after a hotkey.
     await $.ui.focus({ requestId: PANE, key: `opt-${id}` })

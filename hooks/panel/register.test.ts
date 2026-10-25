@@ -1275,6 +1275,19 @@ describe('the mock question (/eklavya-panel-demo)', () => {
     expect(JSON.stringify(await desktop.drawn())).not.toContain('card.tsx')
   })
 
+  test('picking a second, third and fourth card in a row moves the pick each time, and the time in the mod is shown', async ($, on) => {
+    world(on)
+    await boot($)
+    await demo($)
+    const pane = await mount($, 'desktop')
+    await press($, 'style-client', 'desktop')
+    for (const id of ['o1', 'o2', 'o3', 'o4']) {
+      await pane.post({ pick: id }, { in: `card-${id}` } as any)
+      expect(chosenCards(await pane.drawn())).toBe(1)
+      expect(JSON.stringify(await pane.drawn())).toMatch(new RegExp(`${id} picked \\(whole card, \\d+ ms in the mod\\)`))
+    }
+  })
+
   test('a press anywhere on a whole card picks it; a bad id, a locked card and another pane change nothing', async ($, on) => {
     world(on)
     await boot($)
@@ -1284,7 +1297,7 @@ describe('the mock question (/eklavya-panel-demo)', () => {
     await pane.pointer({ type: 'enter', x: 1, y: 1, in: 'card-o2' } as any)
     await pane.pointer({ type: 'up', x: 1, y: 1, button: 'left', in: 'card-o2' } as any)
     expect(chosenCards(await pane.drawn())).toBe(1)
-    expect(JSON.stringify(await pane.drawn())).toContain('o2 picked (whole card)')
+    expect(JSON.stringify(await pane.drawn())).toMatch(/o2 picked \(whole card, \d+ ms in the mod\)/)
     await pane.pointer({ type: 'leave', x: 1, y: 1, in: 'card-o2' } as any)
     await pane.post({ pick: 'zzz' }, { in: 'card-o2' } as any)
     await pane.post({ pick: 7 }, { in: 'card-o2' } as any)
