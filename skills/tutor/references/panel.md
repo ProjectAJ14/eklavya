@@ -26,6 +26,7 @@ Make one call to `present_question` instead:
   shape of the idea (rows two and four of the table), **1** for one built on a
   misconception (rows one and three). Grade 3 is not available to a pick: only
   typed words can show a hesitant "right".
+- `did_you_know`: `{fact, details}`, the card the panel shows before the question. `fact` is two or three plain sentences teaching the concept itself, tied to this project when it can be; `details` is what "I want to learn more" opens: the mechanism, one concrete example, the usual pitfall. Teach, never quiz: neither may give away the answer to the question, and neither repeats the `explanation`. Mark code in backticks as below.
 - `more: true` only in an explicit round (the plan has more items after this one, as for `/eklavya:quiz`): the panel then offers a Next button. Leave it out otherwise. Once a round is planned the server tracks it: the last question's `more` is set false for you, and Next arrives as a prompt telling you to call `get_session_quiz_plan` with `resume_round: true`.
 - **Mark the code.** The panel draws the stem, each `description` and the `explanation` as Markdown, so
   put every function, call, class, file and flag in backticks (`` `tester.pumpWidget(widget)` ``,

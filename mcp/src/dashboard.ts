@@ -1881,6 +1881,8 @@ const FIELDS: Omit<SettingField, 'type'>[] = [
     help: 'Cooldown between whole quizzes. Enforced quizzing ignores it.' },
   { key: 'min_minutes_between_checkpoints', group: 'Pacing', label: 'Minutes between mid-work questions',
     help: 'Floor on the gap between single as-you-go questions. 0 asks at every seam.' },
+  { key: 'min_minutes_before_first_quiz', group: 'Pacing', label: 'Quiet minutes at session start',
+    help: 'No question until the session is this many minutes old, so setup work is never quizzed, even after the quiet ends. Enforced quizzing and explicit quizzes ignore it. 0 asks as soon as work is logged.' },
   { key: 'max_new_concepts_per_session', group: 'Pacing', label: 'New concepts per session',
     help: 'Cap on concepts the agent may add to the catalogue in one session.' },
   { key: 'max_stop_blocks_per_session', group: 'Pacing', label: 'Stop-hook blocks per session',

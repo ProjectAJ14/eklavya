@@ -47,6 +47,8 @@ For temporary quiet, use `/eklavya:skip` or `/eklavya:mode off --session`. This 
 
 **End** waits until a task finishes, then asks the remaining budget one question at a time. `min_minutes_between_quizzes` spaces these offered quizzes (20 minutes by default).
 
+Nothing is asked in the first five minutes of a session (`min_minutes_before_first_quiz`, `0` to turn the quiet off), so setup such as creating a worktree is not quizzed; concepts logged in those minutes are not asked about later either. Enforced quizzing and explicit `/eklavya:quiz` requests ignore it.
+
 Automatic checkpoints and the final sweep share `max_questions_per_task`: four questions across the session by default. As-you-go moves that budget earlier without adding automatic questions. Enforcement removes the planner's one-question cap and normal quiz cooldown, but automatic hooks still stop when their session budget is spent.
 
 Each explicit `/eklavya:quiz` round can plan up to `max_questions_per_task` eligible questions even after that automatic budget is exhausted. Use it to continue learning or retry a taught miss when an enforced gate remains blocked.

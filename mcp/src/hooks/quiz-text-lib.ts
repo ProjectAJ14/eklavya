@@ -28,7 +28,7 @@ export function checkpointText(o: CheckpointText): string {
     ? 'You just logged a concept. Before writing another line, ask'
     : 'The work has moved on since the last question. Before the next step, ask';
   const ask = o.panel
-    ? `  2. Show that ONE question in the side panel with present_question: the stem alone, four options each with its one-line description and a grade (the right one 4, a near miss 2, one built on a misconception 1), the correct one in the slot answer_position names, and a one-line explanation. It returns at once.`
+    ? `  2. Show that ONE question in the side panel with present_question: the stem alone, four options each with its one-line description and a grade (the right one 4, a near miss 2, one built on a misconception 1), the correct one in the slot answer_position names, a one-line explanation, and did_you_know ({fact, details}: the card the panel shows first, teaching the concept without giving the answer away). It returns at once.`
     : `  2. Ask that ONE question with AskUserQuestion: four options, exactly one correct, three plausible but wrong for this stem, and put the correct one in the slot answer_position names.
      ${attributionRule()}`;
   const after = o.panel

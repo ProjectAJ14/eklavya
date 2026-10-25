@@ -197,6 +197,11 @@ describe('cadence — the third dial', () => {
   });
 
   it('reads the checkpoint gap, and refuses a negative one', () => {
+    expect(DEFAULT_CONFIG.min_minutes_before_first_quiz).toBe(5);
+    writeGlobal({ min_minutes_before_first_quiz: 0 });
+    expect(loadConfig(repo).config.min_minutes_before_first_quiz).toBe(0);
+    writeGlobal({ min_minutes_before_first_quiz: -1 });
+    expect(loadConfig(repo).config.min_minutes_before_first_quiz).toBe(5);
     expect(DEFAULT_CONFIG.min_minutes_between_checkpoints).toBe(4);
     writeGlobal({ min_minutes_between_checkpoints: 0 });
     expect(loadConfig(repo).config.min_minutes_between_checkpoints).toBe(0);

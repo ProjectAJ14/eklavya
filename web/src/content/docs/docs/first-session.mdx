@@ -96,6 +96,8 @@ To use the question card everywhere:
 eklavya config set quiz.panel false
 ```
 
+When Claude supplies one, a **Did you know?** card comes first: a few lines teaching the concept. **Oh, I knew this** goes straight to the question; **I want to learn more** adds a longer explanation under the card, and **Got it, ask me** then opens the question. Neither button is an answer, so neither changes your history. Questions asked without a card, and the card-style question, open directly.
+
 The panel shows one question at a time under the Eklavya mark: the concept and
 tier, the question, four options with a line under each, and **Other — explain
 in your own words**. Each option is its own bordered block; in the terminal, pressing its text or the line under it picks it, and on the desktop app a click anywhere on the block does. The one you pick gets bold white text, a thicker highlighted border and a

@@ -113,6 +113,63 @@ const press = ($: any, key: string, surface = 'terminal') => $.ui.press({ plugin
 const ticks = async (pane: any) => (JSON.stringify(await pane.drawn()).match(/"borderStyle":"bold"/g) ?? []).length
 const answers = (log: any) => log.calls.filter((c: any) => c.tool === 'panel_answer')
 
+const CARD = { fact: 'The Origin header names the page that sent the request.', details: 'A browser sets it and a page cannot change it.' }
+
+describe('the Did You Know card', () => {
+  for (const surface of SURFACES) {
+    test(`opens on the card, hides the question, and "I knew this" asks it, on ${surface}`, async ($, on) => {
+      const w = world(on, { waiting: { ...QUESTION, card: CARD }, surfaces: [surface] })
+      await boot($)
+      const pane = await mount($, surface)
+      await $.session.start({ cwd: '/work/proj', surface, isInteractive: true })
+      expect(await pane.find({ text: STR.dyk })).toBeDefined()
+      expect(await pane.find({ text: CARD.fact })).toBeDefined()
+      expect(await pane.find({ text: QUESTION.stem })).toBeUndefined()
+      await press($, 'knew', surface)
+      expect(await pane.find({ text: QUESTION.stem })).toBeDefined()
+      expect(await pane.find({ text: STR.dyk })).toBeUndefined()
+      // Asking the question is not an answer.
+      expect(answers(w.log)).toHaveLength(0)
+    })
+  }
+
+  test('"I want to learn more" shows the details, and "Got it" then asks the question', async ($, on) => {
+    world(on, { waiting: { ...QUESTION, card: CARD } })
+    await boot($)
+    const pane = await mount($, 'terminal')
+    await $.session.start({ cwd: '/work/proj', surface: 'terminal', isInteractive: true })
+    expect(await pane.find({ text: CARD.details })).toBeUndefined()
+    await press($, 'learn')
+    expect(await pane.find({ text: CARD.details })).toBeDefined()
+    expect(await pane.find({ text: STR.gotIt })).toBeDefined()
+    expect(await pane.find({ key: 'knew' })).toBeUndefined()
+    await press($, 'learn')
+    expect(await pane.find({ text: QUESTION.stem })).toBeDefined()
+  })
+
+  test('a heartbeat while the card is up keeps the card, and a question without one opens on the question', async ($, on) => {
+    const w = world(on, { waiting: { ...QUESTION, card: CARD } })
+    await boot($)
+    const pane = await mount($, 'terminal')
+    await $.session.start({ cwd: '/work/proj', surface: 'terminal', isInteractive: true })
+    await $.session.start({ cwd: '/work/proj', surface: 'terminal', isInteractive: true })
+    expect(await pane.find({ text: CARD.fact })).toBeDefined()
+    w.s.waiting = { ...QUESTION, question_id: 'q2' }
+    await $.session.start({ cwd: '/work/proj', surface: 'terminal', isInteractive: true })
+    expect(await pane.find({ text: QUESTION.stem })).toBeDefined()
+  })
+
+  test('the question going away closes the card too', async ($, on) => {
+    const w = world(on, { waiting: { ...QUESTION, card: CARD } })
+    await boot($)
+    const pane = await mount($, 'terminal')
+    await $.session.start({ cwd: '/work/proj', surface: 'terminal', isInteractive: true })
+    w.s.waiting = null
+    await $.session.start({ cwd: '/work/proj', surface: 'terminal', isInteractive: true })
+    expect(await pane.find({ text: STR.empty })).toBeDefined()
+  })
+})
+
 describe('the pane, state by state', () => {
   for (const surface of NATIVE) {
     test(`shows nothing waiting, then the question, on ${surface}`, async ($, on) => {

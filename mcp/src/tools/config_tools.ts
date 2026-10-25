@@ -117,6 +117,7 @@ export const setConfig: ToolDef = {
         'When the questions land. "as-you-go" (default) asks one question mid-task, at the seam where a concept was logged, and the Stop hook then only sweeps up what is left of max_questions_per_task. "end" is the old behaviour: nothing until the task is finished.',
       ),
     min_minutes_between_checkpoints: num('min_minutes_between_checkpoints'),
+    min_minutes_before_first_quiz: num('min_minutes_before_first_quiz'),
     difficulty: z
       .enum(['auto', 'easy', 'medium', 'hard'])
       .optional()

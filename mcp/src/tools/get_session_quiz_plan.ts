@@ -4,7 +4,7 @@ import { clampToLevel, decayedScore, isDue, isKnown, nextTierToAsk, streakOf, ty
 import { answerPosition } from '../mcq.js';
 import { normalizeSlug } from '../slug.js';
 import { minutesSince, parseStamp } from '../time.js';
-import { isSessionOff, resolveSessionId, workSince } from '../session.js';
+import { isSessionOff, quietMinutesLeft, resolveSessionId, workSince } from '../session.js';
 import {
   attemptedConceptIds,
   domainSiblings,
@@ -376,6 +376,11 @@ export const getSessionQuizPlan: ToolDef = {
     // are exempt, and so is enforced mode outside a wait: the gate can need more
     // passing answers than the budget holds (decision G5).
     if (waiting || (!requested && !config.quiz.enforced)) {
+      // The first minutes of a session are setup: the same quiet the hooks keep.
+      const quiet = config.quiz.enforced ? 0 : quietMinutesLeft(db, sessionId, config.min_minutes_before_first_quiz);
+      if (quiet > 0) {
+        return { session_id: sessionId, questions_needed: 0, concepts: [], reason: 'quiet_start', minutes_remaining: quiet };
+      }
       // `end` promises no questions during the task, and a wait is during it.
       if (waiting && config.cadence === 'end') {
         return { session_id: sessionId, questions_needed: 0, concepts: [], reason: 'cadence_end' };
@@ -566,7 +571,7 @@ export const getSessionQuizPlan: ToolDef = {
       // (`workSince`), the boundary both quiz hooks apply, so the concept a hook
       // names is the one this plan serves. Seconds, as SQLite's datetime()
       // compares them there. An enforced gate asks everything it counted.
-      const sinceMs = config.quiz.enforced ? null : parseStamp(workSince(db, sessionId));
+      const sinceMs = config.quiz.enforced ? null : parseStamp(workSince(db, sessionId, requested ? 0 : config.min_minutes_before_first_quiz));
       const sinceS = sinceMs === null ? null : Math.floor(sinceMs / 1000);
       const loggedS = (c: (typeof touched)[number]) => Math.floor((parseStamp(c.logged_at) ?? 0) / 1000);
       // Newest first, in the hooks' exact order (ts DESC, rowid DESC): under the

@@ -51,7 +51,7 @@ the next sync. The rules it is validated against: static relative imports only,
 every `$` call inline or in a function declared at the top of the file, literal
 event names, render only its own pane, and never hold the answer key (the server
 grades; the mod draws and relays). On a headerless host `panel_sync` also carries a `greeting` the mod toasts once (the SessionStart `systemMessage` never reaches Desktop; the terminal is never sent it, and `hooks/session-start.ts` is untouched). It is opt-in: with `quiz.panel` off, `panel_sync`
-returns `{disabled: true}` and the mod opens and draws nothing. `presentation` in
+returns `{disabled: true}` and the mod opens and draws nothing. A question that carries a Did You Know `card` (`panel_questions.card`, required by the `present_question` schema) opens on the `card` step: **I knew this** and **Got it** move to `awaiting`, **I want to learn more** sets `learn` to show the details; neither calls the server, so neither records anything. `presentation` in
 `get_session_quiz_plan` is the one source for which tool asks; the checkpoint,
 the Stop sweep and the delegation lines (`delegation-lib.ts`) read it, and an
 open panel question silences the checkpoint and the Stop sweep. Read

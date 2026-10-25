@@ -42,7 +42,7 @@
 import { checkpointText } from './quiz-text-lib.js';
 import { knownSql } from '../srs.js';
 import { run, openExisting, config, cwdOf, sessionId, minutesSince, type DB } from './lib.js';
-import { isSessionOff, noteActivity, workSince } from '../session.js';
+import { isSessionOff, noteActivity, quietMinutesLeft, workSince } from '../session.js';
 import { countUse } from '../telemetry.js';
 import { noteBashEdit, noteEdit, sessionChangedCode } from './changes-lib.js';
 import { hasOpenPanelQuestion, panelPresentation } from '../panel-state.js';
@@ -51,7 +51,7 @@ const EDIT_TOOLS = /^(Edit|Write|MultiEdit|NotebookEdit)$/;
 
 await run(async (input) => {
   const cwd = cwdOf(input);
-  const { quiz, cadence, focus, focus_topic, max_questions_per_task, min_minutes_between_checkpoints } =
+  const { quiz, cadence, focus, focus_topic, max_questions_per_task, min_minutes_between_checkpoints, min_minutes_before_first_quiz } =
     config(cwd).config;
 
   if (!quiz.enabled) return 0;
@@ -96,13 +96,16 @@ await run(async (input) => {
   // another would be a second question for the same learner, so stay silent
   // until it is answered. Only with the panel on: off reads nothing here.
   if (quiz.panel && hasOpenPanelQuestion(db, sid)) return 0;
+  // The first minutes of a session are setup, not learning. An enforced gate is
+  // not paced by the clock, and the Stop hook and the planner apply this too.
+  if (!quiz.enforced && quietMinutesLeft(db, sid, min_minutes_before_first_quiz) > 0) return 0;
 
   // Only work logged in the current stretch is askable -- since the first prompt
   // after an idle break (`workSince`) -- so a session left open overnight is not
   // asked about yesterday. Not for an enforced gate, whose bar was frozen from
   // everything the session logged. checkpoint-quiz.ts and stop-quiz-check.ts
   // must agree on this line.
-  const since = quiz.enforced ? null : workSince(db, sid);
+  const since = quiz.enforced ? null : workSince(db, sid, min_minutes_before_first_quiz);
   const recent = since ? 'AND datetime(sc.ts) >= datetime(@since)' : '';
   const bind = since ? { sid, since } : { sid };
 

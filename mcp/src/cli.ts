@@ -138,6 +138,7 @@ Memory:
 Config keys: focus, focus_topic, cadence, difficulty, level_up_after,
              level_up_accuracy, pass_threshold, max_questions_per_task,
              min_minutes_between_quizzes, min_minutes_between_checkpoints,
+             min_minutes_before_first_quiz,
              max_new_concepts_per_session, max_stop_blocks_per_session, quiet,
              explain_on_wrong, delegate_work,
              auto_update, telemetry, dashboard_autostart (global only)
