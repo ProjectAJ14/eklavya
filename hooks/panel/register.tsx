@@ -457,6 +457,8 @@ export const register: Register = on => {
     // Only the desktop app draws a `Client` (the whole-card answers, the Teach me pill, the Other row). VS Code has `Svg` but no `Client`:
     // a tree holding an element its surface lacks is replaced whole, so VS Code keeps the native buttons.
     const desktop = e.surface === 'desktop'
+    // `Svg` is drawn by the desktop app and VS Code only (the elements table lists no other surface), so any other surface keeps the grid mark.
+    const vector = desktop || e.surface === 'vscode'
     // The mark is drawn in text, as Claude Code draws its own, so it shows in every terminal. The
     // desktop app sets text in a proportional font with its own line height, so glyph cells do not
     // tile there: it gets the same grid as filled boxes, one per run of a colour. A cell is one unit
@@ -475,10 +477,20 @@ export const register: Register = on => {
             </Box>
           ))}
         </Box>
-      ) : (
+      ) : vector ? (
         // The mascot's own neutral face, as the vector artwork the brand ships (the block grid is for the terminal's cells).
         <Box flexDirection="column" flexShrink={0}>
           <Svg alt={STR.mascotAlt} width={72} height={73} source={MASCOT_FACE} />
+        </Box>
+      ) : (
+        <Box flexDirection="column" flexShrink={0}>
+          {boxRows().map((runs, y) => (
+            <Box key={`logo-${y}`} flexDirection="row" flexShrink={0} height={0.5}>
+              {runs.map((run, x) => (
+                <Box key={`logo-${y}-${x}`} width={run.width} height={0.5} flexShrink={0} backgroundColor={run.color} />
+              ))}
+            </Box>
+          ))}
         </Box>
       )
     // A list tile: the mark on the left, the name over the topic beside it. A pane narrower than
@@ -636,13 +648,17 @@ export const register: Register = on => {
         <Text color="warning" bold>
           {STR.experimentBanner}
         </Text>
-        {app ? (
+        {vector ? (
           <Box flexDirection="column" gap={1}>
             <Text dimColor>{STR.experimentSvg}</Text>
             <Svg alt={STR.experimentImageAlt} width={208} height={96} source={demoSvg()} />
             <Text dimColor>{STR.experimentSvgPng}</Text>
             <Svg alt={STR.experimentImageAlt} width={208} height={96} source={demoSvgWithPng()} />
           </Box>
+        ) : app ? (
+          <Text dimColor wrap="wrap">
+            {STR.experimentNone}
+          </Text>
         ) : (
           <Box flexDirection="column">
             <Text dimColor wrap="wrap">

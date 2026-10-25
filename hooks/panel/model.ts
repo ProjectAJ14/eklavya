@@ -175,6 +175,7 @@ export const STR = {
   experimentBanner: 'EXPERIMENT · picture test. Nothing here is part of a real question.',
   experimentTerminal: 'Image: a PNG, drawn as a picture in kitty, Ghostty and iTerm2 (fullscreen); other terminals show the dim text instead. SVG is not drawn in the terminal.',
   experimentImageAlt: 'The Eklavya mark: the Claude mascot holding a bow and arrow',
+  experimentNone: 'This surface draws neither an SVG nor an image, so there is nothing to test here.',
   experimentSvg: 'SVG: the mark drawn as vector rectangles.',
   experimentSvgPng: 'Image: the same mark as a PNG inside an SVG (Desktop has no Image element).',
 } as const

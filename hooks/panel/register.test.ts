@@ -1637,3 +1637,59 @@ describe('real questions on the desktop: whole cards, numbers, the Teach me pill
     expect(lockedTree.props.backgroundColor).toBe('#D97757')
   })
 })
+
+describe('gaps closed in review: surfaces, grading and multi-line answers', () => {
+  const elements = (tree: unknown) => [...JSON.stringify(tree).matchAll(/"type":"(Svg|Client|Image)"/g)].map(m => m[1])
+
+  test('a surface the elements table does not list for Svg keeps the grid mark and draws no Svg, Client or Image', async ($, on) => {
+    world(on)
+    await boot($)
+    await $.command.run({ command: 'eklavya-panel-demo', args: '' } as any)
+    const drawn = JSON.stringify(await (await mount($, 'mobile' as any)).drawn())
+    expect(elements(drawn)).toEqual([])
+    expect(drawn).toContain('logo-0')
+    expect(drawn).toContain(STR.experimentNone)
+    expect(drawn).toContain('opt-o1')
+  })
+
+  test('while an answer is being graded the cards and the pill are locked, Teach me is gone and a stray click changes nothing', async ($, on) => {
+    mock.clock(on)
+    const w = world(on)
+    let seen = ''
+    let afterStray = 0
+    let pane: any
+    w.s.answer = async () => {
+      // Read while the answer is in flight: the pane is in its grading step.
+      seen = JSON.stringify(await pane.drawn())
+      await pane.post({ pick: 'o1' }, { in: 'card-o1' })
+      afterStray = (JSON.stringify(await pane.drawn()).match(/"chosen":true/g) ?? []).length
+      return { phase: 'answered', attempt_id: 7, correct: true, explanation: 'Stored.' }
+    }
+    await boot($)
+    pane = await mount($, 'desktop')
+    await pane.post({ pick: 'o3' }, { in: 'card-o3' })
+    await press($, 'submit', 'desktop')
+    expect(seen).toContain('"locked":true')
+    expect(seen).not.toContain('"locked":false')
+    expect(seen).not.toContain('teach-client')
+    expect(seen).toContain(STR.grading)
+    // The pick made during grading did not move the chosen card.
+    expect(afterStray).toBe(1)
+    expect(await pane.find({ text: STR.correct })).toBeDefined()
+  })
+
+  test('a typed answer of several lines is graded and recorded whole, newlines kept', async ($, on) => {
+    const w = world(on)
+    await boot($)
+    const pane = await mount($, 'desktop')
+    await pane.post({ pick: 'other' }, { in: 'other-head' })
+    const text = 'A rename is atomic.\nSo the poller sees the file whole.'
+    await $.ui.input({ plugin: PLUGIN, key: 'other-text', text, kind: 'change' })
+    await press($, 'submit', 'desktop')
+    expect(w.log.graded).toHaveLength(1)
+    expect(w.log.graded[0]).toContain(text)
+    const sent = answers(w.log).filter((c: any) => c.args.kind === 'text')
+    expect(sent).toHaveLength(2)
+    for (const call of sent) expect(call.args.text).toBe(text)
+  })
+})

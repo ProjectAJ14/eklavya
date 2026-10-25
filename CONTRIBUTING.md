@@ -164,7 +164,7 @@ loaded from your checkout (`claude --plugin-dir /path/to/eklavya`), and
    leftover pane, and killing the Eklavya server mid-answer then Retry.
 4. Turn `quiz.panel` off and confirm the next question is the card and nothing
    mentions the panel.
-5. Pick one answer with its number key (terminal) and another with a click on its text. Each
+5. Pick one answer with its number key (terminal) and another with a click on its text (terminal) or anywhere on its card (Desktop). Each
    card shows the bold border and teal fill only for the pick (Other: the border
    only), with no tick and no text moving, and the host's
    focus mark lands on the same card. Names such as `tester.pumpWidget(widget)`
