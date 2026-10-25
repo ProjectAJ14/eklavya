@@ -4,6 +4,9 @@
 // the repository never runs it.
 import { describe, expect, test } from 'claude-code/testing'
 
+import Card from './card'
+import Pill from './pill'
+
 const PLUGIN = 'eklavya'
 const PANE = 'eklavya-quiz'
 
@@ -61,6 +64,36 @@ function world(on: any, waiting: any, answer: any = { phase: 'answered', attempt
   on('ui.close', async () => ({ value: undefined }))
 }
 
+/**
+ * The host draws a `Client` from its module; the test host only records it. So the preview runs the same module
+ * here, on a stand-in surface, and puts the tree it returns in the Client's place.
+ */
+const MODULES: Record<string, (props: any, surface: any) => any> = { 'hooks/card.tsx': Card as any, 'hooks/pill.tsx': Pill as any }
+function expand(tree: any): any {
+  if (!tree || typeof tree !== 'object') return tree
+  if (tree.type === 'Client') {
+    const surface: any = {
+      elements: new Proxy({}, { get: (_t, tag) => (props: any) => ({ type: String(tag), props: { ...props, children: undefined }, children: props.children }) }),
+      state: undefined,
+      setState: () => {},
+      post: () => {},
+      onPointer: () => () => {},
+    }
+    return expand(MODULES[tree.props.module]!(tree.props.props, surface))
+  }
+  return { ...tree, children: tree.children?.map(expand) }
+}
+
+/** A step is a Button key, `pick:<id>` (a press on a whole card, or `other`'s header), or `teach` (the Teach me region). */
+async function step($: any, pane: any, key: string) {
+  if (key.startsWith('pick:')) {
+    const id = key.slice(5)
+    return pane.post({ pick: id }, { in: id === 'other' ? 'other-head' : `card-${id}` })
+  }
+  if (key === 'teach') return pane.post({ press: 'teach' }, { in: 'teach-client' })
+  return $.ui.press({ plugin: PLUGIN, key, surface: 'desktop' })
+}
+
 async function scene($: any, name: string, steps: string[] = [], typed?: string) {
   await $.session.start({ cwd: '/work/proj', surface: 'desktop', isInteractive: true })
   const pane = await $.ui.mount({
@@ -71,18 +104,18 @@ async function scene($: any, name: string, steps: string[] = [], typed?: string)
     props: { title: 'Eklavya', isFocused: true, bodyColumns: 60, placement: 'dock' },
     viewport: { columns: 160, rows: 40 },
   })
-  for (const key of steps) await $.ui.press({ plugin: PLUGIN, key, surface: 'desktop' })
+  for (const key of steps) await step($, pane, key)
   if (typed !== undefined) await $.ui.input({ plugin: PLUGIN, key: 'other-text', kind: 'change', text: typed, surface: 'desktop' })
-  console.log('@@SCENE ' + JSON.stringify({ name, tree: await pane.drawn() }))
+  console.log('@@SCENE ' + JSON.stringify({ name, tree: expand(await pane.drawn()) }))
   expect(true).toBe(true)
 }
 
 describe('panel preview', () => {
   test('waiting', async ($, on) => (world(on, LONG), scene($, 'Question waiting')))
-  test('picked', async ($, on) => (world(on, LONG), scene($, 'Answer 2 picked', ['opt-o2'])))
-  test('notes', async ($, on) => (world(on, NOTES), scene($, 'Answers with notes, 3 picked', ['opt-o3'])))
-  test('other', async ($, on) => (world(on, LONG), scene($, 'Other open, words typed', ['opt-other'], 'React owns the value')))
-  test('wrong', async ($, on) => (world(on, LONG), scene($, 'Result: missed', ['opt-o1', 'submit'])))
-  test('right', async ($, on) => (world(on, LONG, { phase: 'answered', attempt_id: 8, correct: true, correct_label: LONG.options[1].label, explanation: 'The state is the single source of truth.' }), scene($, 'Result: correct', ['opt-o2', 'submit'])))
+  test('picked', async ($, on) => (world(on, LONG), scene($, 'Answer 2 picked', ['pick:o2'])))
+  test('notes', async ($, on) => (world(on, NOTES), scene($, 'Answers with notes, 3 picked', ['pick:o3'])))
+  test('other', async ($, on) => (world(on, LONG), scene($, 'Other open, words typed', ['pick:other'], 'React owns the value')))
+  test('wrong', async ($, on) => (world(on, LONG), scene($, 'Result: missed', ['pick:o1', 'submit'])))
+  test('right', async ($, on) => (world(on, LONG, { phase: 'answered', attempt_id: 8, correct: true, correct_label: LONG.options[1].label, explanation: 'The state is the single source of truth.' }), scene($, 'Result: correct', ['pick:o2', 'submit'])))
   test('taught', async ($, on) => (world(on, LONG, { phase: 'answered', attempt_id: 9, taught: true, correct: false, correct_label: LONG.options[1].label, explanation: 'React owns the value.' }), scene($, 'Result: Teach me', ['teach'])))
 })

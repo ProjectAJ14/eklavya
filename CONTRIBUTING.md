@@ -164,7 +164,7 @@ loaded from your checkout (`claude --plugin-dir /path/to/eklavya`), and
    leftover pane, and killing the Eklavya server mid-answer then Retry.
 4. Turn `quiz.panel` off and confirm the next question is the card and nothing
    mentions the panel.
-5. Pick one answer with its number key (terminal) and another with a click on its text. Each
+5. Pick one answer with its number key (terminal) and another with a click on its text (terminal) or anywhere on its card (Desktop). Each
    card shows the bold border and teal fill only for the pick (Other: the border
    only), with no tick and no text moving, and the host's
    focus mark lands on the same card. Names such as `tester.pumpWidget(widget)`
@@ -172,7 +172,7 @@ loaded from your checkout (`claude --plugin-dir /path/to/eklavya`), and
    confirm the result closes itself after 15 seconds, and that a round with
    **Next question** waiting never does.
 
-Run `/eklavya-panel-demo` for a fast pass over the same controls without a real question: it opens a mock question that is graded on your machine and recorded nowhere, shows a **Last click** line, and on Desktop offers the **Answer cards** switch. On Desktop, switch to **Whole card** and click an option's padding, its note and its title: each should pick it and show a click in the **Last click** line, and the border should turn teal under the pointer. Record the result in `docs/verified-schemas.md` row 18. Below **New to me — Teach me** the demo's dashed **EXPERIMENT** box should show a picture of the mark: an `Image` in the terminal, two `Svg` (vector, and PNG inside SVG) on Desktop. Say what drew and what showed only alt text, and record it in row 19.
+Run `/eklavya-panel-demo` for a fast pass over the same controls without a real question: it opens a mock question that is graded on your machine and recorded nowhere, shows a **Last click** line, and on Desktop offers the **Answer cards** switch. On Desktop, click an option's padding, its note, its number and its title: each should pick it and show a click in the **Last click** line, and the border should turn teal under the pointer. Press the compact orange Teach me on its edge and on its text, and click the **Other** row's padding: it should open a three-line box with no Keep button. Record anything that differs in `docs/verified-schemas.md` rows 18 to 20. Below **New to me — Teach me** the demo's dashed **EXPERIMENT** box should show a picture of the mark: an `Image` in the terminal, two `Svg` (vector, and PNG inside SVG) on Desktop. Say what drew and what showed only alt text, and record it in row 19.
 
 Run `scripts/test-panel-mod.sh` for the mod's validation and tests. Say which of
 terminal and Desktop you ran; only the terminal CLI has been verified. On Desktop, also check that the pane draws no key hints and no key badges, that a click picks an answer and presses each button, and that a host that cannot seat the pane leaves the question on the card.

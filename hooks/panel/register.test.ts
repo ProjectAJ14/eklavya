@@ -1,11 +1,14 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
 import Card from './card'
-import { BRAND, DEMO_PNG, demoSvg, demoSvgWithPng, DEMO_QUESTION, DEMO_RIGHT, demoResult, EMPTY, EXPLAINER, NEXT_PROMPT, STR, hintLines, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK, PICKED, TEACH, LOGO_GRID, codify, headingParagraphs, logoRows, boxRows, plainLabel } from './model'
+import Pill from './pill'
+import { BRAND, MASCOT_FACE, DEMO_PNG, demoSvg, demoSvgWithPng, DEMO_QUESTION, DEMO_RIGHT, demoResult, EMPTY, EXPLAINER, NEXT_PROMPT, STR, hintLines, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK, PICKED, TEACH, LOGO_GRID, codify, headingParagraphs, logoRows, boxRows, plainLabel } from './model'
 
 const PLUGIN = 'eklavya'
 const PANE = 'eklavya-quiz'
 const SURFACES = ['terminal', 'desktop'] as const
+/** The surfaces that keep the native Button cards: the desktop app draws region cards instead (and so does nothing a Button does). */
+const NATIVE = ['terminal', 'vscode'] as const
 
 const QUESTION = {
   question_id: 'q1',
@@ -111,7 +114,7 @@ const ticks = async (pane: any) => (JSON.stringify(await pane.drawn()).match(/"b
 const answers = (log: any) => log.calls.filter((c: any) => c.tool === 'panel_answer')
 
 describe('the pane, state by state', () => {
-  for (const surface of SURFACES) {
+  for (const surface of NATIVE) {
     test(`shows nothing waiting, then the question, on ${surface}`, async ($, on) => {
       const w = world(on, { waiting: null })
       await boot($)
@@ -150,13 +153,25 @@ describe('the pane, state by state', () => {
     expect(drawn.indexOf('logo-0')).toBeLessThan(drawn.indexOf(WORDMARK))
   })
 
-  test('the desktop app draws the mark as boxes, not glyphs', async ($, on) => {
+  for (const surface of ['desktop', 'vscode'] as const) {
+    test(`${surface} draws the mascot's own neutral face as the mark, not the block grid`, async ($, on) => {
+      world(on)
+      await boot($)
+      const drawn = JSON.stringify(await (await mount($, surface)).drawn())
+      expect(drawn).not.toMatch(/[▘▝▀▖▌▞▛▗▚▐▜▄▙▟█]/)
+      expect(drawn).not.toContain('logo-0')
+      expect(drawn).toContain(JSON.stringify(STR.mascotAlt))
+      expect(drawn).toContain(JSON.stringify(MASCOT_FACE).slice(1, 200))
+      expect(drawn.indexOf('"type":"Svg"')).toBeLessThan(drawn.indexOf(WORDMARK))
+    })
+  }
+
+  test('the terminal keeps the block-character mark and draws no Svg', async ($, on) => {
     world(on)
     await boot($)
-    const drawn = JSON.stringify(await (await mount($, 'desktop')).drawn())
-    expect(drawn).not.toMatch(/[▘▝▀▖▌▞▛▗▚▐▜▄▙▟█]/)
+    const drawn = JSON.stringify(await (await mount($, 'terminal')).drawn())
     expect(drawn).toContain('logo-0')
-    expect(drawn.indexOf('logo-0')).toBeLessThan(drawn.indexOf(WORDMARK))
+    expect(drawn).not.toContain('"type":"Svg"')
   })
 
   test('selecting an option is a draft: it never submits, grades or skips', async ($, on) => {
@@ -170,7 +185,7 @@ describe('the pane, state by state', () => {
     expect(answers(w.log)).toHaveLength(0)
   })
 
-  for (const surface of SURFACES) {
+  for (const surface of NATIVE) {
     test(`the picked answer, and only it, gets a thick brand border, a filled background and bold text on ${surface}`, async ($, on) => {
       world(on)
       await boot($)
@@ -1025,14 +1040,17 @@ describe('the desktop layout', () => {
   test('Teach me has its own row under Submit; on the desktop app a column box stretches the Button', async ($, on) => {
     world(on)
     await boot($)
-    for (const surface of SURFACES) {
+    for (const surface of ['terminal', 'vscode', 'desktop'] as const) {
       const tree = await (await mount($, surface)).drawn()
-      const rows = tree.children.filter((c: any) => c && c.type === 'Box' && JSON.stringify(c).includes('"key":"teach"'))
+      const teach = /"key":"teach(-client)?"/
+      const rows = tree.children.filter((c: any) => c && c.type === 'Box' && teach.test(JSON.stringify(c)))
       expect(rows).toHaveLength(1)
       expect(JSON.stringify(rows[0])).not.toContain('"key":"submit"')
       const all = tree.children.map((c: any) => JSON.stringify(c ?? null))
-      expect(all.findIndex((c: string) => c.includes('"key":"submit"'))).toBeLessThan(all.findIndex((c: string) => c.includes('"key":"teach"')))
-      if (surface === 'desktop') expect(rows[0].props).toMatchObject({ key: 'teach-box', flexDirection: 'column' })
+      expect(all.findIndex((c: string) => c.includes('"key":"submit"'))).toBeLessThan(all.findIndex((c: string) => teach.test(c)))
+      // VS Code keeps the native column box; the desktop app's is a row holding one compact region.
+      if (surface === 'vscode') expect(rows[0].props).toMatchObject({ key: 'teach-box', flexDirection: 'column' })
+      if (surface === 'desktop') expect(rows[0].props).toMatchObject({ key: 'teach-row', flexDirection: 'row' })
     }
   })
 
@@ -1048,8 +1066,10 @@ describe('the desktop layout', () => {
     world(on)
     await boot($)
     // The logo uses the same orange, so each check names the Teach me element itself.
+    const vscode = JSON.stringify(await (await mount($, 'vscode')).drawn())
+    expect(vscode).toMatch(new RegExp(`"key":"teach-box"[^}]*"backgroundColor":"${TEACH.bg}"[^}]*"borderColor":"${TEACH.bg}"`))
     const desktop = JSON.stringify(await (await mount($, 'desktop')).drawn())
-    expect(desktop).toMatch(new RegExp(`"key":"teach-box"[^}]*"backgroundColor":"${TEACH.bg}"[^}]*"borderColor":"${TEACH.bg}"`))
+    expect(desktop).toMatch(new RegExp(`"key":"teach-client"[\\s\\S]*"fill":"${TEACH.bg}","hoverFill":"${TEACH.hover}","text":"${TEACH.text}"`))
     const terminal = JSON.stringify(await (await mount($, 'terminal')).drawn())
     expect(terminal).toContain(`"color":"${TEACH.text}","backgroundColor":"${TEACH.bg}"`)
   })
@@ -1073,14 +1093,14 @@ describe('the desktop layout', () => {
     }
   })
 
-  test('only the desktop app pads the inside of an answer card', async ($, on) => {
+  test('only the surfaces with room pad the inside of a native answer card', async ($, on) => {
     world(on)
     await boot($)
-    const pads = async (surface: 'terminal' | 'desktop') => {
+    const pads = async (surface: 'terminal' | 'vscode') => {
       const d = JSON.stringify(await (await mount($, surface)).drawn())
       return { x: (d.match(/"paddingX":2/g) ?? []).length, y: (d.match(/"paddingY":1/g) ?? []).length }
     }
-    const [desktop, terminal] = [await pads('desktop'), await pads('terminal')]
+    const [desktop, terminal] = [await pads('vscode'), await pads('terminal')]
     expect(desktop.x).toBe(QUESTION.options.length + 1)
     expect(desktop.y).toBeGreaterThanOrEqual(QUESTION.options.length + 1)
     expect(terminal.x).toBe(0)
@@ -1090,15 +1110,15 @@ describe('the desktop layout', () => {
   test('a pick never moves the text: no tick on either surface, and the desktop note is its own line under the answer', async ($, on) => {
     world(on)
     await boot($)
-    const pane = await mount($, 'desktop')
-    await press($, 'opt-o1', 'desktop')
+    const pane = await mount($, 'vscode')
+    await press($, 'opt-o1', 'vscode')
     const d = JSON.stringify(await pane.drawn())
     expect(d).not.toContain('✓')
     const term = await mount($, 'terminal')
     await press($, 'opt-o2')
     expect(await ticks(term)).toBe(1)
     expect(JSON.stringify(await term.drawn())).not.toContain('✓')
-    expect(d).toContain(JSON.stringify(QUESTION.options[0].label))
+    expect(d).toContain(QUESTION.options[0].label)
     expect(d).toContain(JSON.stringify(QUESTION.options[0].note))
     expect(d).toContain('"wrap":"wrap"')
   })
@@ -1144,7 +1164,7 @@ describe('the mock question (/eklavya-panel-demo)', () => {
     const drawn = JSON.stringify(await (await mount($, 'desktop')).drawn())
     expect(drawn).toContain(JSON.stringify(STR.demoBanner))
     expect(drawn).toContain(JSON.stringify(STR.demoReady))
-    expect(drawn).toContain('opt-o3')
+    expect(drawn).toContain('card-o3')
     expect(serverCalls(w.log)).toHaveLength(before)
   })
 
@@ -1257,35 +1277,27 @@ describe('the mock question (/eklavya-panel-demo)', () => {
     expect(JSON.stringify(await pane.drawn())).not.toContain(STR.demoBanner)
   })
 
-  test('only the desktop offers the whole-card style, and switching draws a Client card for each option', async ($, on) => {
+  test('only the desktop offers the style switch: it starts on whole cards, and the native buttons are one press away', async ($, on) => {
     world(on)
     await boot($)
     await demo($)
-    const terminal = JSON.stringify(await (await mount($, 'terminal')).drawn())
-    expect(terminal).not.toContain(STR.demoStyleClient)
-    const desktop = await mount($, 'desktop')
-    expect(JSON.stringify(await desktop.drawn())).toContain(STR.demoStyleClient)
-    expect(JSON.stringify(await desktop.drawn())).not.toContain('card.tsx')
-    await press($, 'style-client', 'desktop')
-    const drawn = JSON.stringify(await desktop.drawn())
-    for (const o of DEMO_QUESTION.options) expect(drawn).toContain(`card-${o.id}`)
-    expect(drawn).toContain('card.tsx')
-    expect(drawn).toContain('style set to client')
-    await press($, 'style-button', 'desktop')
-    expect(JSON.stringify(await desktop.drawn())).not.toContain('card.tsx')
-  })
-
-  test('picking a second, third and fourth card in a row moves the pick each time, and the time in the mod is shown', async ($, on) => {
-    world(on)
-    await boot($)
-    await demo($)
-    const pane = await mount($, 'desktop')
-    await press($, 'style-client', 'desktop')
-    for (const id of ['o1', 'o2', 'o3', 'o4']) {
-      await pane.post({ pick: id }, { in: `card-${id}` } as any)
-      expect(chosenCards(await pane.drawn())).toBe(1)
-      expect(JSON.stringify(await pane.drawn())).toMatch(new RegExp(`${id} picked \\(whole card, \\d+ ms in the mod\\)`))
+    for (const surface of ['terminal', 'vscode'] as const) {
+      const drawn = JSON.stringify(await (await mount($, surface)).drawn())
+      expect(drawn).not.toContain(STR.demoStyleClient)
+      expect(drawn).not.toContain('"type":"Client"')
     }
+    const desktop = await mount($, 'desktop')
+    const first = JSON.stringify(await desktop.drawn())
+    expect(first).toContain(STR.demoStyleClient)
+    for (const o of DEMO_QUESTION.options) expect(first).toContain(`card-${o.id}`)
+    expect(first).toContain('card.tsx')
+    await press($, 'style-button', 'desktop')
+    const native = JSON.stringify(await desktop.drawn())
+    for (const o of DEMO_QUESTION.options) expect(native).toContain(`opt-${o.id}`)
+    expect(native).not.toContain('card.tsx')
+    expect(native).toContain('style set to button')
+    await press($, 'style-client', 'desktop')
+    expect(JSON.stringify(await desktop.drawn())).toContain('card.tsx')
   })
 
   test('a press anywhere on a whole card picks it; a bad id, a locked card and another pane change nothing', async ($, on) => {
@@ -1293,7 +1305,6 @@ describe('the mock question (/eklavya-panel-demo)', () => {
     await boot($)
     await demo($)
     const pane = await mount($, 'desktop')
-    await press($, 'style-client', 'desktop')
     await pane.pointer({ type: 'enter', x: 1, y: 1, in: 'card-o2' } as any)
     await pane.pointer({ type: 'up', x: 1, y: 1, button: 'left', in: 'card-o2' } as any)
     expect(chosenCards(await pane.drawn())).toBe(1)
@@ -1339,14 +1350,35 @@ describe('the mock question: lifecycle and the whole-card module', () => {
     expect(answers(w.log)).toHaveLength(1)
   })
 
-  test('Other keeps its native card in the whole-card style, since it holds a text box', async ($, on) => {
+  test('on the desktop Other is a pressable header over a three-line box that appears when it is picked', async ($, on) => {
     world(on)
     await boot($)
     await demo($)
     const pane = await mount($, 'desktop')
-    await press($, 'style-client', 'desktop')
-    expect(await pane.find({ key: 'opt-other' })).toBeDefined()
-    expect(await pane.find({ key: 'opt-o1' })).toBeUndefined()
+    expect(await pane.find({ key: 'other-head' })).toBeDefined()
+    expect(await pane.find({ key: 'other-text' })).toBeUndefined()
+    await pane.post({ pick: 'other' }, { in: 'other-head' } as any)
+    const box = JSON.stringify(await pane.find({ key: 'other-text' }))
+    expect(box).toContain('"rows":3')
+    expect(box).not.toContain('keep')
+    expect(JSON.stringify(await pane.find({ key: 'card-other' }))).toContain('"borderStyle":"bold"')
+    await pane.post({ pick: 'o2' }, { in: 'card-o2' } as any)
+    expect(await pane.find({ key: 'other-text' })).toBeUndefined()
+  })
+
+  test('VS Code and the terminal keep the native Other card with its one-line box and Keep button', async ($, on) => {
+    world(on)
+    await boot($)
+    await demo($)
+    for (const surface of ['terminal', 'vscode'] as const) {
+      const pane = await mount($, surface)
+      expect(await pane.find({ key: 'opt-other' })).toBeDefined()
+      await press($, 'opt-other', surface)
+      const box = JSON.stringify(await pane.find({ key: 'other-text' }))
+      expect(box).toContain('"submitLabel":"keep"')
+      expect(box).not.toContain('"rows"')
+      await press($, 'opt-o1', surface)
+    }
   })
 
   /** The card module alone, with a surface that records what it is handed. */
@@ -1402,8 +1434,9 @@ describe('the mock question: lifecycle and the whole-card module', () => {
     const { surface } = cardSurface()
     const tree: any = Card({ ...props, chosen: true }, surface)
     expect(tree.props).toMatchObject({ borderStyle: 'bold', borderColor: props.brand, backgroundColor: props.fill })
-    expect(tree.props.children[0].props).toMatchObject({ bold: true, color: props.text })
-    expect(tree.props.children[1].props).toMatchObject({ dimColor: false, color: props.noteText })
+    const words = tree.props.children[0].props.children
+    expect(words[0].props).toMatchObject({ bold: true, color: props.text })
+    expect(words[1].props).toMatchObject({ dimColor: false, color: props.noteText })
   })
 })
 
@@ -1428,11 +1461,15 @@ describe('the demo picture test under Teach me', () => {
     await boot($)
     await demo($)
     const drawn = JSON.stringify(await (await mount($, 'desktop')).drawn())
-    expect(types(drawn)).toEqual(['Svg', 'Svg'])
+    // The header's mascot face, then the two test pictures.
+    expect(types(drawn)).toEqual(['Svg', 'Svg', 'Svg'])
     expect(drawn).toContain(STR.experimentBanner)
     expect(drawn).toContain(JSON.stringify(STR.experimentImageAlt))
-    expect(drawn.indexOf('"key":"teach"')).toBeLessThan(drawn.indexOf(STR.experimentBanner))
-    expect(drawn.indexOf(STR.experimentBanner)).toBeLessThan(drawn.indexOf('"type":"Svg"'))
+    expect(drawn.indexOf('"key":"teach-client"')).toBeLessThan(drawn.indexOf(STR.experimentBanner))
+    // The two test pictures follow the banner; the header's face is before everything.
+    const banner = drawn.indexOf(STR.experimentBanner)
+    expect(drawn.indexOf('"type":"Svg"')).toBeLessThan(banner)
+    expect(drawn.indexOf('"type":"Svg"', banner)).toBeGreaterThan(banner)
   })
 
   test('a real question never carries the experiment, on either surface', async ($, on) => {
@@ -1440,7 +1477,8 @@ describe('the demo picture test under Teach me', () => {
     await boot($)
     for (const surface of SURFACES) {
       const drawn = JSON.stringify(await (await mount($, surface)).drawn())
-      expect(types(drawn)).toEqual([])
+      // Only the header's mascot face on the desktop; nothing at all on the terminal.
+      expect(types(drawn)).toEqual(surface === 'desktop' ? ['Svg'] : [])
       expect(drawn).not.toContain(STR.experimentBanner)
     }
   })
@@ -1450,11 +1488,12 @@ describe('the demo picture test under Teach me', () => {
     await boot($)
     await demo($)
     const pane = await mount($, 'desktop')
+    await press($, 'style-button', 'desktop')
+    expect(types(await pane.drawn())).toEqual(['Svg', 'Svg', 'Svg'])
     await press($, 'style-client', 'desktop')
-    expect(types(await pane.drawn())).toEqual(['Svg', 'Svg'])
-    await press($, 'opt-other', 'desktop')
+    expect(types(await pane.drawn())).toEqual(['Svg', 'Svg', 'Svg'])
     await press($, 'skip', 'desktop')
-    expect(types(await pane.drawn())).toEqual([])
+    expect(types(await pane.drawn())).toEqual(['Svg'])
   })
 
   test('the assets are what the host accepts: a PNG of the mark, and plain SVG with no script', () => {
@@ -1470,5 +1509,187 @@ describe('the demo picture test under Teach me', () => {
     const wrapped = demoSvgWithPng()
     expect(wrapped).toContain(`href="data:image/png;base64,${DEMO_PNG}"`)
     expect(wrapped.length).toBeLessThan(131072)
+  })
+})
+
+describe('real questions on the desktop: whole cards, numbers, the Teach me pill and the Other row', () => {
+  const clients = (tree: unknown) => ((typeof tree === 'string' ? tree : JSON.stringify(tree)).match(/"type":"Client"/g) ?? []).length
+  const chosenCards = (tree: unknown) => (JSON.stringify(tree).match(/"chosen":true/g) ?? []).length
+
+  test('every answer is a numbered region, and Other and Teach me are regions too', async ($, on) => {
+    world(on)
+    await boot($)
+    const pane = await mount($, 'desktop')
+    const drawn = JSON.stringify(await pane.drawn())
+    QUESTION.options.forEach((o, i) => {
+      const card = JSON.stringify(drawn.slice(drawn.indexOf(`"key":"card-${o.id}"`)))
+      expect(card).toContain(`\\"n\\":${i + 1}`)
+    })
+    expect(clients(drawn)).toBe(QUESTION.options.length + 2)
+    expect(drawn).toContain('"key":"other-head"')
+    expect(drawn).toContain('"key":"teach-client"')
+    // Nothing the desktop does not draw: no Button to focus, no hotkey, no hint.
+    expect(drawn).not.toContain('"key":"opt-o1"')
+    expect(drawn).not.toContain('"hotkey"')
+  })
+
+  test('VS Code and the terminal draw no Client at all, and VS Code numbers the labels itself', async ($, on) => {
+    world(on)
+    await boot($)
+    const vscode = JSON.stringify(await (await mount($, 'vscode')).drawn())
+    const terminal = JSON.stringify(await (await mount($, 'terminal')).drawn())
+    expect(clients(vscode)).toBe(0)
+    expect(clients(terminal)).toBe(0)
+    QUESTION.options.forEach((o, i) => expect(vscode).toContain(`${i + 1}  ${o.label}`))
+    // The terminal's plain Button already draws `1:`, so its label stays bare.
+    expect(terminal).not.toContain(`1  ${QUESTION.options[0].label}`)
+  })
+
+  test('a press on a card, on Other and on Teach me reaches the same handlers as the buttons do', async ($, on) => {
+    mock.clock(on)
+    const w = world(on)
+    await boot($)
+    const pane = await mount($, 'desktop')
+    await pane.post({ pick: 'o3' }, { in: 'card-o3' } as any)
+    await pane.post({ press: 'teach' }, { in: 'teach-client' } as any)
+    expect(answers(w.log)).toHaveLength(1)
+    expect(answers(w.log)[0].args).toMatchObject({ kind: 'dont_know', question_id: 'q1' })
+    // The draft pick did not become an answer: Teach me is its own kind.
+    expect(answers(w.log)[0].args.option_id).toBeUndefined()
+  })
+
+  test('Other opens from its header and a typed answer is sent from Submit', async ($, on) => {
+    const w = world(on)
+    await boot($)
+    const pane = await mount($, 'desktop')
+    await pane.post({ pick: 'other' }, { in: 'other-head' } as any)
+    expect(JSON.stringify(await pane.find({ key: 'other-text' }))).toContain('"rows":3')
+    await $.ui.input({ plugin: PLUGIN, key: 'other-text', text: 'the rename is atomic', kind: 'change' })
+    await press($, 'submit', 'desktop')
+    expect(answers(w.log).at(-1)!.args).toMatchObject({ kind: 'text', text: 'the rename is atomic' })
+  })
+
+  test('data that names no answer or no press changes nothing', async ($, on) => {
+    mock.clock(on)
+    const w = world(on)
+    await boot($)
+    const pane = await mount($, 'desktop')
+    for (const data of [{ pick: 'zzz' }, { pick: 4 }, { press: 'launch' }, { press: 7 }, {}, null, 'teach'] as const)
+      await pane.post(data as any, { in: 'card-o1' } as any)
+    expect(answers(w.log)).toHaveLength(0)
+    expect(chosenCards(await pane.drawn())).toBe(0)
+  })
+
+  /** A tiny stand-in for the surface a region module draws on. */
+  function surfaceOf(state?: { hover: boolean }) {
+    const seen = { posts: [] as unknown[], states: [] as unknown[], listener: null as null | ((e: any) => void) }
+    const surface: any = {
+      elements: new Proxy({}, { get: (_t, tag) => (props: any) => ({ type: String(tag), props }) }),
+      state,
+      setState: (next: unknown) => seen.states.push(next),
+      post: (data: unknown) => seen.posts.push(data),
+      onPointer: (fn: (e: any) => void) => {
+        seen.listener = fn
+        return () => {}
+      },
+    }
+    return { seen, surface }
+  }
+
+  test('a numbered card is a row of the number and the words, and the number follows the pick', () => {
+    const base = { id: 'o2', label: 'L', note: 'N', n: 2, chosen: false, locked: false, brand: '#79D5C4', fill: '#1E5A52', text: '#FFFFFF', noteText: '#C9E8E3' }
+    const idle: any = Card(base, surfaceOf().surface)
+    expect(idle.props.flexDirection).toBe('row')
+    expect(idle.props.children[0].props).toMatchObject({ bold: true, dimColor: true, children: ['2'] })
+    const picked: any = Card({ ...base, chosen: true }, surfaceOf().surface)
+    expect(picked.props.children[0].props).toMatchObject({ dimColor: false, color: '#FFFFFF' })
+  })
+
+  test('a bare card has no border or fill and no note line when it has no note', () => {
+    const { surface } = surfaceOf()
+    const tree: any = Card({ id: 'other', label: 'Other', note: '', chosen: true, locked: false, bare: true, brand: 'b', fill: 'f', text: 't', noteText: 'n' }, surface)
+    expect(tree.props.borderStyle).toBeUndefined()
+    expect(tree.props.backgroundColor).toBeUndefined()
+    const words = tree.props.children[0].props.children
+    expect(words).toHaveLength(1)
+    expect(words[0].props).toMatchObject({ bold: false })
+  })
+
+  test('the Teach me pill posts on a left or unspecified release only, never when locked, and lights under the pointer', () => {
+    const props = { id: 'teach', label: 'Teach', locked: false, fill: '#D97757', hoverFill: '#E48866', text: '#1F1E1D' }
+    const idle = surfaceOf()
+    const tree: any = Pill(props, idle.surface)
+    expect(tree.props).toMatchObject({ backgroundColor: '#D97757', borderColor: '#D97757', paddingY: 0.5 })
+    for (const e of [{ type: 'up', button: 'left' }, { type: 'up' }, { type: 'up', button: 'right' }, { type: 'down', button: 'left' }]) idle.seen.listener!(e)
+    expect(idle.seen.posts).toEqual([{ press: 'teach' }, { press: 'teach' }])
+    idle.seen.listener!({ type: 'enter' })
+    idle.seen.listener!({ type: 'leave' })
+    expect(idle.seen.states).toEqual([{ hover: true }])
+    const over = surfaceOf({ hover: true })
+    expect((Pill(props, over.surface) as any).props.backgroundColor).toBe('#E48866')
+    over.seen.listener!({ type: 'enter' })
+    over.seen.listener!({ type: 'leave' })
+    expect(over.seen.states).toEqual([{ hover: false }])
+    const locked = surfaceOf({ hover: true })
+    const lockedTree: any = Pill({ ...props, locked: true }, locked.surface)
+    locked.seen.listener!({ type: 'up', button: 'left' })
+    expect(locked.seen.posts).toHaveLength(0)
+    expect(lockedTree.props.backgroundColor).toBe('#D97757')
+  })
+})
+
+describe('gaps closed in review: surfaces, grading and multi-line answers', () => {
+  const elements = (tree: unknown) => [...JSON.stringify(tree).matchAll(/"type":"(Svg|Client|Image)"/g)].map(m => m[1])
+
+  test('a surface the elements table does not list for Svg keeps the grid mark and draws no Svg, Client or Image', async ($, on) => {
+    world(on)
+    await boot($)
+    await $.command.run({ command: 'eklavya-panel-demo', args: '' } as any)
+    const drawn = JSON.stringify(await (await mount($, 'mobile' as any)).drawn())
+    expect(elements(drawn)).toEqual([])
+    expect(drawn).toContain('logo-0')
+    expect(drawn).toContain(STR.experimentNone)
+    expect(drawn).toContain('opt-o1')
+  })
+
+  test('while an answer is being graded the cards and the pill are locked, Teach me is gone and a stray click changes nothing', async ($, on) => {
+    mock.clock(on)
+    const w = world(on)
+    let seen = ''
+    let afterStray = 0
+    let pane: any
+    w.s.answer = async () => {
+      // Read while the answer is in flight: the pane is in its grading step.
+      seen = JSON.stringify(await pane.drawn())
+      await pane.post({ pick: 'o1' }, { in: 'card-o1' })
+      afterStray = (JSON.stringify(await pane.drawn()).match(/"chosen":true/g) ?? []).length
+      return { phase: 'answered', attempt_id: 7, correct: true, explanation: 'Stored.' }
+    }
+    await boot($)
+    pane = await mount($, 'desktop')
+    await pane.post({ pick: 'o3' }, { in: 'card-o3' })
+    await press($, 'submit', 'desktop')
+    expect(seen).toContain('"locked":true')
+    expect(seen).not.toContain('"locked":false')
+    expect(seen).not.toContain('teach-client')
+    expect(seen).toContain(STR.grading)
+    // The pick made during grading did not move the chosen card.
+    expect(afterStray).toBe(1)
+    expect(await pane.find({ text: STR.correct })).toBeDefined()
+  })
+
+  test('a typed answer of several lines is graded and recorded whole, newlines kept', async ($, on) => {
+    const w = world(on)
+    await boot($)
+    const pane = await mount($, 'desktop')
+    await pane.post({ pick: 'other' }, { in: 'other-head' })
+    const text = 'A rename is atomic.\nSo the poller sees the file whole.'
+    await $.ui.input({ plugin: PLUGIN, key: 'other-text', text, kind: 'change' })
+    await press($, 'submit', 'desktop')
+    expect(w.log.graded).toHaveLength(1)
+    expect(w.log.graded[0]).toContain(text)
+    const sent = answers(w.log).filter((c: any) => c.args.kind === 'text')
+    expect(sent).toHaveLength(2)
+    for (const call of sent) expect(call.args.text).toBe(text)
   })
 })
