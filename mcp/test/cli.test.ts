@@ -52,7 +52,7 @@ function fakeInstall(): void {
   fs.writeFileSync(path.join(runtimeDir, 'node_modules', 'eklavya', 'dist', 'server.js'), '');
   fs.mkdirSync(driver, { recursive: true });
   fs.writeFileSync(path.join(driver, 'package.json'), '{"main":"index.js"}');
-  fs.writeFileSync(path.join(driver, 'index.js'), '');
+  fs.writeFileSync(path.join(driver, 'index.js'), 'module.exports = function () { return { close() {} }; };');
 
   fs.mkdirSync(path.join(claudeDir, 'plugins', 'marketplaces', 'eklavya'), { recursive: true });
   fs.writeFileSync(
@@ -415,7 +415,9 @@ describe('eklavya doctor checks the install', () => {
       () =>
         fs.writeFileSync(
           path.join(runtimeDir, 'node_modules', 'better-sqlite3', 'index.js'),
-          'throw new Error("dlopen: wrong ABI");',
+          // better-sqlite3 loads its binary in the constructor, so a wrong ABI
+          // passes a bare require and throws only on open.
+          'module.exports = function () { throw new Error("dlopen: wrong ABI"); };',
         ),
       /driver\s+FAILED — will not load on Node .* — Error: dlopen: wrong ABI/,
     ],

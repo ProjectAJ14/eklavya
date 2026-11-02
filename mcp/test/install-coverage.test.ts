@@ -104,6 +104,26 @@ describe.skipIf(!posix)('the runtime step', () => {
     expect(res.stderr).toMatch(/will not load:\nTypeError: wrong ABI\n/);
   });
 
+  it('rebuilds a driver built for another Node, which a reinstall of the same version leaves in place', () => {
+    const mods = path.join(runtime, 'node_modules');
+    script(
+      'npm',
+      [
+        `mkdir -p "${mods}/eklavya/dist" "${mods}/better-sqlite3"`,
+        `: > "${mods}/eklavya/dist/server.js"`,
+        `if [ "$1" = rebuild ]; then`,
+        `  echo 'module.exports = function () { return { close() {} }; }' > "${mods}/better-sqlite3/index.js"`,
+        `else`,
+        `  echo 'module.exports = function () { throw new Error("wrong ABI"); }' > "${mods}/better-sqlite3/index.js"`,
+        `fi`,
+      ].join('\n'),
+    );
+    configured();
+    const res = run(['install']);
+    expect(res.stderr).not.toMatch(/will not load/);
+    expect(res.status).toBe(0);
+  });
+
   it('marks the runtime it installed as applied and announced, so the next session says nothing', () => {
     const mods = path.join(runtime, 'node_modules');
     const version = readJson(path.join(mcpRoot, 'package.json')).version as string;
@@ -112,7 +132,7 @@ describe.skipIf(!posix)('the runtime step', () => {
       [
         `mkdir -p "${mods}/eklavya/dist" "${mods}/better-sqlite3"`,
         `: > "${mods}/eklavya/dist/server.js"`,
-        `echo 'module.exports = {}' > "${mods}/better-sqlite3/index.js"`,
+        `echo 'module.exports = function () { return { close() {} }; }' > "${mods}/better-sqlite3/index.js"`,
         `echo '{"version":"${version}"}' > "${mods}/eklavya/package.json"`,
       ].join('\n'),
     );
@@ -327,6 +347,19 @@ describe('health', () => {
     expect(find('driver')).toMatchObject({ ok: false, detail: expect.stringMatching(/— boom$/) });
     driver('process.exit(1)');
     expect(find('driver')?.detail).toMatch(/— unknown error$/);
+  });
+
+  it('keeps every line of a wrong-ABI error, which names the file first and the versions after', () => {
+    // Node's own wording, thrown on open as better-sqlite3 does, then a stack.
+    driver(
+      "module.exports = function () { throw new Error(\"The module 'x.node'\\nwas compiled against a different Node.js version using\\nNODE_MODULE_VERSION 141. This version of Node.js requires\\nNODE_MODULE_VERSION 127.\"); };",
+    );
+    expect(find('driver')?.detail).toMatch(
+      /— Error: The module 'x\.node' was compiled .* NODE_MODULE_VERSION 141\. .* requires NODE_MODULE_VERSION 127\.$/,
+    );
+    // An error with no stack after it still ends where stderr does.
+    driver("process.stderr.write('Error: one\\ntwo\\n'); process.exit(1)");
+    expect(find('driver')?.detail).toMatch(/— Error: one two$/);
   });
 
   it('names an unreadable registry file, and an entry or switch that is missing', () => {
