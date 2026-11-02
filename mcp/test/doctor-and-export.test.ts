@@ -48,7 +48,7 @@ function fakeInstall(runtime: string, plugin: string): void {
   const driver = path.join(runtimeDir, 'node_modules', 'better-sqlite3');
   fs.mkdirSync(driver, { recursive: true });
   fs.writeFileSync(path.join(driver, 'package.json'), '{"main":"index.js"}');
-  fs.writeFileSync(path.join(driver, 'index.js'), '');
+  fs.writeFileSync(path.join(driver, 'index.js'), 'module.exports = function () { return { close() {} }; };');
 
   const market = path.join(claudeDir, 'plugins', 'marketplaces', 'eklavya');
   fs.mkdirSync(path.join(market, '.claude-plugin'), { recursive: true });

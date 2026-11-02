@@ -98,7 +98,7 @@ function fakeInstall(): void {
   fs.writeFileSync(path.join(runtimeDir, 'node_modules', 'eklavya', 'dist', 'server.js'), '');
   fs.mkdirSync(driver, { recursive: true });
   fs.writeFileSync(path.join(driver, 'package.json'), '{"main":"index.js"}');
-  fs.writeFileSync(path.join(driver, 'index.js'), '');
+  fs.writeFileSync(path.join(driver, 'index.js'), 'module.exports = function () { return { close() {} }; };');
   fs.mkdirSync(path.join(claudeDir, 'plugins', 'marketplaces', 'eklavya'), { recursive: true });
   fs.writeFileSync(
     path.join(claudeDir, 'plugins', 'installed_plugins.json'),

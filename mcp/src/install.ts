@@ -238,8 +238,10 @@ function runtimeEntry(): string {
 /**
  * Loads the native dependency in a child process and returns why it failed, or
  * null if it works. A prebuilt binary for the wrong ABI installs cleanly and
- * throws on first require — which would otherwise surface as a dead MCP server
- * three commands later.
+ * throws on first use — which would otherwise surface as a dead MCP server
+ * three commands later. It opens a database because better-sqlite3 loads its
+ * `.node` file in the constructor, not on require: a bare require passes with
+ * a binary built for another Node.
  *
  * Out of process on purpose: a bad `.node` can abort the interpreter rather than
  * throw, and `doctor` must survive reporting that.
@@ -247,17 +249,23 @@ function runtimeEntry(): string {
 function driverError(): string | null {
   const probe = spawnSync(
     process.execPath,
-    ['-e', 'require(process.argv[1]); console.log("ok")', path.join(runtimeHome(), 'node_modules', 'better-sqlite3')],
+    ['-e', 'new (require(process.argv[1]))(":memory:").close(); console.log("ok")', path.join(runtimeHome(), 'node_modules', 'better-sqlite3')],
     { encoding: 'utf8' },
   );
   if (probe.status === 0) return null;
 
   // Node's crash dump is source excerpt, then the error, then a stack, then a
   // `Node.js v26.7.0` trailer. The last line is that trailer and says nothing;
-  // the `Error:` line is the one naming the missing symbol or wrong ABI.
+  // the error is the one naming the missing symbol or wrong ABI. It can span
+  // lines — a wrong ABI names the file first and the two versions after — so
+  // it runs from the `Error:` line to the stack.
   /* c8 ignore next -- defensive: node itself always starts, so stderr is a string */
   const out = (probe.stderr ?? '').trim().split('\n').map((l) => l.trim());
-  return out.find((l) => /^[A-Za-z]*Error:/.test(l)) ?? out.find(Boolean) ?? 'unknown error';
+  const start = out.findIndex((l) => /^[A-Za-z]*Error:/.test(l));
+  if (start < 0) return out.find(Boolean) ?? 'unknown error';
+  const error = out.slice(start);
+  const end = error.findIndex((l, i) => i > 0 && (!l || l.startsWith('at ')));
+  return error.slice(0, end < 0 ? error.length : end).join(' ');
 }
 
 /** Install-time gate: the same two checks, but fatal. */
@@ -268,7 +276,18 @@ function verifyRuntime(): void {
     process.exit(1);
   }
 
-  const err = driverError();
+  let err = driverError();
+  if (err) {
+    // `npm install` of the version already there leaves a binary built for
+    // another Node in place, so a rerun of install alone repairs nothing.
+    /* c8 ignore next -- the win32 name is only reachable on Windows */
+    const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+    spawnSync(npm, ['rebuild', 'better-sqlite3', '--prefix', runtimeHome(), '--loglevel=error'], {
+      stdio: 'ignore',
+      shell: process.platform === 'win32',
+    });
+    err = driverError();
+  }
   if (err) {
     process.stderr.write(failText(
       '\nThe SQLite driver installed but will not load:\n' +
