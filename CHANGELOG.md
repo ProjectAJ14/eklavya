@@ -1,3 +1,10 @@
+## [1.91.1](https://github.com/ProjectAJ14/eklavya/compare/v1.91.0...v1.91.1) (2026-11-02)
+
+
+### Bug Fixes
+
+* **doctor:** catch a SQLite driver built for another Node ([#255](https://github.com/ProjectAJ14/eklavya/issues/255)) ([bb4bfe7](https://github.com/ProjectAJ14/eklavya/commit/bb4bfe7c6975fe417b94cd70aec7a8466ceffa99))
+
 # [1.91.0](https://github.com/ProjectAJ14/eklavya/compare/v1.90.0...v1.91.0) (2026-10-25)
 
 
