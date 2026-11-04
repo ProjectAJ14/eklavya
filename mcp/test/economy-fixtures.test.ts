@@ -43,6 +43,8 @@ describe('recorded transcripts', () => {
       output: r.usage.output,
     }).toEqual(e.modelUsage);
     expect(r.deferredTools).toContain('WebFetch');
+    // One typed prompt each; background tasks' <task-notification> lines are not prompts.
+    expect(r.prompts).toBe(1);
 
     if (e.scenario === 'stuck') {
       const calls = readCalls(path.join(dir, 'session.jsonl'));

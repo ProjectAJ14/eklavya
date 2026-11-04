@@ -103,6 +103,7 @@ does that.
 
 `eklavya cost` shows what your recent sessions here cost, measured from Claude
 Code's own transcripts (token counts only), and how much of it was Eklavya's.
+Its prompt counts are prompts you typed, not background tasks reporting back.
 Three optional controls ship off or in propose mode until they are measured: a
 loop guard that redirects a turn stuck repeating the same failure, tool pruning
 that proposes denying tools a repository never uses, and pinned facts learned
