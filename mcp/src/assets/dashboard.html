@@ -2437,8 +2437,10 @@ const SLOT_MIN = {
   'entry-body': 650, 'sess-lookup': 360, 'sess-mem': 160, 'fb-item': 520, settings: 1580,
   // Two rows of tiles and the two notes under them, with nothing priced yet (420px at 1280 here, ~465px where the
   // notes wrap one line more, as on CI); a Cost list's one empty line.
-  // What Eklavya did in a session: the archer's line, four tiles, the transcript card and three closed folds (~620px at 1280).
-  'sess-ek': 620,
+  // What Eklavya did in a session: the archer's line, four tiles, the transcript card and its closed folds, 620px at
+  // 1280 here and taller where text wraps one line more, as on CI. Held above both, so it can only shrink: a box smaller
+  // than what comes grows while the memory folds below it shrink, and the footer bounces.
+  'sess-ek': 700,
   'cost-main': 480, 'cost-sessions': 94, 'cost-calls': 94, 'cost-guard': 94, 'cost-tools': 94, 'cost-facts': 94,
 };
 /** A list's room: [how many rows the page knows of, the most one page holds, px a row takes, px around the rows (pager, rule)]. Measured at 1280px. */
