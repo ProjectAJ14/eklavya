@@ -138,8 +138,9 @@ export function foldCall(
   const envelope = envelopeOf(greenCalls(db, row.project), t);
   // A verdict holds for `VERDICT_CALLS` calls; after that the turn may have
   // changed and a fresh look is due.
-  const stored = row.judge_status === 'done' ? (JSON.parse(row.verdict ?? 'null') as (JudgeVerdict & { at_calls?: number }) | null) : null;
-  const fresh = stored && state.d.calls - (stored.at_calls ?? 0) < VERDICT_CALLS ? parseVerdict(stored) : null;
+  // `judgeTurn` always stores an object with the call count it judged at.
+  const stored = row.judge_status === 'done' ? (JSON.parse(row.verdict!) as JudgeVerdict & { at_calls: number }) : null;
+  const fresh = stored && state.d.calls - stored.at_calls < VERDICT_CALLS ? parseVerdict(stored) : null;
   const verdict: JudgeVerdict | null | undefined = row.judge_status === 'pending' ? null : fresh ?? undefined;
   const judged = row.judge_status === 'done';
   const decision = decide(state.snapshot(), t, envelope, { configured: Boolean(config.providers.judge), verdict });

@@ -2428,6 +2428,8 @@ const isWait = (html) => html.startsWith(WAIT_OPEN);
  */
 const SLOT_MIN = {
   'entry-body': 650, 'sess-lookup': 360, 'sess-mem': 160, 'fb-item': 520, settings: 1580,
+  // Two rows of tiles and the two notes under them, with nothing priced yet; a Cost list's one empty line.
+  'cost-main': 420, 'cost-sessions': 94, 'cost-calls': 94, 'cost-guard': 94, 'cost-tools': 94, 'cost-facts': 94,
 };
 /** A list's room: [how many rows the page knows of, the most one page holds, px a row takes, px around the rows (pager, rule)]. Measured at 1280px. */
 const SLOT_ROWS = {
@@ -4236,7 +4238,7 @@ for (const ev of ['wheel', 'touchmove', 'keydown']) {
    registry guard checks every row against the fixture. */
 const TIPS = [
   { id: 'wf-switch', where: ['learning/dashboard'], el: '#wf-caret', side: 'right', state: 'new', title: 'Switch workflow',
-    text: 'Eklavya has five workflows: Learning, Memory, Artifacts, Feedback and Settings. Switch between them here.' },
+    text: 'Eklavya has six workflows: Learning, Memory, Artifacts, Feedback, Cost and Settings. Switch between them here.' },
   { id: 'how-this-works', where: ['learning/dashboard', 'memory/dashboard'], el: '#view details.about > summary', title: 'How this works',
     text: 'Every page explains where its numbers come from. Open this to read it.' },
   { id: 'project-scope', where: ['learning/sessions', 'memory/timeline'], el: '#proj', side: 'right', title: 'Project scope',
@@ -5648,10 +5650,17 @@ function drawCost(d) {
 
 function viewCostPage(which) {
   const titles = { sessions: 'Sessions', calls: 'Eklavya\'s calls', guard: 'Loop guard', tools: 'Tool pruning', facts: 'Pinned facts' };
-  return [
-    pageHead(titles[which], [], COST_ABOUT),
-    slot('cost-' + which, costUrl(), (d) => drawCostPage(which, d), { label: 'Reading the ledger…', cls: 'card card--flush', region: true }),
-  ].join('');
+  const host = { label: 'Reading the ledger…', cls: 'card card--flush', region: true };
+  const draw = (d) => drawCostPage(which, d);
+  // One literal id per page, so each region keeps its own remembered height.
+  const slots = {
+    sessions: () => slot('cost-sessions', costUrl(), draw, host),
+    calls: () => slot('cost-calls', costUrl(), draw, host),
+    guard: () => slot('cost-guard', costUrl(), draw, host),
+    tools: () => slot('cost-tools', costUrl(), draw, host),
+    facts: () => slot('cost-facts', costUrl(), draw, host),
+  };
+  return [pageHead(titles[which], [], COST_ABOUT), slots[which]()].join('');
 }
 
 function drawCostPage(which, d) {

@@ -183,7 +183,8 @@ export function restoreDeny(repoRoot: string, record: WriteRecord, only?: string
       if (record.excludeLine) unexclude(repoRoot, record.excludeLine);
     } else fs.writeFileSync(record.file, record.original);
   } else if (removed.length) {
-    writeJson(record.file, json, read.text ? indentOf(read.text) : '  ', read.text ? read.text.endsWith('\n') : true);
+    // Something was removed, so the file exists and has text.
+    writeJson(record.file, json, indentOf(read.text!), read.text!.endsWith('\n'));
   }
   return { ok: true, removed };
 }
@@ -209,7 +210,7 @@ export function measure(
   denied: string[],
 ): { before: number; after: number; saved: number } {
   const LISTING = 12;
-  const cost = (t: string) => (deferred.includes(t) ? LISTING : catalog[t] ?? 0);
+  const cost = (t: string) => (deferred.includes(t) ? LISTING : catalog[t]!);
   const all = new Set([...Object.keys(catalog), ...deferred]);
   const before = [...all].reduce((s, t) => s + cost(t), 0);
   const after = [...all].filter((t) => !denied.includes(t)).reduce((s, t) => s + cost(t), 0);

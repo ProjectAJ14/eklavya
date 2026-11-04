@@ -185,6 +185,10 @@
       "shard": 5,
       "seconds": 10
     },
+    "test/economy-gaps.test.ts": {
+      "shard": 4,
+      "seconds": 15
+    },
     "test/economy-guard.test.ts": {
       "shard": 3,
       "seconds": 10

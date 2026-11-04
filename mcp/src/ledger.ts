@@ -161,7 +161,7 @@ export function recordOverhead(db: DB, row: OverheadRow): void {
 export function meterProviderCalls(db: DB, config: EklavyaConfig, context: { project?: string | null; sessionId?: string | null } = {}): void {
   if (!config.economy.ledger) return setUsageSink(null);
   setUsageSink((u: ProviderUsage) =>
-    recordOverhead(db, { ...u, project: context.project ?? null, sessionId: context.sessionId ?? null }),
+    recordOverhead(db, { ...u, ...context }),
   );
 }
 

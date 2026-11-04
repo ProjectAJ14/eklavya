@@ -2245,6 +2245,12 @@ export function openedItem(db: DB, body: unknown): { status: number; body: Recor
  * project is called. `explainer:depth_N` is how far down a framed page the
  * reader has scrolled, once per view and threshold.
  */
+/** The Cost workflow's payload, under the settings of the project it names (its checkout, when one exists). */
+export function costBody(db: DB, project: string | null): string {
+  const config = project && fs.existsSync(project) ? loadConfig(project).config : loadConfig().config;
+  return JSON.stringify(costReport(db, config, project));
+}
+
 export const USAGE_EVENTS = new Set([
   'dash:opened',
   ...['learning', 'memory', 'artifacts', 'feedback', 'cost', 'settings'].map((w) => `dash:view_${w}`),
@@ -3006,9 +3012,7 @@ export function startDashboard(
       if (url.pathname === '/api/cost') {
         // Not memoised: the ledger is written by detached folds the change
         // cursor does not watch, and the report is a handful of indexed reads.
-        const project = url.searchParams.get('project') || null;
-        const config = project && fs.existsSync(project) ? loadConfig(project).config : loadConfig().config;
-        return send(res, 200, 'application/json', JSON.stringify(costReport(db, config, project)));
+        return send(res, 200, 'application/json', costBody(db, url.searchParams.get('project') || null));
       }
       if (url.pathname === '/api/feedback') {
         const out = feedbackItem(db, url.searchParams.get('id'));

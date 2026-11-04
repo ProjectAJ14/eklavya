@@ -529,11 +529,7 @@ export async function superviseWorker(
   // Move a few hundred entries written before `local-hash-v2` onto it, while
   // this process holds the worker slot anyway (issue #258). Search reads both
   // kinds, so a run that stops halfway leaves nothing broken.
-  try {
-    reembedLegacy(db);
-  } catch {
-    /* The next run picks up where this one stopped. */
-  }
+  reembedLegacy(db);
 
   // Descendants outlived SIGKILL: keep the slot, so no other worker starts
   // beside them. The record names the group; recovery can see and end it.

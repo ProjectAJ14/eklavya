@@ -119,3 +119,100 @@ describe('the ledger hooks', () => {
     }
   });
 });
+
+const PROMPT = path.join(hooksDir, 'prompt-submit-nudge.js');
+const STOP = path.join(hooksDir, 'stop-quiz-check.js');
+const SUBAGENT = path.join(hooksDir, 'subagent-start.js');
+const CLI = path.join(path.dirname(hooksDir), 'cli.js');
+
+describe('the loop guard through the hooks', () => {
+  const seedEnvelope = () => {
+    for (let i = 0; i < 5; i++) db.prepare(`INSERT INTO econ_envelope (project, calls, recorded_at) VALUES (?, 8, 'x')`).run(repo);
+  };
+  const spin = (n: number, extra: Record<string, string> = {}) => {
+    const outs: string[] = [];
+    for (let i = 0; i < n; i++) {
+      outs.push(hook(CAPTURE, { session_id: 'g1', cwd: repo, hook_event_name: 'PostToolUse', tool_name: 'Edit', tool_input: { file_path: 'src/a.ts' }, tool_response: { success: true } }, extra).stdout);
+      outs.push(hook(CAPTURE, { session_id: 'g1', cwd: repo, hook_event_name: 'PostToolUseFailure', tool_use_id: `f${i}`, tool_name: 'Bash', tool_input: { command: 'npm test' }, error: 'AssertionError: expected 1 to be 2' }, extra).stdout);
+    }
+    return outs.filter(Boolean);
+  };
+
+  it('opens a turn at the prompt, redirects once as additional context, then notices, and closes at Stop', () => {
+    writeConfig({ quiz: { enabled: false }, memory: { enabled: false }, economy: { loopguard: 'nudge' } });
+    seedEnvelope();
+    hook(PROMPT, { session_id: 'g1', cwd: repo, hook_event_name: 'UserPromptSubmit', prompt: 'make the tests pass please' });
+    hook(CAPTURE, { session_id: 'g1', cwd: repo, hook_event_name: 'PostToolUse', tool_name: 'Read', tool_input: { file_path: 'x' }, tool_response: null });
+    const outs = spin(10);
+    expect(outs).toHaveLength(2);
+    expect(JSON.parse(outs[0]!).hookSpecificOutput.additionalContext).toContain('[Eklavya loop check]');
+    // Each answers under the event it came from.
+    expect(outs.map((o) => JSON.parse(o).hookSpecificOutput.hookEventName).sort()).toEqual(['PostToolUse', 'PostToolUseFailure']);
+    hook(STOP, { session_id: 'g1', cwd: repo, hook_event_name: 'Stop' });
+    expect(db.prepare('SELECT outcome FROM econ_turns').get()).toEqual({ outcome: 'red' });
+  });
+
+  it('asks a judge when one is configured, and stops only a headless run in stop mode', () => {
+    writeConfig({ economy: { loopguard: 'stop', nudges: 0 }, providers: { judge: { kind: 'anthropic', model: 'claude-haiku-4-5' } } });
+    hook(PROMPT, { session_id: 'g1', cwd: repo, hook_event_name: 'UserPromptSubmit', prompt: 'make the tests pass please' });
+    spin(10);
+    expect(db.prepare(`SELECT kind FROM econ_guard_events`).all()).toEqual([{ kind: 'judge' }]);
+    writeConfig({ economy: { loopguard: 'stop', nudges: 0 } });
+    seedEnvelope();
+    hook(PROMPT, { session_id: 'g1', cwd: repo, hook_event_name: 'UserPromptSubmit', prompt: 'make the tests pass please' });
+    const outs = spin(10, { CLAUDE_CODE_SESSION_ATTENDED: '0' });
+    expect(JSON.parse(outs[0]!)).toMatchObject({ continue: false });
+  });
+
+  it('opens a subagent turn, and every guard hook fails open without its tables', () => {
+    writeConfig({ economy: { loopguard: 'nudge' } });
+    hook(SUBAGENT, { session_id: 'g1', cwd: repo, hook_event_name: 'SubagentStart', agent_id: 'ag1', agent_type: 'general-purpose' });
+    expect(db.prepare(`SELECT agent_id FROM econ_turns`).get()).toEqual({ agent_id: 'ag1' });
+    writeConfig({ quiz: { enabled: false }, memory: { enabled: false }, economy: { loopguard: 'nudge' } });
+    hook(SUBAGENT, { session_id: 'g1', cwd: repo, hook_event_name: 'SubagentStart', agent_id: 'ag2' });
+    db.exec('DROP TABLE econ_turns');
+    for (const [script, input] of [
+      [PROMPT, { session_id: 'g1', cwd: repo, hook_event_name: 'UserPromptSubmit', prompt: 'make the tests pass please' }],
+      [CAPTURE, { session_id: 'g1', cwd: repo, hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_input: { command: 'ls' }, tool_response: { stdout: 'x' } }],
+      [STOP, { session_id: 'g1', cwd: repo, hook_event_name: 'Stop' }],
+      [SUBAGENT, { session_id: 'g1', cwd: repo, hook_event_name: 'SubagentStart', agent_id: 'ag3' }],
+    ] as const) {
+      expect(hook(script, input).status).toBe(0);
+    }
+  });
+});
+
+describe('where the developer sees it', () => {
+  it('the session banner names the last priced session', () => {
+    openSession(db, { sessionId: 'old', project: repo, transcriptPath: null });
+    db.prepare(`UPDATE econ_sessions SET folded_at = 'x', requests = 3, effective = 1500, model = 'claude-opus-4-6' WHERE session_id = 'old'`).run();
+    const r = hook(SESSION_START, { session_id: 'new', cwd: repo, hook_event_name: 'SessionStart', source: 'startup' });
+    expect(r.stdout).toContain('Last session · 1.5k effective tokens on claude-opus-4-6');
+    writeConfig({ quiz: { enabled: false } });
+    expect(hook(SESSION_START, { session_id: 'new2', cwd: repo, hook_event_name: 'SessionStart', source: 'startup' }).stdout).toContain('Last session');
+    db.exec('DROP TABLE econ_guard_events');
+    expect(hook(SESSION_START, { session_id: 'new3', cwd: repo, hook_event_name: 'SessionStart', source: 'startup' }).stdout).not.toContain('Last session');
+  });
+
+  it('the status line carries the guard\'s note', () => {
+    writeConfig({ economy: { loopguard: 'nudge' } });
+    db.prepare(`INSERT INTO econ_turns (session_id, agent_id, project, opened_at, state, noticed) VALUES ('sl', '', ?, 'x', '{}', 1)`).run(repo);
+    const res = spawnSync(process.execPath, [CLI, 'statusline', '--no-color'], {
+      input: JSON.stringify({ session_id: 'sl', cwd: repo }),
+      encoding: 'utf8',
+      env: { ...process.env, EKLAVYA_DB: dbFile, EKLAVYA_HOME: home },
+    });
+    expect(res.stdout).toContain('loop guard: this turn looks stuck');
+  });
+
+  it('the CLI dispatches every cost command', () => {
+    const run = (...args: string[]) =>
+      spawnSync(process.execPath, [CLI, ...args], { cwd: repo, encoding: 'utf8', env: { ...process.env, EKLAVYA_DB: dbFile, EKLAVYA_HOME: home, CLAUDE_CONFIG_DIR: home } });
+    expect(run('cost').stdout).toContain('Cost of recent sessions here');
+    expect(run('fold', '--pending').status).toBe(0);
+    expect(run('judge', '1').stdout).toContain('No turn 1.');
+    expect(run('toolprune').stdout).toContain('Tool pruning');
+    expect(run('experiment', 'memory', '--report').stdout).toContain('memory on:');
+    expect(run('memory', 'facts').stdout).toContain('Pinned facts');
+  });
+});

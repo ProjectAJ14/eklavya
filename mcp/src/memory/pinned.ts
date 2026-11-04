@@ -93,7 +93,8 @@ export function sessionEvidence(db: DB, project: string, calls: Call[]): Session
     const p = JSON.parse(f.params) as { a: string; b: string; intent: string; error: string };
     const bearing = formRepairEvidence(calls, p);
     const seen = found.get(f.fact_key);
-    if (!bearing.exercised && !seen) continue;
+    // A family observation of this fact implies the session ran its intent.
+    if (!bearing.exercised) continue;
     found.set(f.fact_key, {
       ...(seen ?? fromObservation({ family: 'form_repair', key: f.fact_key, params: p, verdict: null, exercised: true, applied: false, high: false })),
       verdict: seen?.verdict ?? bearing.verdict,
@@ -132,7 +133,7 @@ export function foldSessionFacts(
       }
       const e = byKey.get(f.fact_key);
       byKey.delete(f.fact_key);
-      const params = JSON.parse(f.params ?? '{}') as Record<string, string | number>;
+      const params = JSON.parse(f.params!) as Record<string, string | number>;
       let verdict = e?.verdict ?? null;
       if (f.family === 'form_repair' && e?.exercised) {
         const streak = verdict === 'contradict' ? Number(params.contra_streak ?? 0) + 1 : 0;
@@ -142,8 +143,10 @@ export function foldSessionFacts(
       const score = f.score * DECAY + (verdict === 'confirm' ? 1 : 0) - (verdict === 'contradict' ? CONTRADICTION : 0);
       const confirmations = f.confirmations + (verdict === 'confirm' ? 1 : 0);
       const contradictions = f.contradictions + (verdict === 'contradict' ? 1 : 0);
-      const retireReason =
-        verdict === 'contradict' && f.high ? 'contradicted (high stakes)' : score < 0 ? (verdict === 'contradict' ? 'contradicted' : 'faded') : null;
+      // Decay alone never takes a positive score below zero: only a contradiction retires.
+      // A contradiction weighs five confirmations, and a score is at most five
+      // (1 / (1 - DECAY)), so a counted contradiction always takes it below zero.
+      const retireReason = verdict !== 'contradict' ? null : f.high ? 'contradicted (high stakes)' : 'contradicted';
       const state = retireReason ? 'retired' : confirmations >= CONFIRMATIONS ? 'active' : f.state;
       db.prepare(
         `UPDATE pinned_facts SET state = ?, score = ?, confirmations = ?, exercised = exercised + ?, applied = applied + ?,

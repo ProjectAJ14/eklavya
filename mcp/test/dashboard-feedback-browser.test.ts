@@ -191,13 +191,13 @@ describe.skipIf(!OPTS)('the Feedback workflow', () => {
       await w.ctx.close();
     });
 
-    it('names the picker entry, lists five workflows, and keeps the badge text visible', async () => {
+    it('names the picker entry, lists six workflows, and keeps the badge text visible', async () => {
       configure(ON);
       pending();
       const w = await open('#/learning/dashboard');
       await w.page.click('#wf-caret');
       const names = await w.page.$$eval('#wf-menu [role="menuitemradio"]', (els) => els.map((e) => e.getAttribute('aria-label') ?? e.textContent!.trim()));
-      expect(names).toEqual(['Learning', 'Memory', 'Artifacts', 'Feedback, 1 unread', 'Settings']);
+      expect(names).toEqual(['Learning', 'Memory', 'Artifacts', 'Feedback, 1 unread', 'Cost', 'Settings']);
       expect(await w.page.textContent('#wf-menu [data-wf="feedback"] .badge')).toBe('1');
       expect(await w.page.getAttribute('#wf-menu [data-wf="feedback"] .badge', 'aria-hidden')).toBe('true');
       await w.page.click('#wf-menu [data-wf="feedback"]');

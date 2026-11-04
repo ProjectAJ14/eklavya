@@ -559,6 +559,15 @@ export function indexVector(db: DB, entryId: number, text: string): void {
  * working throughout (each entry is compared with its own embedder's query).
  */
 export function reembedLegacy(db: DB, limit = 200): number {
+  try {
+    return reembedBatch(db, limit);
+  } catch {
+    // The next run picks up where this one stopped; search reads both kinds meanwhile.
+    return 0;
+  }
+}
+
+function reembedBatch(db: DB, limit: number): number {
   const rows = db
     .prepare(
       `SELECT e.id, e.title, e.narrative, e.facts, e.files, e.keywords FROM memory_entries e
