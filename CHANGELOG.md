@@ -1,3 +1,10 @@
+## [1.92.1](https://github.com/ProjectAJ14/eklavya/compare/v1.92.0...v1.92.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* **memory:** search project memory before each task and correct stale entries ([#273](https://github.com/ProjectAJ14/eklavya/issues/273)) ([e872cf1](https://github.com/ProjectAJ14/eklavya/commit/e872cf1502ee8424e2f6f9ee2609463f3e803721)), closes [#272](https://github.com/ProjectAJ14/eklavya/issues/272)
+
 # [1.92.0](https://github.com/ProjectAJ14/eklavya/compare/v1.91.1...v1.92.0) (2026-11-04)
 
 
