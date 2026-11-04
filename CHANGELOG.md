@@ -1,3 +1,10 @@
+## [1.94.1](https://github.com/ProjectAJ14/eklavya/compare/v1.94.0...v1.94.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* **economy:** recorded transcript fixtures; notices no longer count as prompts ([#276](https://github.com/ProjectAJ14/eklavya/issues/276)) ([b3d38da](https://github.com/ProjectAJ14/eklavya/commit/b3d38da2c8931d556cffe8345b53f33f74466d6f))
+
 # [1.94.0](https://github.com/ProjectAJ14/eklavya/compare/v1.93.0...v1.94.0) (2026-11-04)
 
 
