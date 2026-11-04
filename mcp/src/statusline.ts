@@ -50,6 +50,8 @@ export interface StatusLineInput {
   pinned: boolean;
   /** False to emit no ANSI, for a host that renders the string literally. */
   color?: boolean;
+  /** A short state note appended to the dials, such as the loop guard's. */
+  note?: string | null;
 }
 
 /** 256-colour approximations of the two ground-independent accents. */
@@ -76,10 +78,10 @@ export function paint(text: string, code: number, color: boolean): string {
  * meant an absent Eklavya, and under the old `mode` dial that was a difference
  * nothing on screen made visible.
  */
-export function statusLine({ config, level, pinned, color = true }: StatusLineInput): string | null {
+export function statusLine({ config, level, pinned, color = true, note = null }: StatusLineInput): string | null {
   if (!config.quiz.enabled || config.quiet) return null;
 
-  const parts = dialParts(config, pinned ? `${level} (pinned)` : level);
+  const parts = [...dialParts(config, pinned ? `${level} (pinned)` : level), ...(note ? [note] : [])];
 
   // `enforced` is the one setting with a consequence attached — commits are
   // gated — so the whole segment takes the warning colour rather than the

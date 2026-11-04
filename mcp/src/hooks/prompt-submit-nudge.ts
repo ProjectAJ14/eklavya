@@ -40,6 +40,8 @@
  * prompt the developer types, so it is also the hook with the least right to be
  * slow -- the common case (a session that is logging) is one COUNT and out.
  */
+import { openTurn } from '../loop-guard.js';
+import { economyOff } from './economy-lib.js';
 import {
   run,
   openExisting,
@@ -167,7 +169,8 @@ await run(async (input) => {
   // capture -- someone who asked for no quizzes did not ask for their project
   // history to stop being recorded (PRD CFG-01) -- so the early return needs
   // both switches off, which is exactly the pair of names the config now uses.
-  if (!quiz.enabled && !resolved.config.memory.enabled) return 0;
+  const guarding = resolved.config.economy.loopguard !== 'off' && !economyOff();
+  if (!quiz.enabled && !resolved.config.memory.enabled && !guarding) return 0;
   // `quiet` is deliberately NOT consulted. It suppresses the banner and the
   // status bar -- things the developer looks at -- and this is an
   // additionalContext line the model reads, exactly like the session-start
@@ -195,6 +198,16 @@ await run(async (input) => {
   // repo calls its tools long after that other window typed. `cwd` is what keeps
   // the two apart — see `sessionKeyFor`.
   setCurrentSession(db, sid, cwd);
+
+  // The loop guard counts each prompt's turn on its own (issue #262).
+  if (guarding) {
+    try {
+      openTurn(db, { sessionId: sid, project: identityOf(input, cwd, sid).project });
+    } catch {
+      /* A guard that cannot count stays quiet. */
+    }
+  }
+  if (!quiz.enabled && !resolved.config.memory.enabled) return 0;
 
   // Which of Eklavya's own slash commands was typed, for the usage ping. Only
   // a name from this fixed list is ever counted; the rest of the prompt is not.

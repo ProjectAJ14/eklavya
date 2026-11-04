@@ -45,14 +45,19 @@ export function quietPending(db: DB, now: number, except: string | null = null):
  * fold reads whole transcripts, which a hook must never do.
  */
 export function startFold(cli: string, args: string[], spawn: typeof nodeSpawn = nodeSpawn): void {
-  // A test run spawns real hooks; a detached fold outliving it would write to
-  // a database the test is about to delete. Tests pass their own spawn.
+  startDetached(cli, ['fold', ...args], spawn);
+}
+
+/** Runs `eklavya <args>` detached: the fold, the loop guard's judge. Never awaited. */
+export function startDetached(cli: string, args: string[], spawn: typeof nodeSpawn = nodeSpawn): void {
+  // A test run spawns real hooks; a detached process outliving it would write
+  // to a database the test is about to delete. Tests pass their own spawn.
   if (spawn === nodeSpawn && process.env.VITEST) return;
   try {
-    const child = spawn(process.execPath, [cli, 'fold', ...args], { detached: true, stdio: 'ignore', windowsHide: true });
+    const child = spawn(process.execPath, [cli, ...args], { detached: true, stdio: 'ignore', windowsHide: true });
     child.on('error', () => {});
     child.unref();
   } catch {
-    /* The next session start folds what this one could not. */
+    /* The next session start folds what this one could not; the next call asks the judge again. */
   }
 }

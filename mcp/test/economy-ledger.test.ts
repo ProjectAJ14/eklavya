@@ -107,7 +107,7 @@ describe('folding a session', () => {
     const file = transcript('s1');
     openSession(db, { sessionId: 's1', project: '/r', transcriptPath: file });
     const r = foldSession(db, config(), 's1');
-    expect(r).toEqual({ sessionId: 's1', found: true, effective: 100 + 100 + 50 + 40 + 20, unpriced: ['mystery-model'] });
+    expect(r).toMatchObject({ sessionId: 's1', found: true, effective: 100 + 100 + 50 + 40 + 20, unpriced: ['mystery-model'], project: '/r', file });
     const row = db.prepare('SELECT * FROM econ_sessions WHERE session_id = ?').get('s1') as Record<string, unknown>;
     expect(row).toMatchObject({ project: '/r', model: 'claude-haiku-4-5', prompts: 1, input: 145, quiz_effective: 250, eklavya_effective: 310, unpriced: '["mystery-model"]' });
     expect(JSON.parse(row.settings as string).economy.ledger).toBe(true);
@@ -124,7 +124,7 @@ describe('folding a session', () => {
     const given = transcript('s3');
     expect(foldSession(db, config(), 'other', { transcript: given, project: '/p', env, home }).found).toBe(true);
     const none = foldSession(db, config(), 'nothing', { env, home });
-    expect(none).toEqual({ sessionId: 'nothing', found: false, effective: 0, unpriced: [] });
+    expect(none).toEqual({ sessionId: 'nothing', found: false, effective: 0, unpriced: [], project: null, summary: null, file: null });
     expect(foldSession(db, config(), 'nothing2', { transcript: path.join(home, 'nope.jsonl') }).found).toBe(false);
     const empty = path.join(home, 'empty.jsonl');
     fs.writeFileSync(empty, '');

@@ -78,6 +78,10 @@ const CheckpointSchema = z.object({
 
 const ResultSchema = z.object({ observations: z.array(DraftSchema).max(LIMIT.observations) });
 
+const PinnedSchema = z
+  .array(z.object({ kind: z.enum(['env', 'decision', 'convention']), text: z.string().min(1).max(300) }))
+  .max(4);
+
 /**
  * The model's output cut to the limits, before validation.
  *
@@ -153,6 +157,15 @@ const OUTPUT_SCHEMA = {
         },
       },
     },
+    pinned: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['kind', 'text'],
+        properties: { kind: { type: 'string', enum: ['env', 'decision', 'convention'] }, text: { type: 'string' } },
+      },
+    },
     checkpoint: {
       type: 'object',
       additionalProperties: false,
@@ -193,6 +206,7 @@ const SYSTEM = [
   `keywords: up to ${LIMIT.keywords} other words or short phrases a developer might use when asking about this later but that the title and facts do not already use (synonyms, the symptom for a fix, the feature area). They are indexed for search and never shown.`,
   'Tool events end with "→" and what the tool returned: record what it showed, not only that it ran. An assistant event is the agent\'s own conclusion for that turn: keep what it found and decided.',
   'Every fact must be supported by the evidence. Omit rather than guess. If the evidence shows no durable work, return an empty observations array.',
+  'pinned (optional, at most 4): durable facts about this project that every later session should know before it starts: env (how to run things here, e.g. "tests run with `python -m pytest`; bare `pytest` is not installed"), decision ("CSV exports use `;` as the separator"), convention. Only facts the evidence shows; never advice about finishing, skipping or verifying work. Usually empty.',
   `If the evidence contains an assistant event, the turn has ended: also return a checkpoint for the whole session so far, using <session_so_far> when given. request: what the developer asked for, in one sentence. investigated, learned, completed: short lists of specifics. next_steps: where the work is heading now, or what the developer still has to do. Each under ${LIMIT.checkpointField} characters. When neither this evidence nor the session so far holds durable work, leave request empty. Without an assistant event, omit checkpoint.`,
 ].join('\n');
 
@@ -652,6 +666,9 @@ export class ProviderSummarizer implements Summarizer {
     const parsed = CheckpointSchema.safeParse((raw as { checkpoint?: unknown } | null)?.checkpoint);
     const cp: Checkpoint | undefined = parsed.success ? parsed.data : undefined;
     if (cp && cp.request.trim() && endsTurn) drafts.checkpoint = cp;
+    // Proposals only, validated on their own like the checkpoint.
+    const pinned = PinnedSchema.safeParse((raw as { pinned?: unknown } | null)?.pinned);
+    if (pinned.success && pinned.data.length) drafts.pinned = pinned.data;
     return drafts;
   }
 }

@@ -38,6 +38,8 @@
  * (`min_minutes_between_checkpoints` here, `min_minutes_between_quizzes` under
  * `end`), `max_stop_blocks_per_session`, and the remaining session budget.
  */
+import { closeTurn } from '../loop-guard.js';
+import { economyOff } from './economy-lib.js';
 import { isCowork } from '../surface.js';
 import { run, openExisting, config, cwdOf, sessionId, minutesSince } from './lib.js';
 import { isSessionOff, quietMinutesLeft, workSince } from '../session.js';
@@ -70,6 +72,16 @@ await run(async (input) => {
   const cwd = cwdOf(input);
   const sid = sessionId(input, db);
   if (!sid) return 0;
+
+  // The loop guard's turn ends here; a green one teaches it how long turns in
+  // this repository usually run (issue #262).
+  if (config(cwd).config.economy.loopguard !== 'off' && !economyOff()) {
+    try {
+      closeTurn(db, { sessionId: sid });
+    } catch {
+      /* An unclosed turn is closed as unknown at the next prompt. */
+    }
+  }
 
   // The end of a turn is the natural seam: close the open batch and summarise
   // it. Before every learning gate below, because memory is not governed by

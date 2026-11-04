@@ -10,7 +10,11 @@
  * teaches is a capture path that makes every tool call slower.
  */
 import { run, openExisting, config, cwdOf, sessionId } from './lib.js';
-import type { HookInput } from './lib.js';
+import type { DB, HookInput } from './lib.js';
+import type { EklavyaConfig } from '../config.js';
+import { foldCall, type GuardOutput } from '../loop-guard.js';
+import { economyOff, runtimeCliPath } from './economy-lib.js';
+import { startDetached } from '../ledger-pending.js';
 import { batchIfFull, identityOf, record } from './capture-lib.js';
 import { policyFrom, type HostEvent } from '../memory/capture.js';
 import { clip, clipTail, type PrivacyPolicy } from '../memory/privacy.js';
@@ -136,21 +140,54 @@ function kindFor(tool: string, isError: boolean): HostEvent['kind'] {
   return 'tool_use';
 }
 
+/** The guard's view of the call: its result text, and whether the host said it failed. */
+function guardCall(db: DB, config: EklavyaConfig, input: HookInput, sid: string, tool: string): GuardOutput {
+  try {
+    const isFailure = input.hook_event_name === 'PostToolUseFailure';
+    const result = isFailure ? errorText(input) : resultText(input.tool_response);
+    const response = input.tool_response as Record<string, unknown> | undefined;
+    const hostFailed = isFailure || failed(input) ? true : response && typeof response === 'object' && 'success' in response ? false : null;
+    return foldCall(db, config, {
+      sessionId: sid,
+      agentId: input.agent_id ?? null,
+      tool,
+      args: input.tool_input ?? {},
+      result,
+      failed: hostFailed,
+      headless: process.env.CLAUDE_CODE_SESSION_ATTENDED === '0',
+    });
+  } catch {
+    return {};
+  }
+}
+
 await run(async (input) => {
   const db = openExisting();
   if (!db) return 0;
 
   const cwd = cwdOf(input);
   const resolved = config(cwd);
-  // Capture is independent of `mode`: someone who turned quizzing off did not
-  // ask for their project history to stop being recorded (PRD CFG-01).
-  if (!resolved.config.memory.enabled) return 0;
-
   const tool = input.tool_name ?? '';
   if (!tool) return 0;
 
   const sid = sessionId(input, db);
+  // The loop guard folds every call, memory or not (issue #262). Whatever it
+  // has to say leaves as this hook's one output.
+  const guard = sid && resolved.config.economy.loopguard !== 'off' && !economyOff() ? guardCall(db, resolved.config, input, sid, tool) : {};
+  // The judge is a model call: a detached process, never awaited.
+  if (guard.judgeTurn) startDetached(runtimeCliPath(), ['judge', String(guard.judgeTurn)]);
+  if (guard.stop) process.stdout.write(`${JSON.stringify({ continue: false, stopReason: guard.stop })}\n`);
+  else if (guard.context) {
+    process.stdout.write(
+      `${JSON.stringify({ hookSpecificOutput: { hookEventName: input.hook_event_name ?? 'PostToolUse', additionalContext: guard.context } })}\n`,
+    );
+  }
+
   const identity = identityOf(input, cwd, sid);
+  // Capture is independent of `mode`: someone who turned quizzing off did not
+  // ask for their project history to stop being recorded (PRD CFG-01).
+  if (!resolved.config.memory.enabled) return 0;
+
   const isError = failed(input);
   const body = bodyFor(input, isError, policyFrom(resolved.config));
   if (!body.trim()) return 0;

@@ -177,6 +177,14 @@
       "shard": 4,
       "seconds": 10
     },
+    "test/economy-facts.test.ts": {
+      "shard": 5,
+      "seconds": 10
+    },
+    "test/economy-guard.test.ts": {
+      "shard": 3,
+      "seconds": 10
+    },
     "test/economy-hooks.test.ts": {
       "shard": 2,
       "seconds": 30
@@ -184,6 +192,10 @@
     "test/economy-ledger.test.ts": {
       "shard": 5,
       "seconds": 15
+    },
+    "test/economy-toolprune.test.ts": {
+      "shard": 4,
+      "seconds": 10
     },
     "test/eval-coverage.test.ts": {
       "shard": 4,

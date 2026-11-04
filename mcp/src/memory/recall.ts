@@ -104,6 +104,11 @@ export interface RecallOptions {
    * work. Null or no match: newest first, as without it.
    */
   seamQuery?: string | null;
+  /**
+   * Seam only: the pinned facts (`memory/pinned.ts`), shown first. Their
+   * budget is their own (`memory.pinned_facts`), not `retrieval.max_tokens`.
+   */
+  pinned?: string[] | null;
 }
 
 /**
@@ -438,7 +443,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     // match; a session start's are newest-first and name none.
     const hint = RECEIPT_HINT(Number(receipt), opts.scope === 'prompt' ? items.slice(0, 2).map((x) => x.e.id) : [], lookup);
     const block = opts.index
-      ? [header, note, hint, ...indexLines, ...(detail.length ? [DETAIL_HEADING, ...detail] : []), ...closing, footer].join('\n')
+      ? [header, note, ...(opts.pinned ?? []), hint, ...indexLines, ...(detail.length ? [DETAIL_HEADING, ...detail] : []), ...closing, footer].join('\n')
       : [header, note, hint, ...items.map((x) => x.text), footer].join('\n');
     return { timelineRows, indexLines, detail, block };
   };
@@ -466,8 +471,10 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     }
   }
   const keptNow = items.map((x) => x.e);
+  const pinnedTokens = opts.index && opts.pinned?.length ? estimateTokens(opts.pinned.join('\n')) : 0;
   delivered =
     wrapperTokens +
+    pinnedTokens +
     items.reduce((sum, x) => sum + estimateTokens(x.text), 0) +
     (view.indexLines.length ? estimateTokens(view.indexLines.join('\n')) : 0) +
     (opts.index && view.detail.length ? estimateTokens(DETAIL_HEADING) : 0);
@@ -483,6 +490,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     delivery: opts.delivery ?? 'prepared',
     wrapperTokens:
       wrapperTokens +
+      pinnedTokens +
       (view.indexLines.length ? estimateTokens(view.indexLines.join('\n')) : 0) +
       (opts.index && view.detail.length ? estimateTokens(DETAIL_HEADING) : 0),
     items: items.map((x) => ({

@@ -9,6 +9,7 @@
 import type { ResolvedConfig } from '../config.js';
 import type { EvidenceIdentity } from '../memory/identity.js';
 import { seamParts, seamQueryOf } from '../memory/seam.js';
+import { pinnedLines } from '../memory/pinned.js';
 import { drainSpool } from '../memory/capture.js';
 import { batchSession, hasClaimableJob, openSessions } from '../memory/store.js';
 import { markProbe, probeDue, processPending, pruneIfDue, standInWhilePaused, writeSessionSummary } from '../memory/worker.js';
@@ -178,6 +179,15 @@ export function replaySpool(db: DB): void {
   }
 }
 
+/** The pinned facts for a session start; a failure leaves them out, never the recall. */
+function pinnedOrNull(db: DB, resolved: ResolvedConfig, identity: EvidenceIdentity): string[] | null {
+  try {
+    return pinnedLines(db, resolved.config, identity.project, identity.sessionId);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The recalled-evidence block for a session seam, or null.
  *
@@ -205,6 +215,7 @@ export function recallBlock(
       index,
       excludeOwnSession,
       maxChars,
+      pinned: index ? pinnedOrNull(db, resolved, identity) : null,
       seamQuery:
         index && resolved.config.retrieval.seam_query
           ? seamQueryOf(seamParts(db, { cwd: identity.checkout, project: identity.project, sessionId: identity.sessionId }))

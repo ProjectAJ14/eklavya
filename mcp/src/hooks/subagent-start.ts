@@ -28,6 +28,8 @@
  * reason; this hook must not undo it by asking for one in prose.
  */
 import { withSurfaceNote } from '../surface.js';
+import { openTurn } from '../loop-guard.js';
+import { economyOff } from './economy-lib.js';
 import { run, config, cwdOf, openExisting, sessionId, type DB, type HookInput } from './lib.js';
 import { isSessionOff } from '../session.js';
 import { identityOf } from './capture-lib.js';
@@ -101,11 +103,22 @@ await run(async (input) => {
   // subagent may well be the first thing in a session to touch Eklavya, and a
   // hook that bailed on `openExisting() === null` would be silent on exactly
   // the fresh install that most needs the directive.
-  const { quiz, memory } = config(cwdOf(input)).config;
-  if (!quiz.enabled && !memory.enabled) return 0;
+  const { quiz, memory, economy } = config(cwdOf(input)).config;
+  const guarding = economy.loopguard !== 'off' && !economyOff();
+  if (!quiz.enabled && !memory.enabled && !guarding) return 0;
 
   const db = openExisting();
   const sid = db ? sessionId(input, db) : null;
+  // A subagent's work is its own turn for the loop guard: tracked, never
+  // nudged until a nudge is known to reach it (issue #262).
+  if (guarding && db && sid && input.agent_id) {
+    try {
+      openTurn(db, { sessionId: sid, agentId: input.agent_id, project: identityOf(input, cwdOf(input), sid).project });
+    } catch {
+      /* A guard that cannot count stays quiet. */
+    }
+  }
+  if (!quiz.enabled && !memory.enabled) return 0;
   const context: string[] = [];
 
   // A session the developer silenced should not be handed the directive

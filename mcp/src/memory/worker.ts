@@ -1,4 +1,5 @@
 import { meterProviderCalls } from '../ledger.js';
+import { foldSessionFacts, fromProposal, type SessionEvidence } from './pinned.js';
 import crypto from 'node:crypto';
 import type { DB } from '../db.js';
 import type { EklavyaConfig } from '../config.js';
@@ -375,6 +376,12 @@ export async function processPending(
         const didWork = drafts.length > 0 || timeline(db, { project: batch.project, sessionId: batch.session_id, kind: 'observation', limit: 1 }).length > 0;
         if (drafts.checkpoint && didWork) {
           writeCheckpoint(db, batch.project, batch.session_id, drafts.checkpoint, summarizer.id, events[events.length - 1]!.occurred_at);
+        }
+        // Facts the observer proposes start forming; they reach a session only
+        // after three sessions confirm them (issue #264).
+        if (drafts.pinned?.length && config.economy.envfacts === 'observer') {
+          const proposals = drafts.pinned.map((p) => fromProposal(p.kind, p.text)).filter((e): e is SessionEvidence => e !== null);
+          foldSessionFacts(db, batch.project, batch.session_id, proposals, { only: true });
         }
         db.prepare("UPDATE evidence_events SET status = 'summarized' WHERE batch_id = ?").run(batch.id);
         finishJob(db, job.id, owner);

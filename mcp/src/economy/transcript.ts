@@ -301,3 +301,32 @@ export function findTranscript(projects: string, sessionId: string, cwd?: string
   }
   return null;
 }
+
+/**
+ * A session's Bash and WebFetch calls with what came back, main thread only,
+ * in order: what the environment-fact families read. Held in memory for the
+ * fold and dropped; the facts keep only command forms, variable names and hosts.
+ */
+export function readCalls(transcript: string): { tool: string; input: string; output: string; failed: boolean }[] {
+  const pending = new Map<string, { tool: string; input: string }>();
+  const out: { tool: string; input: string; output: string; failed: boolean }[] = [];
+  for (const line of lines(transcript)) {
+    const ev = parse(line);
+    if (!ev || ev.isSidechain) continue;
+    const content = ((ev.message ?? {}) as { content?: unknown }).content;
+    if (!Array.isArray(content)) continue;
+    for (const b of content as Record<string, unknown>[]) {
+      if (!b || typeof b !== 'object') continue;
+      const input = (b.input ?? {}) as Record<string, unknown>;
+      if (b.type === 'tool_use' && typeof b.id === 'string' && (b.name === 'Bash' || b.name === 'WebFetch')) {
+        pending.set(b.id, { tool: b.name, input: String((b.name === 'Bash' ? input.command : input.url) ?? '') });
+      } else if (b.type === 'tool_result' && typeof b.tool_use_id === 'string' && pending.has(b.tool_use_id)) {
+        const c = b.content;
+        const text = typeof c === 'string' ? c : Array.isArray(c) ? c.map((x) => (x && typeof x === 'object' && typeof (x as { text?: unknown }).text === 'string' ? (x as { text: string }).text : '')).join('\n') : '';
+        out.push({ ...pending.get(b.tool_use_id)!, output: text.slice(0, 20_000), failed: b.is_error === true });
+        pending.delete(b.tool_use_id);
+      }
+    }
+  }
+  return out;
+}

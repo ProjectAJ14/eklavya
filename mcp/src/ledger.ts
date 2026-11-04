@@ -3,7 +3,7 @@ import os from 'node:os';
 import type { DB } from './db.js';
 import type { EklavyaConfig } from './config.js';
 import { priceByModel, weightsFor, effectiveTokens } from './economy/pricing.js';
-import { findTranscript, projectsDir, readTranscript, totalTokens, type Usage } from './economy/transcript.js';
+import { findTranscript, projectsDir, readTranscript, totalTokens, type TranscriptSummary, type Usage } from './economy/transcript.js';
 import { setUsageSink, type ProviderUsage } from './memory/provider.js';
 import { openSession } from './ledger-pending.js';
 
@@ -32,6 +32,11 @@ export interface FoldResult {
   found: boolean;
   effective: number;
   unpriced: string[];
+  project: string | null;
+  /** What the transcript held, for the evidence the other cost controls keep; null without one. */
+  summary: TranscriptSummary | null;
+  /** The transcript read, or null. */
+  file: string | null;
 }
 
 /**
@@ -109,7 +114,7 @@ export function foldSession(
       }
     }
   })();
-  return { sessionId, found: Boolean(t && totalTokens(u) > 0), effective: priced.effective, unpriced: priced.unpriced };
+  return { sessionId, found: Boolean(t && totalTokens(u) > 0), effective: priced.effective, unpriced: priced.unpriced, project, summary: t, file: file ?? null };
 }
 
 export interface OverheadRow {
