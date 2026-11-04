@@ -260,8 +260,8 @@ export interface RetrievalConfig {
    */
   seam_query: boolean;
   /**
-   * How a prompt earns a mid-session recall. `strict` (default): every word of
-   * the prompt in one entry, or a close vector. `terms`: stopwords dropped,
+   * How a prompt earns a mid-session recall. `strict`: every word of
+   * the prompt in one entry, or a close vector. `terms` (default): stopwords dropped,
    * identifiers split, any term matched, and the entry kept when two
    * informative terms match or the matched terms carry most of the prompt's
    * rarity.
@@ -510,7 +510,7 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
     max_tokens: 1200,
     cross_project: false,
     seam_query: false,
-    prompt_gate: 'strict',
+    prompt_gate: 'terms',
     timeline_items: 50,
   },
   providers: {

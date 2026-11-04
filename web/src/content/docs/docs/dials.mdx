@@ -16,7 +16,7 @@ Choose what Eklavya teaches and how often it asks. These settings are independen
 | `cadence` | `as-you-go`: one question during work | `end`: questions when the task finishes. |
 | `difficulty` | `auto`: earn a level per project | Pin `easy`, `medium` or `hard`. |
 | `memory.enabled` | `true`: record and recall work | `false`: learning continues without memory capture or recall. |
-| `retrieval.prompt_gate` | `strict`: a prompt recalls an entry only when every word of it is in the entry | `terms`: ignore filler words and recall on two informative words or the rarest ones. |
+| `retrieval.prompt_gate` | `terms`: ignore filler words and recall on two informative words or the rarest ones | `strict`: a prompt recalls an entry only when every word of it is in the entry. |
 | `memory.file_hold` | `true`: a whole-file Read of a 32 KB+ code file with history is held, steering Claude to the outline or a ranged Read | `false`: file history is only added as context, never held. |
 | `feedback.enabled` | `true`: review one of your prompts at a time, with memory and an observer model | `false`: no prompt feedback. |
 | `economy.loopguard` | `off`: no loop guard | `nudge`: redirect a stuck turn once, then tell you; `stop` also ends a stuck headless run. |

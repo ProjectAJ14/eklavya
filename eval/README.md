@@ -559,7 +559,8 @@ after its start is hidden; an entry is relevant when the session later reads
 or edits one of its files. It reports session-start hit@6 and prompt hit@2
 for `today`, `seam` (`retrieval.seam_query` on) and `terms`
 (`retrieval.prompt_gate terms`). No model call. Results:
-`results/2026-11-04-recall-gate.md`.
+`results/2026-11-04-recall-gate.md`; the run on real history that made `terms`
+the default is `results/2026-11-04-recall-replay.md`.
 
 ## The memory token report
 

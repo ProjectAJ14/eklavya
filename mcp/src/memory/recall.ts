@@ -769,7 +769,7 @@ export function recallForPrompt(
     ? []
     : semanticSearch(db, query, {
         ...scope,
-        // The second embedder ships with the `terms` gate, so the default changes nothing (issue #258).
+        // The second embedder ships with the `terms` gate, the default since the recall replay (issue #267).
         embedder: config.retrieval.prompt_gate === 'terms' ? 'v2' : 'v1',
         minScore: MIN_COSINE,
       });

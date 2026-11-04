@@ -587,10 +587,12 @@ describe('recallForPrompt', () => {
   });
 
   // Issue #230: a long tool name clears the 25-character floor with one term.
-  it('matches a prompt of one or two terms by words alone, and recalls nothing for filler', () => {
+  it('matches a prompt of one or two terms by words alone under the strict gate, and recalls nothing for filler', () => {
     const hit = insertEntry(db, { project: PROJECT, title: 'Wired up the zephyrctl deploy helper', narrative: 'zephyrctl flags', type: 'change' });
     insertEntry(db, { project: PROJECT, title: 'Refresh token rotation change', narrative: 'unrelated test failures', type: 'change' });
     const cfg = config();
+    // `terms` splits the identifier and matches `zephyrctl`; this is the strict gate's whole-word rule.
+    cfg.retrieval.prompt_gate = 'strict';
     const ask = (prompt: string) => recallForPrompt(db, cfg, { project: PROJECT, sessionId: 's1', prompt });
     expect(ask('use zephyrctl-internal-tool please')).toBeNull();
     expect(ask('please use zephyrctl for the')!.entries.map((e) => e.id)).toEqual([hit]);
