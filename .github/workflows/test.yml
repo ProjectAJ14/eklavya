@@ -45,25 +45,32 @@ jobs:
       - name: Install dependencies
         run: npm ci
         working-directory: mcp
-      # Usually 17-30s. The OS packages come from the Azure apt mirror, which is
-      # sometimes slow or stalls. Retrying the whole install under `timeout` did
-      # not work: `timeout` killed npx but not the apt-get it had started, so that
-      # apt-get kept the dpkg lock and every retry failed on it. So apt runs once,
-      # and apt itself drops and retries a connection that sends nothing for 20s;
-      # a slow but moving download is left to finish. Only the browser download,
-      # which is plain Node and dies with `timeout`, is cut and retried.
-      # timeout-minutes still bounds the whole step if the mirror is down.
+      # The browser download is plain Node, so `timeout` stops it cleanly and it
+      # is retried. OS packages are not installed by default: the runner image
+      # already has every library Chromium links against, and Playwright's
+      # `install-deps` only added nine font packages (CJK, Thai, unifont; ~22 MB)
+      # that no browser test renders. The Azure apt mirror sometimes serves them
+      # at ~60 KB/s, which alone outlasted this step. Retrying apt under `timeout`
+      # made it worse: `timeout` killed npx but not its apt-get, which kept the
+      # dpkg lock, so every retry failed on it. So apt runs only when `ldd` finds
+      # a missing library (a changed runner image), once, with apt's own retry
+      # for a connection that stalls for 20s.
       - name: Install Chromium
         timeout-minutes: 5
         run: |
-          printf 'Acquire::http::Timeout "20";\nAcquire::Retries "5";\n' \
-            | sudo tee /etc/apt/apt.conf.d/99ci-retries >/dev/null
-          npx playwright-core install-deps chromium
           for attempt in 1 2 3; do
-            timeout -k 5 60 npx playwright-core install chromium && exit 0
+            timeout -k 5 60 npx playwright-core install chromium && break
             echo "Chromium download attempt $attempt failed or timed out"
+            [ "$attempt" = 3 ] && exit 1
           done
-          exit 1
+          cache=~/.cache/ms-playwright
+          if ldd $cache/chromium-*/chrome-linux64/chrome \
+              $cache/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell 2>&1 \
+              | grep -E 'not found|No such file'; then
+            printf 'Acquire::http::Timeout "20";\nAcquire::Retries "5";\n' \
+              | sudo tee /etc/apt/apt.conf.d/99ci-retries >/dev/null
+            npx playwright-core install-deps chromium
+          fi
         working-directory: mcp
       - name: Build server
         run: npm run build
