@@ -210,14 +210,27 @@ The Cost workflow reads the cost ledger, the same rows `eklavya cost --export cs
 
 | Page | What it lists |
 | --- | --- |
-| **Dashboard** | Sessions priced, their effective tokens (and how many used a model with no price row), Eklavya's share inside sessions (quiz turns and its subagents), Eklavya's background calls in the last 30 days, recalls sent and memory reads after them (with how many found nothing, and how many entries are flagged outdated or were refreshed), stuck turns redirected, and **failures avoided by facts** in the last 30 days (estimated: sessions shown a pinned command fact that ran its command and never its failing form, which opens Pinned facts); a note when tool pruning has tools to propose for the chosen project; then the sums by week. A memory on/off note appears once `eklavya experiment memory` has run. The net effect is not computed: it needs the benchmark run. |
-| **Sessions** | Each priced session, 20 to a page: when, project, effective tokens and Eklavya's share, with the model, prompts and the fresh · cached · written · output split on its second line. |
+| **Dashboard** | The archer's one-line summary above the tiles: Eklavya's share of the effective tokens across priced sessions and its background calls, how many recalled memories sessions put to use in the last 30 days, and the failures avoided by facts. Then sessions priced, their effective tokens (and how many used a model with no price row), Eklavya's share inside sessions (quiz turns and its subagents), Eklavya's background calls in the last 30 days, recalls sent and memory reads after them (with how many found nothing, and how many entries are flagged outdated or were refreshed), stuck turns redirected, and **failures avoided by facts** in the last 30 days (estimated: sessions shown a pinned command fact that ran its command and never its failing form, which opens Pinned facts); a note when tool pruning has tools to propose for the chosen project; then the sums by week. A memory on/off note appears once `eklavya experiment memory` has run. The net effect is not computed: it needs the benchmark run. |
+| **Sessions** | Each priced session, 20 to a page: when, project, effective tokens and Eklavya's share, with the model, prompts and the fresh · cached · written · output split on its second line. A row opens [the session's page](#a-sessions-page). |
 | **Eklavya's calls** | 20 to a page: each observer, feedback, judge and refresh call, and each Eklavya subagent (labelled as inside its session, never added twice), with what `claude -p` reported it cost. |
 | **Loop guard** | Every redirect, notice, judge call and headless stop, with the reason, 20 to a page. |
 | **Tool pruning** | For the chosen project: tools denied, each with a **Restore** button; tools proposed with their evidence, each with an **Apply** button (none while `economy.toolprune` is `off`); and tools you kept. The buttons make the same change as `eklavya toolprune apply` and `restore`, from the next session. |
 | **Pinned facts** | For the chosen project (pick one first: facts are per checkout): every fact, active, forming or retired, with its confirmations and how often it applied. |
 
 The ledger is read when the page opens, not carried in the live stream, so a session that ends while the page is open appears at the next visit.
+
+### A session's page
+
+A session opens to the same page from Learning, Memory and Cost. Its first part is what Eklavya did in that session:
+
+- **The archer's line.** A sentence built only from the figures below, for example "I used 5% of this session's effective tokens. 2 memories I recalled were put to use. I remembered 22 things from it." Its face is worried when the loop guard redirected a stuck turn, happy when a recalled memory was used or a fact kept a known failure away, neutral otherwise, and curious when the session was never priced.
+- **Four tiles.** Session cost, in effective tokens and with the model (measured). Eklavya's share: turns that called its tools, its subagents, and its own background calls for that session (measured). Memory used: recalled entries the session then read or edited a file of, with how many were sent and opened. Given to memory: the observations written from the session, with the events it captured and any still waiting to be summarised.
+- **Transcript.** The path of Claude Code's own transcript, with a **Copy** button; Eklavya keeps only the path. It says so when Claude Code has since deleted the file, and when the session started before the ledger or with it off.
+- **What Eklavya saved**, folded. Recall: how much smaller the recalled context was than the evidence behind it (estimated, not money). Failures avoided by facts (estimated). Stuck turns redirected (a count). None is subtracted from the cost: they are estimates, and the work might have gone the same way without them.
+- **What memory gave it**, folded: the entries used, opened and sent, each linking to its observation, up to 50 per list with the full count.
+- **Eklavya tools it called**, folded: each of Eklavya's tools by name, with how many times. Read from the transcript when the session was priced, so a session priced before this release shows none until it is priced again.
+
+A session only the ledger or memory knows, one that logged no concept and asked no question, opens with this part alone. Memory used is counted when the background fold processes the session, so it reads 0 with "counted once the session is folded" until then.
 
 ## Settings
 
@@ -243,7 +256,7 @@ Only projects with a git checkout on this machine can be configured. The footer'
 | Detail page | Contains |
 | --- | --- |
 | Concept (`#/learning/concept/<slug>`) | Score and decay, review schedule, a copyable command for this concept alone when it is due, and every recorded question as one line that opens to its options and feedback. Grade history, logged context and connected concepts are folded. |
-| Session (`#/learning/session/<id>` or `#/memory/session/<id>`) | Logged work and the questions asked, then folded sections for review concepts, observations and proposed concepts. Both routes show the same session with the originating workflow's sidebar. |
+| Session (`#/learning/session/<id>`, `#/memory/session/<id>` or `#/cost/session/<id>`) | First, [what Eklavya did in the session](#a-sessions-page): its cost, transcript, savings and memory. Then logged work and the questions asked, and folded sections for review concepts, observations and proposed concepts. All three routes show the same session with the originating workflow's sidebar. |
 | Domain (`#/learning/domain/<name>`) | Concepts ordered by weakness, with mastery and learning state. |
 | Observation (`#/memory/entry/<id>`) | Narrative, facts, files, tags, summariser, confidence, concept candidates, reuse receipts and expandable raw evidence. Corrections link to the replacement. |
 
@@ -394,7 +407,7 @@ An old link without a project can pick up the previous saved project once. New-s
 
 The dashboard reads the local database and binds to `127.0.0.1`. It accepts only `GET` and `HEAD`, except the writes listed below, validates loopback request addresses, escapes stored content and refuses framing by other pages. A request whose address is not a valid URL gets a `400` reply, and the server keeps running. Only the dashboard itself may frame an artifact page, for the viewer. Dashboard views load no external fonts or other remote resources; an artifact opened in its own tab has the font exception described above. The tips library (Driver.js) ships inside the package, and the dashboard serves it itself at `/vendor/driver-hints.js` and `/vendor/driver-hints.css`. The daily card's engine is also a local script, served at `/daily-card.js`.
 
-Its read-only JSON endpoints serve summary state (`/api/state`), the change cursor on its own (`/api/cursor`), project inventory (`/api/projects`), paged memory (`/api/memory`), entry detail (`/api/memory/entry`), memory sessions (`/api/memory/sessions`, which also returns what one session logged and was asked when you pass `?session=`), settings (`/api/settings`), a missed question to correct (`/api/attempts/correction?id=`, without its answer), and feedback: one item (`/api/feedback`, the waiting one without `?id=`) and the acknowledged list (`/api/feedback/list`), and the cost ledger (`/api/cost`, optionally `?project=`). `/api/events` is a stream of the change cursor, described below. The state payload carries only whether an item is waiting, its id and counts, never your prompt. These are its writes:
+Its read-only JSON endpoints serve summary state (`/api/state`), the change cursor on its own (`/api/cursor`), project inventory (`/api/projects`), paged memory (`/api/memory`), entry detail (`/api/memory/entry`), memory sessions (`/api/memory/sessions`, which also returns what one session logged and was asked when you pass `?session=`), settings (`/api/settings`), a missed question to correct (`/api/attempts/correction?id=`, without its answer), and feedback: one item (`/api/feedback`, the waiting one without `?id=`) and the acknowledged list (`/api/feedback/list`), the cost ledger (`/api/cost`, optionally `?project=`), and what Eklavya did in one session (`/api/session?id=`). `/api/events` is a stream of the change cursor, described below. The state payload carries only whether an item is waiting, its id and counts, never your prompt. These are its writes:
 
 | Write | What it does |
 | --- | --- |

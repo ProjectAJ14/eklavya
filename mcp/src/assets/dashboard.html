@@ -799,6 +799,10 @@
   .streak__talk .say { margin-bottom:30px; }
   /* Here the archer stands to the right of the bubble, so its tail points right. */
   .streak__talk .say::after { left:auto; right:-9px; border-left:0; border-bottom:0; border-right:1.5px solid var(--ink); border-top:1.5px solid var(--ink); }
+  /* The session page and the Cost dashboard: a longer line, so a wider bubble that still fits a phone. */
+  .sess-talk { margin:0 0 var(--space-5); }
+  .sess-talk .say { flex:1 1 auto; max-width:min(520px, 100%); }
+  .sub-h { margin:var(--space-4) 0 var(--space-2); font:500 10.5px/1 var(--font-mono); letter-spacing:.18em; text-transform:uppercase; color:var(--faint); }
   @media (prefers-reduced-motion:reduce) { dialog.daily[open], .daily__flame.is-live { animation:none; }
     .daily__ring .f, .daily__bar > b, .daily__bars i { transition:none; } .daily__confetti { display:none; } }
   dialog.dlg { width:min(460px, calc(100vw - 32px)); margin:auto; padding:0; border:1px solid var(--line-2); border-radius:0;
@@ -1391,6 +1395,7 @@ const stamp = (ts) => {
 const COMPACT = new Intl.NumberFormat('en', { notation:'compact', maximumFractionDigits:1 });
 const fmtN = (n) => (typeof n === 'number' && Math.abs(n) >= 1000 ? COMPACT.format(n) : n);
 const plural = (n, w) => `${fmtN(n)} ${w}${n === 1 ? '' : 's'}`;
+const memories = (n) => `${fmtN(n)} ${n === 1 ? 'memory' : 'memories'}`;
 
 const TIER = { 1:'recall', 2:'mechanism', 3:'judgement', 4:'failure modes', 5:'design' };
 const tierLabel = (t) => `T${t}${TIER[t] ? ' ' + TIER[t] : ''}`;
@@ -2432,6 +2437,8 @@ const SLOT_MIN = {
   'entry-body': 650, 'sess-lookup': 360, 'sess-mem': 160, 'fb-item': 520, settings: 1580,
   // Two rows of tiles and the two notes under them, with nothing priced yet (420px at 1280 here, ~465px where the
   // notes wrap one line more, as on CI); a Cost list's one empty line.
+  // What Eklavya did in a session: the archer's line, four tiles, the transcript card and three closed folds (~620px at 1280).
+  'sess-ek': 620,
   'cost-main': 480, 'cost-sessions': 94, 'cost-calls': 94, 'cost-guard': 94, 'cost-tools': 94, 'cost-facts': 94,
 };
 /** A list's room: [how many rows the page knows of, the most one page holds, px a row takes, px around the rows (pager, rule)]. Measured at 1280px. */
@@ -3141,7 +3148,7 @@ function viewSession(id) {
   // half, and its lines and answers whatever their age (`learning`).
   return slot('sess-lookup', '/api/memory/sessions?' + memScope(new URLSearchParams({ session: id })), (d) => {
     const found = sessionFromLookup(id, d);
-    return found ? sessionBody(found) : noSession(id);
+    return found ? sessionBody(found) : sessionEklavya(id, true);
   }, { label: 'Looking up this session…', cls: 'stack' });
 }
 
@@ -3195,6 +3202,8 @@ function sessionBody(s) {
     ], `Session <code class="slug">${esc(s.id)}</code>. The learning half and the memory half are joined on the
        session id the host handed both — the one association between them that is recorded rather than inferred.`, back),
 
+    sessionEklavya(id),
+
     work.length
       ? card('What the work taught', 'Each line is what the agent said the concept was for, in the code it wrote.', lines(work.map(conceptLine)))
       : '',
@@ -3211,6 +3220,95 @@ function sessionBody(s) {
       : '',
 
     memory,
+  ].join('');
+}
+
+/**
+ * What Eklavya did in one session, the same on every workflow's session page: what the session cost and
+ * Eklavya's share of it (measured), where its transcript is, the Eklavya tools it called, what memory gave it
+ * and what it gave memory, and the savings estimates. `alone` draws the page head too, for a session that only
+ * the ledger or memory knows; one with nothing recorded at all is not found.
+ */
+function sessionEklavya(id, alone = false) {
+  return slot('sess-ek', '/api/session?id=' + encodeURIComponent(id), (d) => drawSessionEklavya(d, alone),
+    { label: 'Reading what Eklavya did…', cls: 'stack' });
+}
+
+/** The recall estimate in words; never money (issue #259). */
+const recallSaving = (r) => r.kind === 'saving' ? `${r.percent}% smaller than its sources`
+  : r.kind === 'overhead' ? `${fmtN(r.tokens)} tokens larger than its sources`
+  : r.kind === 'unavailable' ? 'size against its sources unavailable' : 'no context recalled';
+
+/**
+ * The mascot's line for a session: only figures the page also shows, so it says nothing the numbers do not.
+ * Its face follows them: worried when the loop guard had to step in, happy when memory or a fact was used,
+ * curious when the session was never priced.
+ */
+function sessionVerdict(d) {
+  const c = d.cost, m = d.memory, sv = d.savings;
+  const own = d.overhead.reduce((a, o) => a + (o.effective || 0), 0);
+  // Background calls are not in the session's total, so they join both sides of the share.
+  const share = c && c.folded && c.effective ? Math.round((100 * (c.eklavya_effective + own)) / (c.effective + own)) : null;
+  const said = [
+    share === null ? 'This session has not been priced yet.' : `I used ${share}% of this session's effective tokens.`,
+    m.applied.count ? `${memories(m.applied.count)} I recalled ${m.applied.count === 1 ? 'was' : 'were'} put to use.` : '',
+    sv.failures_avoided ? `I kept ${plural(sv.failures_avoided, 'known failure')} away (estimated).` : '',
+    sv.guard.redirect ? `I redirected ${plural(sv.guard.redirect, 'stuck turn')}.` : '',
+    m.remembered ? `I remembered ${plural(m.remembered, 'thing')} from it.` : '',
+  ].filter(Boolean).join(' ');
+  const state = sv.guard.redirect ? 'warning' : m.applied.count || sv.failures_avoided ? 'success' : c ? 'info' : 'empty';
+  return `<div class="streak__talk sess-talk"><div class="say">${esc(said)}</div><eklavya-mascot state="${state}" variant="body" size="80"></eklavya-mascot></div>`;
+}
+
+function drawSessionEklavya(d, alone) {
+  if (!d.known) return alone ? noSession(d.session_id) : '';
+  const c = d.cost, m = d.memory, sv = d.savings;
+  const own = d.overhead.reduce((a, o) => a + (o.effective || 0), 0);
+  const head = alone
+    ? pageHead(esc(c?.project ? pname(c.project) : 'Session'), [
+        c?.started_at ? `${esc(stamp(c.started_at))}${c.ended_at ? ` → ${esc(stamp(c.ended_at))}` : ''}` : 'not priced yet',
+        c ? plural(c.prompts, 'prompt') : '',
+      ].filter(Boolean), `Session <code class="slug">${esc(d.session_id)}</code>. It logged no concept and asked no question,
+         so only what Eklavya recorded about its cost and memory is here.`,
+        `<a class="page__back" data-go="${esc(href(CUR.wf, 'sessions'))}">← Sessions</a>`, true)
+    : '';
+  const priced = c && c.folded;
+  const stats = tiles([
+    ['Session cost', priced ? c.effective : '—', priced ? `measured · effective tokens · ${c.model ?? 'no model'}${c.unpriced.length ? ' · unpriced' : ''}` : 'priced when the session ends'],
+    ['Eklavya\'s share', priced ? c.eklavya_effective + own : '—', priced ? `measured · ${fmtN(c.quiz_effective)} in turns that called its tools, ${fmtN(c.eklavya_effective - c.quiz_effective)} subagents, ${fmtN(own)} background` : 'priced when the session ends'],
+    ['Memory used', m.applied.count, m.folded ? `measured · ${m.sent.count} sent, ${m.opened.count} opened` : 'counted once the session is folded'],
+    ['Given to memory', m.remembered, `count · ${plural(m.captured, 'event')} captured${m.pending ? `, ${m.pending} waiting` : ''}`],
+  ]);
+  const transcript = d.transcript
+    ? d.transcript.on_disk
+      ? `<div class="cmd"><code>${esc(d.transcript.path)}</code><button type="button" class="cmd__copy" data-copy data-hint="Open it in your editor: one JSON object per line." data-focus="copy:transcript">Copy</button></div>`
+      : `<p class="empty">Claude Code has since deleted it: <code class="slug">${esc(d.transcript.path)}</code></p>`
+    : '<p class="empty">No transcript was recorded: this session started before the cost ledger, or with it off.</p>';
+  const tools = Object.entries(d.tools).sort((a, b) => b[1] - a[1]);
+  // An empty list here is one of three: a plain line, not the mascot's empty state three times over.
+  const entryLines = (list) => !list.count ? '<p class="empty">None.</p>'
+    : lines(list.entries.map((e) => ({ t: esc(e.title), s: esc(e.type ?? ''), go: MH('entry', e.id) })))
+      + (list.count > list.entries.length ? `<p class="slug">The newest ${list.entries.length} of ${list.count}.</p>` : '');
+  const savings = lines([
+    { t: 'Recall', s: `estimated · ${plural(m.recalls, 'recall')} · smaller than the files it summarises, not money saved`, v: esc(recallSaving(sv.recall)) },
+    { t: 'Failures avoided by facts', s: `estimated · ${plural(sv.facts_shown, 'pinned fact')} shown`, v: esc(fmtN(sv.failures_avoided)) },
+    { t: 'Stuck turns redirected', s: `count · ${sv.guard.notice ?? 0} notices, ${sv.guard.judge ?? 0} judge calls`, v: esc(fmtN(sv.guard.redirect ?? 0)) },
+  ]);
+  return [
+    head,
+    sessionVerdict(d),
+    stats,
+    card('Transcript', 'Claude Code\'s own record of the session. Eklavya keeps only its path.', transcript),
+    fold('sess:savings', 'What Eklavya saved', 'estimates', savings,
+      { hint: 'Each figure is an estimate or a count, never money: the work might have gone the same way without it.' }),
+    fold('sess:given', 'What memory gave it', `${m.sent.count} sent · ${m.opened.count} opened · ${m.applied.count} used`,
+      `<h3 class="sub-h">Used</h3>${entryLines(m.applied)}<h3 class="sub-h">Opened</h3>${entryLines(m.opened)}<h3 class="sub-h">Sent</h3>${entryLines(m.sent)}`,
+      { hint: 'Sent: recalled into the session. Opened: read in full with memory_get. Used: the session then read or edited one of its files.' }),
+    tools.length
+      ? fold('sess:tools', 'Eklavya tools it called', plural(tools.reduce((a, [, n]) => a + n, 0), 'call'),
+          lines(tools.map(([name, n]) => ({ t: `<code class="slug">${esc(name)}</code>`, v: esc(fmtN(n)) }))),
+          { hint: 'Measured from the transcript when the session was priced: names and counts, never arguments.' })
+      : '',
   ].join('');
 }
 
@@ -5592,6 +5690,7 @@ const WORKFLOWS = {
       guard:     { label: 'Loop guard', view: () => viewCostPage('guard') },
       tools:     { label: 'Tool pruning', view: () => viewCostPage('tools') },
       facts:     { label: 'Pinned facts', view: () => viewCostPage('facts') },
+      session:   { parent: 'sessions', view: (p) => viewSession(p) },
     },
   },
   settings: {
@@ -5656,7 +5755,19 @@ function drawCost(d) {
     ? nextStep(`<strong>Memory on vs off:</strong> ${plural(d.experiment.on, 'session')} with memory on, ${plural(d.experiment.off, 'session')} off. Run <code>eklavya experiment memory --report</code> for the medians.`, true)
     : '';
   const net = nextStep('<strong>Net effect:</strong> not computed. It needs the benchmark run with and without these controls; until then only the measured figures above stand.');
-  return tiles1 + tiles2 + prune + weeks + experiment + net;
+  return costTalk(d, own) + tiles1 + tiles2 + prune + weeks + experiment + net;
+}
+
+/** The mascot's summary of the scope, from the tiles' own figures. */
+function costTalk(d, own) {
+  if (!d.totals.sessions) return '';
+  const share = Math.round((100 * (d.totals.eklavya_in_sessions + own)) / (d.totals.effective + own || 1));
+  const said = [`Across ${plural(d.totals.sessions, 'priced session')} and my own background calls, I used ${share}% of the effective tokens.`,
+    d.memory_use.applied ? `In ${d.days} days, ${memories(d.memory_use.applied)} I recalled ${d.memory_use.applied === 1 ? 'was' : 'were'} put to use.` : '',
+    d.failures_avoided ? `I kept ${plural(d.failures_avoided, 'known failure')} away (estimated).` : '',
+    'Open a session to see what I did in it.'].filter(Boolean).join(' ');
+  const state = d.memory_use.applied || d.failures_avoided ? 'success' : 'info';
+  return `<div class="streak__talk sess-talk"><div class="say">${esc(said)}</div><eklavya-mascot state="${state}" variant="body" size="80"></eklavya-mascot></div>`;
 }
 
 function viewCostPage(which) {
@@ -5693,7 +5804,7 @@ function drawCostPage(which, d) {
     if (!d.sessions.length) return empty('No session has been priced yet.');
     const p = page('costsessions', d.sessions.length);
     return table([{ t: 'Session' }, { t: 'Effective', n: 1 }, { t: 'Eklavya', n: 1 }],
-      slice(d.sessions, p).map((s) => `<tr><td>${esc(s.started_at ? fmtDate(s.started_at) : '—')} <span class="slug">${esc(s.project ? pname(s.project) : '—')}</span>
+      slice(d.sessions, p).map((s) => `<tr class="row" data-go="${esc(CH('session', s.session_id))}"><td>${esc(s.started_at ? fmtDate(s.started_at) : '—')} <span class="slug">${esc(s.project ? pname(s.project) : '—')}</span>
         <br><code class="slug">${esc(s.model ?? '—')}</code>${s.unpriced ? ' <span class="pill due">unpriced</span>' : ''} <span class="slug">· ${plural(s.prompts, 'prompt')}
         · ${fmtN(s.input)} fresh · ${fmtN(s.cache_read)} cached · ${fmtN(s.cache_write_5m + s.cache_write_1h)} written · ${fmtN(s.output)} out</span></td>
         <td class="num">${fmtN(s.effective)}</td>

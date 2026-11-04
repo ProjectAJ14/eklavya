@@ -696,6 +696,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
           'learning/domain': { id: 'web-auth', h1: /^web-auth$/ },
           'memory/entry': { id: String(fx.entries.mixed), h1: /SameSite=Lax/ },
           'memory/session': { id: 's-mixed', h1: /^mixed$/ },
+          'cost/session': { id: 's-mixed', h1: /^mixed$/ },
           // The viewer has no heading: its tab bar names the page.
           'artifacts/view': { id: fix.other, has: /Queues, explained/ },
           'feedback/item': { id: String(fb), h1: /^Feedback item$/, has: /fix the login bug/ },

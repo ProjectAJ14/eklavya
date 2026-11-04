@@ -7,6 +7,7 @@ import { openDb, type DB } from '../src/db.js';
 import { DEFAULT_CONFIG, type EklavyaConfig } from '../src/config.js';
 import {
   costCsv,
+  eklavyaTools,
   foldSession,
   isoWeek,
   meterProviderCalls,
@@ -110,11 +111,19 @@ describe('folding a session', () => {
     expect(r).toMatchObject({ sessionId: 's1', found: true, effective: 100 + 100 + 50 + 40 + 20, unpriced: ['mystery-model'], project: '/r', file });
     const row = db.prepare('SELECT * FROM econ_sessions WHERE session_id = ?').get('s1') as Record<string, unknown>;
     expect(row).toMatchObject({ project: '/r', model: 'claude-haiku-4-5', prompts: 1, input: 145, quiz_effective: 250, eklavya_effective: 310, unpriced: '["mystery-model"]' });
+    // Eklavya's own tools by short name, and nothing else the session called.
+    expect(row.eklavya_tools).toBe('{"record_attempt":1}');
     expect(JSON.parse(row.settings as string).economy.ledger).toBe(true);
     // Folding again replaces, it does not add.
     foldSession(db, config(), 's1');
     const own = db.prepare('SELECT source, model, effective, in_session FROM econ_overhead').all();
     expect(own).toEqual([{ source: 'subagent:eklavya:eklavya-explainer', model: 'claude-haiku-4-5', effective: 60, in_session: 1 }]);
+  });
+
+  it('counts Eklavya\'s tools under either registration, and nothing for a session that called none', () => {
+    expect(eklavyaTools({ Bash: 3, mcp__eklavya__memory_get: 1, mcp__plugin_eklavya_eklavya__memory_get: 2, mcp__other__memory_get: 9 })).toBe('{"memory_get":3}');
+    expect(eklavyaTools({ Bash: 3 })).toBeNull();
+    expect(eklavyaTools({})).toBeNull();
   });
 
   it('finds an unknown session\'s transcript by id, prefers a given path, and folds a missing one as empty', () => {
