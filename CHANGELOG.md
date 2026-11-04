@@ -1,3 +1,10 @@
+# [1.93.0](https://github.com/ProjectAJ14/eklavya/compare/v1.92.1...v1.93.0) (2026-11-04)
+
+
+### Features
+
+* **memory:** match prompts on informative words by default ([#274](https://github.com/ProjectAJ14/eklavya/issues/274)) ([451eda7](https://github.com/ProjectAJ14/eklavya/commit/451eda71e003c06be1278704e9d2bf486739169b)), closes [#267](https://github.com/ProjectAJ14/eklavya/issues/267)
+
 ## [1.92.1](https://github.com/ProjectAJ14/eklavya/compare/v1.92.0...v1.92.1) (2026-11-04)
 
 
