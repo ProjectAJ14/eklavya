@@ -129,9 +129,12 @@ describe('the loop guard through the hooks', () => {
   const seedEnvelope = () => {
     for (let i = 0; i < 5; i++) db.prepare(`INSERT INTO econ_envelope (project, calls, recorded_at) VALUES (?, 8, 'x')`).run(repo);
   };
+  let failures = 0;
   const spin = (n: number, extra: Record<string, string> = {}) => {
     const outs: string[] = [];
-    for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      // Each failure its own call: a repeated id is the same call reported twice.
+      const i = failures++;
       outs.push(hook(CAPTURE, { session_id: 'g1', cwd: repo, hook_event_name: 'PostToolUse', tool_name: 'Edit', tool_input: { file_path: 'src/a.ts' }, tool_response: { success: true } }, extra).stdout);
       outs.push(hook(CAPTURE, { session_id: 'g1', cwd: repo, hook_event_name: 'PostToolUseFailure', tool_use_id: `f${i}`, tool_name: 'Bash', tool_input: { command: 'npm test' }, error: 'AssertionError: expected 1 to be 2' }, extra).stdout);
     }

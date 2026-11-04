@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import type { DB } from '../db.js';
 import { nowIso } from '../time.js';
-import { embedLocalV2, LOCAL_DIM_V2, LOCAL_EMBEDDER, LOCAL_EMBEDDER_V2, toBlob } from './embed.js';
+import { embedLocal, embedLocalV2, LOCAL_DIM, LOCAL_DIM_V2, LOCAL_EMBEDDER, LOCAL_EMBEDDER_V2, toBlob } from './embed.js';
 import { entryUid, receiptUid } from './identity.js';
 import { redact } from './privacy.js';
 
@@ -539,24 +539,24 @@ export function replaceEntry(db: DB, id: number, raw: EntryInput): void {
 }
 
 /**
- * Writes the entry's `local-hash-v2` vector and drops any `local-hash-v1` one,
- * so an entry has one local vector and search compares it the right way.
+ * Writes the entry's local vectors: `local-hash-v1`, which search uses by
+ * default, and `local-hash-v2`, which `retrieval.prompt_gate: terms` uses.
+ * Both are kept until the recall replay gate settles which one stays, so
+ * switching the setting back is never one-way (issue #258).
  */
 export function indexVector(db: DB, entryId: number, text: string): void {
-  const vec = embedLocalV2(text);
-  db.prepare(
+  const upsert = db.prepare(
     `INSERT INTO memory_vectors (entry_id, embedder_id, dim, vec) VALUES (?, ?, ?, ?)
      ON CONFLICT(entry_id, embedder_id) DO UPDATE SET vec = excluded.vec, dim = excluded.dim`,
-  ).run(entryId, LOCAL_EMBEDDER_V2, LOCAL_DIM_V2, toBlob(vec));
-  db.prepare('DELETE FROM memory_vectors WHERE entry_id = ? AND embedder_id = ?').run(entryId, LOCAL_EMBEDDER);
+  );
+  upsert.run(entryId, LOCAL_EMBEDDER, LOCAL_DIM, toBlob(embedLocal(text)));
+  upsert.run(entryId, LOCAL_EMBEDDER_V2, LOCAL_DIM_V2, toBlob(embedLocalV2(text)));
 }
 
 /**
- * Re-embeds up to `limit` entries that still have only a `local-hash-v1`
- * vector, newest first, and returns how many it did. The worker calls it in
- * the background after its batches, so a database written before the second
- * embedder moves over a few hundred entries at a time and search keeps
- * working throughout (each entry is compared with its own embedder's query).
+ * Adds a `local-hash-v2` vector to up to `limit` entries that have only a
+ * `local-hash-v1` one, newest first, and returns how many it did. The v1
+ * vector stays. The worker calls it in the background after its batches.
  */
 export function reembedLegacy(db: DB, limit = 200): number {
   try {

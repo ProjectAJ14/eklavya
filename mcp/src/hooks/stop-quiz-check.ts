@@ -73,14 +73,20 @@ await run(async (input) => {
   const sid = sessionId(input, db);
   if (!sid) return 0;
 
-  // The loop guard's turn ends here; a green one teaches it how long turns in
-  // this repository usually run (issue #262).
+  // The loop guard's turn ends here, unless this hook blocks the Stop to ask a
+  // question: Claude then carries on in the same turn, and the Stop after that
+  // closes it. A green turn teaches the guard how long turns in this repository
+  // usually run (issue #262). On exit, so every early return below closes it.
+  let blocking = false;
   if (config(cwd).config.economy.loopguard !== 'off' && !economyOff()) {
-    try {
-      closeTurn(db, { sessionId: sid });
-    } catch {
-      /* An unclosed turn is closed as unknown at the next prompt. */
-    }
+    process.once('exit', () => {
+      if (blocking) return;
+      try {
+        closeTurn(db, { sessionId: sid });
+      } catch {
+        /* An unclosed turn is closed as unknown at the next prompt. */
+      }
+    });
   }
 
   // The end of a turn is the natural seam: close the open batch and summarise
@@ -369,6 +375,7 @@ await run(async (input) => {
   // their session just hit an error. No `systemMessage` -- that field is a
   // warning banner too, and the hook already has a `statusMessage`.
   countUse(db, 'quiz:stop');
+  blocking = true;
   process.stdout.write(
     `${JSON.stringify({
       hookSpecificOutput: { hookEventName: 'Stop', additionalContext: context },

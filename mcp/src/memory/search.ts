@@ -38,6 +38,18 @@ export interface SearchFilter {
    */
   any?: boolean;
   /**
+   * Semantic search only: which local vectors to compare. `v1` (the default)
+   * uses `local-hash-v1` alone; `v2` uses an entry's `local-hash-v2` vector
+   * when it has one, else its v1 vector.
+   */
+  embedder?: 'v1' | 'v2';
+  /**
+   * Semantic search only: the least cosine a hit needs, per embedder id,
+   * applied before `limit`, so hits on two scales never compete for the same
+   * places before each is held to its own cut-off.
+   */
+  minScore?: Record<string, number>;
+  /**
    * Leave out what this session wrote. Its work is already in the context the
    * host kept, so recalling it back is the model paying to read itself (issue
    * #117). In SQL rather than after the fact, so the session's own entries
@@ -163,9 +175,10 @@ export function keywordSearch(db: DB, query: string, filter: SearchFilter = {}):
 /**
  * Bounded scan: cosine over the project's most recent vectors (ADR-03).
  *
- * Each entry is compared using its newest local vector: `local-hash-v2` when
- * it has one, otherwise `local-hash-v1`, with the query embedded the same way.
- * The two scales differ, so each hit says which embedder scored it.
+ * Each entry is compared using `local-hash-v1`, or with `filter.embedder: 'v2'`
+ * its `local-hash-v2` vector when it has one, with the query embedded the same
+ * way. The two scales differ, so each hit says which embedder scored it, and
+ * `filter.minScore` holds each to its own cut-off before the list is cut.
  */
 export function semanticSearch(
   db: DB,
@@ -184,7 +197,8 @@ export function semanticSearch(
        WHERE ${scope.sql} AND (v2.vec IS NOT NULL OR v1.vec IS NOT NULL)
        ORDER BY e.occurred_at DESC LIMIT ?`,
     )
-    .all(LOCAL_EMBEDDER_V2, LOCAL_EMBEDDER, ...scope.args, scanLimit) as { id: number; vec: Buffer; version: 1 | 2 }[];
+    // With `v1`, the v2 join matches nothing (no embedder has an empty id), so every row is v1.
+    .all(filter.embedder === 'v2' ? LOCAL_EMBEDDER_V2 : '', LOCAL_EMBEDDER, ...scope.args, scanLimit) as { id: number; vec: Buffer; version: 1 | 2 }[];
   if (!rows.length) return [];
 
   let q1: Float32Array | undefined;
@@ -199,7 +213,7 @@ export function semanticSearch(
   };
   const scored = rows
     .map((r) => ({ id: r.id, version: r.version, score: cosine(queryVec(r.version), fromBlob(r.vec)) }))
-    .filter((r) => r.score > 0.05)
+    .filter((r) => r.score > 0.05 && r.score >= (filter.minScore?.[r.version === 2 ? LOCAL_EMBEDDER_V2 : LOCAL_EMBEDDER] ?? 0))
     .sort((a, b) => b.score - a.score)
     .slice(0, filter.limit ?? 20);
 

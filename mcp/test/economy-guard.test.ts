@@ -165,6 +165,51 @@ describe('with a judge', () => {
     expect(await judgeTurn(db, config(), 999, async () => ({}))).toBeNull();
   });
 
+  it('asks again when a judge never answers within the verdict window', () => {
+    openTurn(db, { sessionId: 's', project: P });
+    expect(spin(judged(), 10).filter((o) => o.judgeTurn)).toHaveLength(1);
+    // No verdict ever arrives (the judge failed to start): the turn is not left waiting.
+    let again = false;
+    for (let i = 0; i < VERDICT_CALLS; i++) again = again || Boolean(call(judged()).judgeTurn);
+    expect(again).toBe(true);
+  });
+
+  it('a pending row without its asked-at count still expires', () => {
+    const id = openTurn(db, { sessionId: 's', project: P });
+    spin(judged(), 10);
+    db.prepare(`UPDATE econ_turns SET judge_status = 'pending', verdict = NULL WHERE id = ?`).run(id);
+    expect(call(judged()).judgeTurn).toBe(id);
+    db.prepare(`UPDATE econ_turns SET judge_status = 'pending', verdict = '{}' WHERE id = ?`).run(id);
+    expect(call(judged()).judgeTurn).toBe(id);
+  });
+
+  it('stops paying for judges once the redirect and the notice are spent', async () => {
+    const id = openTurn(db, { sessionId: 's', project: P });
+    const stuck = async () => ({ stuck: true, confidence: 0.9, reason: 'loops' });
+    spin(judged(), 10);
+    await judgeTurn(db, judged(), id, stuck);
+    expect(call(judged()).context).toContain('[Eklavya loop check]');
+    let asked = 0;
+    for (let i = 0; i < 3 * VERDICT_CALLS && asked === 0; i++) if (call(judged()).judgeTurn) asked++;
+    await judgeTurn(db, judged(), id, stuck);
+    expect(call(judged()).context).toBe(NOTICE);
+    const after = Array.from({ length: 3 * VERDICT_CALLS }, () => call(judged()));
+    expect(after.filter((o) => o.judgeTurn)).toEqual([]);
+    // Headless with `stop`, a judge can still end the turn, so one is asked.
+    const headless = judged((c) => (c.economy.loopguard = 'stop'));
+    expect(Array.from({ length: VERDICT_CALLS }, () => call(headless, { headless: true })).some((o) => o.judgeTurn)).toBe(true);
+  });
+
+  it('folds a call once however many times the host reports it', () => {
+    const id = openTurn(db, { sessionId: 's', project: P });
+    call(config(), { toolUseId: 'u1' });
+    call(config(), { toolUseId: 'u1' });
+    call(config(), { toolUseId: 'u2' });
+    const state = JSON.parse((db.prepare('SELECT state FROM econ_turns WHERE id = ?').get(id) as { state: string }).state);
+    expect(state.calls).toBe(2);
+    expect(state.seenIds).toEqual(['u1', 'u2']);
+  });
+
   it('builds thresholds from the settings', () => {
     expect(thresholdsOf(config((c) => (c.economy.judge_confidence = 0.9))).judge_confidence).toBe(0.9);
   });

@@ -9,6 +9,7 @@
 // them back exactly; `.claude` reached through a symlink out of the checkout
 // is refused.
 
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { isEklavyaTool } from './transcript.js';
@@ -141,8 +142,8 @@ export function applyDeny(repoRoot: string, tools: string[], previous: WriteReco
 
 /** Adds the file to `.git/info/exclude` when Eklavya created it; returns the line, or null. */
 function excludeFile(repoRoot: string, file: string): string | null {
-  const exclude = path.join(repoRoot, '.git', 'info', 'exclude');
-  if (!fs.existsSync(path.join(repoRoot, '.git')) || !fs.statSync(path.join(repoRoot, '.git')).isDirectory()) return null;
+  const exclude = excludePath(repoRoot);
+  if (!exclude) return null;
   const line = `/${path.relative(repoRoot, file).split(path.sep).join('/')}`;
   const current = fs.existsSync(exclude) ? fs.readFileSync(exclude, 'utf8') : '';
   if (current.split('\n').includes(line)) return null;
@@ -189,9 +190,29 @@ export function restoreDeny(repoRoot: string, record: WriteRecord, only?: string
   return { ok: true, removed };
 }
 
+/**
+ * The checkout's `info/exclude`, asked of git: in a linked worktree `.git` is a
+ * file and the exclude file lives in the shared git dir. Null outside a
+ * checkout, or when git cannot say.
+ */
+export function excludePath(repoRoot: string): string | null {
+  if (!fs.existsSync(path.join(repoRoot, '.git'))) return null;
+  try {
+    const out = execFileSync('git', ['rev-parse', '--git-path', 'info/exclude'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      timeout: 2_000,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    return path.resolve(repoRoot, out);
+  } catch {
+    return null;
+  }
+}
+
 function unexclude(repoRoot: string, line: string): void {
-  const exclude = path.join(repoRoot, '.git', 'info', 'exclude');
-  if (!fs.existsSync(exclude)) return;
+  const exclude = excludePath(repoRoot);
+  if (!exclude || !fs.existsSync(exclude)) return;
   const lines = fs.readFileSync(exclude, 'utf8').split('\n');
   const at = lines.lastIndexOf(line);
   if (at === -1) return;

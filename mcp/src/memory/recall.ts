@@ -5,7 +5,7 @@ import { GLOBAL_PROJECT, projectKey } from '../store.js';
 import { ESTIMATOR, RECEIPT_HINT, estimateTokens, pullLine } from './tokens.js';
 import { keywordSearch, search, semanticSearch, termRarity, type SearchFilter, type SearchHit } from './search.js';
 import { LOCAL_EMBEDDER, LOCAL_EMBEDDER_V2 } from './embed.js';
-import { informativeTerms } from './terms.js';
+import { informativeTermGroups, informativeTerms } from './terms.js';
 import { entryUse } from './use.js';
 import { entryEvents, markReceiptEmitted, recordReceipt, timeline, type Delivery, type EntryRow } from './store.js';
 import { defangFence } from './privacy.js';
@@ -300,7 +300,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
   // Session summaries are left to the checkpoint and the timeline.
   const seamRanked: EntryRow[] =
     opts.index && opts.seamQuery && recent.length
-      ? search(db, opts.seamQuery, config.retrieval.mode, { ...filter, limit: limit * 3 + exclude.size })
+      ? search(db, opts.seamQuery, config.retrieval.mode, { ...filter, embedder: 'v2', limit: limit * 3 + exclude.size })
           .filter((h) => allowed(h.entry.id) && h.entry.kind !== 'session_summary')
           .sort((a, b) => b.score - a.score || utility(b.entry.id) - utility(a.entry.id) || b.entry.occurred_at.localeCompare(a.entry.occurred_at))
           .map((h) => h.entry)
@@ -696,7 +696,6 @@ const FILLER = new Set(['the', 'and', 'for', 'with', 'use', 'using', 'please', '
  * (eval/results/2026-11-04-recall-gate.md).
  */
 export const MIN_COSINE: Record<string, number> = { [LOCAL_EMBEDDER]: 0.35, [LOCAL_EMBEDDER_V2]: 0.25 };
-const minCosine = (embedder: string | undefined) => MIN_COSINE[embedder!]!;
 
 /** Share of the prompt's rarity weight the matched terms must carry to pass on their own. */
 export const TERMS_SHARE = 0.6;
@@ -709,18 +708,23 @@ export const TERMS_SHARE = 0.6;
  * still pass alone, and two common words cannot).
  */
 export function termsGate(db: DB, query: string, scope: SearchFilter): SearchHit[] {
-  const terms = informativeTerms(query);
+  // One group per word of the prompt: `fetchUser` or a whole path counts as one
+  // matched word however many terms it splits into.
+  const groups = informativeTermGroups(query);
+  const terms = groups.flat();
   if (!terms.length) return [];
   const rarity = termRarity(db, terms);
-  const total = terms.reduce((sum, t) => sum + rarity.get(t)!, 0);
+  const weightOf = (group: string[]) => Math.max(...group.map((t) => rarity.get(t)!));
+  const total = groups.reduce((sum, g) => sum + weightOf(g), 0);
   return keywordSearch(db, terms.join(' '), { ...scope, any: true, limit: (scope.limit ?? 12) * 2 })
     .filter((hit) => {
       const e = hit.entry;
       const text = [e.title, e.narrative, e.facts, e.files, e.keywords].filter(Boolean).join(' ');
+      // Whole terms only: "log" must not match "catalog".
       const words = new Set(informativeTerms(text));
-      const lower = text.toLowerCase();
-      const matched = terms.filter((t) => words.has(t) || lower.includes(t));
-      const weight = matched.reduce((sum, t) => sum + rarity.get(t)!, 0);
+      // A word counts with its rarest term that the entry actually has.
+      const matched = groups.map((g) => g.filter((t) => words.has(t))).filter((g) => g.length);
+      const weight = matched.reduce((sum, g) => sum + weightOf(g), 0);
       return matched.length >= 2 || weight >= TERMS_SHARE * total;
     })
     .slice(0, scope.limit ?? 12);
@@ -763,7 +767,12 @@ export function recallForPrompt(
       : keywordSearch(db, sparse ? terms.join(' ') : query, { ...scope, strict: true });
   const semantic = sparse
     ? []
-    : semanticSearch(db, query, scope).filter((h) => h.score >= minCosine(h.embedder));
+    : semanticSearch(db, query, {
+        ...scope,
+        // The second embedder ships with the `terms` gate, so the default changes nothing (issue #258).
+        embedder: config.retrieval.prompt_gate === 'terms' ? 'v2' : 'v1',
+        minScore: MIN_COSINE,
+      });
   if (!lexical.length && !semantic.length) return null;
 
   // Ranked here and handed to `recall` as candidates, rather than letting it

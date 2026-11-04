@@ -126,13 +126,31 @@ export function foldCall(
     result: string;
     failed: boolean | null;
     headless?: boolean;
+    /** The host's id for the call; a second event with the same id is not folded again. */
+    toolUseId?: string | null;
   },
 ): GuardOutput {
   if (config.economy.loopguard === 'off' || ignoredTool(call.tool)) return {};
+  // One transaction that takes the write lock first: parallel tool calls run
+  // their hooks at once, and a plain read-then-write would lose all but one.
+  return db.transaction(() => foldLocked(db, config, call)).immediate();
+}
+
+/** The ids of the turn's latest calls, kept to drop a call reported twice. */
+const SEEN_IDS = 50;
+type GuardTurnData = TurnData & { seenIds?: string[] };
+
+function foldLocked(db: DB, config: EklavyaConfig, call: Parameters<typeof foldCall>[2]): GuardOutput {
   const agent = call.agentId ?? '';
   const row = openRow(db, call.sessionId, agent);
   if (!row) return {};
-  const state = new TurnState(JSON.parse(row.state) as TurnData);
+  const data = JSON.parse(row.state) as GuardTurnData;
+  // A failure can arrive as both a failed PostToolUse and PostToolUseFailure.
+  if (call.toolUseId) {
+    if (data.seenIds?.includes(call.toolUseId)) return {};
+    data.seenIds = [...(data.seenIds ?? []), call.toolUseId].slice(-SEEN_IDS);
+  }
+  const state = new TurnState(data);
   state.update(call.tool, call.args, call.result, call.failed);
   const t = thresholdsOf(config);
   const envelope = envelopeOf(greenCalls(db, row.project), t);
@@ -141,16 +159,25 @@ export function foldCall(
   // `judgeTurn` always stores an object with the call count it judged at.
   const stored = row.judge_status === 'done' ? (JSON.parse(row.verdict!) as JudgeVerdict & { at_calls: number }) : null;
   const fresh = stored && state.d.calls - stored.at_calls < VERDICT_CALLS ? parseVerdict(stored) : null;
-  const verdict: JudgeVerdict | null | undefined = row.judge_status === 'pending' ? null : fresh ?? undefined;
+  // A judge that has not answered within `VERDICT_CALLS` calls never will (it
+  // failed to start, or died before writing): ask again rather than wait forever.
+  const askedAt = row.judge_status === 'pending' && row.verdict ? (JSON.parse(row.verdict) as { asked_at_calls?: number }).asked_at_calls ?? 0 : 0;
+  const waiting = row.judge_status === 'pending' && state.d.calls - askedAt < VERDICT_CALLS;
+  const verdict: JudgeVerdict | null | undefined = waiting ? null : fresh ?? undefined;
   const judged = row.judge_status === 'done';
-  const decision = decide(state.snapshot(), t, envelope, { configured: Boolean(config.providers.judge), verdict });
+  let decision = decide(state.snapshot(), t, envelope, { configured: Boolean(config.providers.judge), verdict });
 
   const out: GuardOutput = {};
   let { nudges, noticed } = row;
   let judgeStatus = row.judge_status;
   let verdictJson = row.verdict;
+  // Nudges and the notice spent, and no headless stop to make: a verdict could
+  // change nothing, so no judge is paid for.
+  const spent = nudges >= config.economy.nudges && noticed && !(call.headless && config.economy.loopguard === 'stop');
+  if (decision.act === 'ask_judge' && spent) decision = { act: 'none', reason: 'nothing left to say' };
   if (decision.act === 'ask_judge') {
     judgeStatus = 'pending';
+    verdictJson = JSON.stringify({ asked_at_calls: state.d.calls });
     out.judgeTurn = row.id;
     event(db, { sessionId: call.sessionId, project: row.project, turnId: row.id, kind: 'judge', reason: decision.reason });
   } else if (decision.act === 'redirect' && !agent) {

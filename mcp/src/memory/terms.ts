@@ -57,31 +57,44 @@ const keep = (t: string) => t.length > 2 && !STOPWORDS.has(t) && !/^\d+$/.test(t
  * whole as well as its parts, because an entry may spell it either way.
  */
 export function informativeTerms(text: string): string[] {
-  const out: string[] = [];
+  return [...new Set(informativeTermGroups(text).flat())];
+}
+
+/**
+ * The same terms grouped by the word of `text` they came from, each group
+ * unique and in first-seen order. `fetchUser` is one group (fetchuser, fetch,
+ * user) and `mcp/src/memory/recall.ts` is one group, so a gate that counts
+ * matched words can count a word once however many terms it split into.
+ * A term already given by an earlier word is not repeated in a later group.
+ */
+export function informativeTermGroups(text: string): string[][] {
+  const groups: string[][] = [];
   const seen = new Set<string>();
-  const push = (t: string) => {
-    if (!keep(t) || seen.has(t)) return;
-    seen.add(t);
-    out.push(t);
-  };
   for (const raw of text.split(/[\s"'`()[\]{}<>,;:!?=]+/)) {
     const word = raw.replace(/^[^\p{L}\p{N}_/~.@-]+|[^\p{L}\p{N}_]+$/gu, '');
     if (!word) continue;
+    const group: string[] = [];
+    const push = (t: string) => {
+      if (!keep(t) || seen.has(t)) return;
+      seen.add(t);
+      group.push(t);
+    };
     if (FILE_LIKE.test(word)) {
       const base = word.split('/').filter(Boolean).pop()!;
       const stem = base.replace(/\.[^.]+$/, '');
       push(stem.toLowerCase());
       for (const segment of word.split('/')) for (const part of splitIdentifier(segment)) push(part);
-      continue;
+    } else {
+      for (const token of word.split(/[^\p{L}\p{N}_-]+/u)) {
+        if (!token) continue;
+        const parts = splitIdentifier(token);
+        // The joined identifier first: `fetchUser` is the term most likely to be
+        // spelled the same way in an entry about it.
+        if (parts.length > 1) push(token.replace(/[-_]/g, '').toLowerCase());
+        for (const part of parts) push(part);
+      }
     }
-    for (const token of word.split(/[^\p{L}\p{N}_-]+/u)) {
-      if (!token) continue;
-      const parts = splitIdentifier(token);
-      // The joined identifier first: `fetchUser` is the term most likely to be
-      // spelled the same way in an entry about it.
-      if (parts.length > 1) push(token.replace(/[-_]/g, '').toLowerCase());
-      for (const part of parts) push(part);
-    }
+    if (group.length) groups.push(group);
   }
-  return out;
+  return groups;
 }

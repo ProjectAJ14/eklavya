@@ -10,7 +10,7 @@ import { MIN_COSINE, TERMS_SHARE, recall, recallForPrompt, termsGate } from '../
 import { insertEntry, reembedLegacy, replaceEntry } from '../src/memory/store.js';
 import { embedLocal, embedLocalV2, LOCAL_DIM, LOCAL_DIM_V2, LOCAL_EMBEDDER, LOCAL_EMBEDDER_V2, toBlob } from '../src/memory/embed.js';
 import { keywordSearch, semanticSearch, termRarity } from '../src/memory/search.js';
-import { informativeTerms, splitIdentifier } from '../src/memory/terms.js';
+import { informativeTermGroups, informativeTerms, splitIdentifier } from '../src/memory/terms.js';
 import { branchWords, nextStepsOf, porcelainFiles, seamParts, seamQueryOf } from '../src/memory/seam.js';
 import { RECEIPT_HINT, pullLine } from '../src/memory/tokens.js';
 import { trimToLimits } from '../src/memory/provider.js';
@@ -86,12 +86,12 @@ describe('vectors during the switch', () => {
     );
   };
 
-  it('writes only a v2 vector for a new entry, and replaces drop the v1 one', () => {
+  it('writes both vectors for a new entry, and a replace keeps both', () => {
     const id = insertEntry(db, { project: PROJECT, title: 'Retry backoff with jitter' });
     legacy(id, 'Retry backoff with jitter');
     replaceEntry(db, id, { project: PROJECT, title: 'Retry backoff with full jitter', keywords: ['Exponential'] });
-    const rows = db.prepare('SELECT embedder_id FROM memory_vectors WHERE entry_id = ?').all(id);
-    expect(rows).toEqual([{ embedder_id: LOCAL_EMBEDDER_V2 }]);
+    const rows = db.prepare('SELECT embedder_id FROM memory_vectors WHERE entry_id = ? ORDER BY embedder_id').all(id);
+    expect(rows).toEqual([{ embedder_id: LOCAL_EMBEDDER }, { embedder_id: LOCAL_EMBEDDER_V2 }]);
     expect(db.prepare('SELECT keywords FROM memory_entries WHERE id = ?').get(id)).toEqual({ keywords: '["exponential"]' });
   });
 
@@ -108,15 +108,30 @@ describe('vectors during the switch', () => {
     legacy(a, 'Retry backoff with jitter');
     legacy(b, 'Cache warmup');
     const c = insertEntry(db, { project: PROJECT, title: 'Retry jitter tuning', occurredAt: at(3) });
-    const hits = semanticSearch(db, 'retry backoff', { project: PROJECT });
+    // The default compares on v1 alone, so an upgrade changes nothing.
+    expect(semanticSearch(db, 'retry backoff', { project: PROJECT }).every((h) => h.embedder === LOCAL_EMBEDDER)).toBe(true);
+    const hits = semanticSearch(db, 'retry backoff', { project: PROJECT, embedder: 'v2' });
     expect(hits.find((h) => h.entry.id === a)?.embedder).toBe(LOCAL_EMBEDDER);
     expect(hits.find((h) => h.entry.id === c)?.embedder).toBe(LOCAL_EMBEDDER_V2);
 
     expect(reembedLegacy(db, 1)).toBe(1);
     expect(reembedLegacy(db)).toBe(1);
     expect(reembedLegacy(db)).toBe(0);
-    const after = semanticSearch(db, 'retry backoff', { project: PROJECT });
+    const after = semanticSearch(db, 'retry backoff', { project: PROJECT, embedder: 'v2' });
     expect(after.every((h) => h.embedder === LOCAL_EMBEDDER_V2)).toBe(true);
+    // The v1 vectors stay, so switching back is never one-way.
+    expect(db.prepare('SELECT COUNT(*) AS n FROM memory_vectors WHERE embedder_id = ?').get(LOCAL_EMBEDDER)).toEqual({ n: 3 });
+  });
+
+  it('holds each embedder to its own cut-off before the list is cut', () => {
+    const a = insertEntry(db, { project: PROJECT, title: 'Retry backoff with jitter', occurredAt: at(1) });
+    legacy(a, 'Retry backoff with jitter');
+    insertEntry(db, { project: PROJECT, title: 'Retry jitter tuning', occurredAt: at(2) });
+    const all = semanticSearch(db, 'retry backoff', { project: PROJECT, embedder: 'v2' });
+    expect(all.map((h) => h.embedder).sort()).toEqual([LOCAL_EMBEDDER, LOCAL_EMBEDDER_V2]);
+    // A v1 cut-off nothing reaches leaves the v2 hit, even with one place.
+    const held = semanticSearch(db, 'retry backoff', { project: PROJECT, embedder: 'v2', limit: 1, minScore: { [LOCAL_EMBEDDER]: 2 } });
+    expect(held.map((h) => h.embedder)).toEqual([LOCAL_EMBEDDER_V2]);
   });
 
   it('caps and normalises stored keywords, and keeps none as null', () => {
@@ -166,6 +181,23 @@ describe('the terms prompt gate', () => {
     expect(termsGate(db, 'order zebra giraffe', scope)).toEqual([]);
     expect(termsGate(db, 'yes ok thanks', scope)).toEqual([]);
     expect(TERMS_SHARE).toBe(0.6);
+  });
+
+  it('counts an identifier or a path as one word, and matches whole terms only', () => {
+    for (let i = 0; i < 6; i++) {
+      insertEntry(db, { project: PROJECT, title: `Tweak ${i}`, files: [`mcp/src/memory/other${i}.ts`], occurredAt: at(1, i) });
+    }
+    const user = insertEntry(db, { project: PROJECT, title: 'fetchUser cache', occurredAt: at(2) });
+    const catalog = insertEntry(db, { project: PROJECT, title: 'Catalog latest', occurredAt: at(3) });
+    const scope = { project: PROJECT };
+    // One path: its segments are in every entry, but it is one word of the prompt, and not the rare one.
+    expect(termsGate(db, 'look at mcp/src/memory/recall.ts and widget zebra', scope)).toEqual([]);
+    // `fetchUser` is one word however it splits; with a second word it passes.
+    expect(termsGate(db, 'fetchUser zebra giraffe ostrich', scope)).toEqual([]);
+    expect(termsGate(db, 'fetchUser cache zebra giraffe', scope).map((h) => h.entry.id)).toEqual([user]);
+    // "log" and "test" are not in "catalog" and "latest".
+    expect(termsGate(db, 'log test zebra', scope).map((h) => h.entry.id)).not.toContain(catalog);
+    expect(informativeTermGroups('fetchUser in src/a.ts, fetchUser')).toEqual([['fetchuser', 'fetch', 'user'], ['src']]);
   });
 
   it('opens a prompt recall that the strict gate leaves shut', () => {

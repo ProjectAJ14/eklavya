@@ -1010,6 +1010,19 @@ describe('Stop hook — what it tells Claude', () => {
     expect(stop().context).not.toMatch(/gate|skip/);
   });
 
+  it('leaves the loop guard\'s turn open when it blocks the Stop, and closes it when it lets the Stop through', () => {
+    configure({ quiz: { enabled: true, enforced: true }, min_minutes_between_quizzes: 0, economy: { loopguard: 'nudge' } });
+    const turn = () => db.prepare("SELECT closed_at FROM econ_turns WHERE session_id = ?").get(SESSION) as { closed_at: string | null };
+    db.prepare("INSERT INTO econ_turns (session_id, agent_id, project, opened_at, state) VALUES (?, '', NULL, ?, '{}')").run(SESSION, new Date().toISOString());
+    logConcepts(['csrf']);
+    expect(stop().context).toMatch(/csrf/);
+    // Claude carries on in the same turn to ask the question.
+    expect(turn().closed_at).toBeNull();
+    configure({ quiz: { enabled: false }, economy: { loopguard: 'nudge' } });
+    expect(stop().context).toBeFalsy();
+    expect(turn().closed_at).not.toBeNull();
+  });
+
   it('drops the gate clause on Cowork, which does not commit', () => {
     configure({ quiz: { enabled: true, enforced: true }, min_minutes_between_quizzes: 0 });
     logConcepts(['csrf']);

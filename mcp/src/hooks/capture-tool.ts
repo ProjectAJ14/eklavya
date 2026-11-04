@@ -155,6 +155,7 @@ function guardCall(db: DB, config: EklavyaConfig, input: HookInput, sid: string,
       result,
       failed: hostFailed,
       headless: process.env.CLAUDE_CODE_SESSION_ATTENDED === '0',
+      toolUseId: typeof input.tool_use_id === 'string' && input.tool_use_id ? input.tool_use_id : null,
     });
   } catch {
     return {};

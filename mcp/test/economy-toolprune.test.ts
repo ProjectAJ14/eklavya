@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -19,9 +20,14 @@ let repo: string;
 beforeEach(() => {
   root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-prune-')));
   repo = path.join(root, 'repo');
-  fs.mkdirSync(path.join(repo, '.git', 'info'), { recursive: true });
+  fs.mkdirSync(repo);
+  git(repo, 'init', '-q');
 });
 afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
+
+function git(cwd: string, ...args: string[]): void {
+  execFileSync('git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', ...args], { cwd, stdio: 'ignore' });
+}
 
 const settings = () => path.join(repo, '.claude', 'settings.local.json');
 const write = (text: string) => {
@@ -146,12 +152,15 @@ describe('apply then restore', () => {
   });
 
   it('skips the exclude file outside a real git directory or when the line is there', () => {
+    // A `.git` file git cannot follow, then no `.git` at all.
     fs.rmSync(path.join(repo, '.git'), { recursive: true });
     fs.writeFileSync(path.join(repo, '.git'), 'gitdir: elsewhere');
     expect((applyDeny(repo, ['X']) as { record: { excludeLine: string | null } }).record.excludeLine).toBeNull();
     fs.rmSync(settings());
     fs.rmSync(path.join(repo, '.git'));
-    fs.mkdirSync(path.join(repo, '.git', 'info'), { recursive: true });
+    expect((applyDeny(repo, ['X']) as { record: { excludeLine: string | null } }).record.excludeLine).toBeNull();
+    fs.rmSync(settings());
+    git(repo, 'init', '-q');
     fs.writeFileSync(path.join(repo, '.git', 'info', 'exclude'), '/.claude/settings.local.json\n');
     expect((applyDeny(repo, ['X']) as { record: { excludeLine: string | null } }).record.excludeLine).toBeNull();
     fs.rmSync(settings());
@@ -162,6 +171,22 @@ describe('apply then restore', () => {
     const again = (applyDeny(repo, ['X']) as { record: never }).record;
     fs.writeFileSync(path.join(repo, '.git', 'info', 'exclude'), 'other\n');
     expect(restoreDeny(repo, again)).toMatchObject({ ok: true });
+    // Restoring after the checkout stopped being one leaves the exclude file alone.
+    const third = (applyDeny(repo, ['X']) as { record: never }).record;
+    fs.rmSync(path.join(repo, '.git'), { recursive: true });
+    expect(restoreDeny(repo, third)).toMatchObject({ ok: true });
+  });
+
+  it('excludes the file in a linked worktree, where .git is a file', () => {
+    git(repo, 'commit', '-q', '--allow-empty', '-m', 'init');
+    const wt = path.join(root, 'wt');
+    git(repo, 'worktree', 'add', '-q', wt);
+    const r = (applyDeny(wt, ['CronCreate']) as { record: { excludeLine: string | null } }).record;
+    expect(r.excludeLine).toBe('/.claude/settings.local.json');
+    const shared = path.join(repo, '.git', 'info', 'exclude');
+    expect(fs.readFileSync(shared, 'utf8')).toContain('/.claude/settings.local.json\n');
+    restoreDeny(wt, r as never);
+    expect(fs.readFileSync(shared, 'utf8')).not.toContain('/.claude/settings.local.json');
   });
 });
 
