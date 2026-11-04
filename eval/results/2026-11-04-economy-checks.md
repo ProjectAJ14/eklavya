@@ -146,3 +146,25 @@ in all; their cost is in the ledger rows they produced.
 - The replay eval on a developer's real `knowledge.db` (sub-issue A).
 - The two-week team dogfood (Phases 2 and 5) and a licensing review: both need
   people and time.
+
+## Correction, same day: the `irrelevant` arm with three trials
+
+The single-trial finding above did not hold. The `irrelevant` arm was run again with
+three trials for each setting (`--arms irrelevant --trials 3`):
+
+| arm | settings | semicolon | tests pass | memory fetched | mean input tokens | cost |
+|---|---|---|---|---|---|---|
+| irrelevant | today | 0/3 (correct) | 3/3 | 3/3 | 193.5k | $0.69 |
+| irrelevant | new | 0/3 (correct) | 3/3 | 3/3 | 193.6k | $0.69 |
+
+Input totals were 580k and 581k, of which 519k were cached; output was 5k each.
+Under both settings, every session called `memory_search` on its own after loading
+the tool. The session-start recall was the same size for both (989 and 988 tokens),
+and with `prompt_gate: terms` the prompt hook added nothing. So the earlier gap
+came from the today-arm trial that happened not to search; the settings did not
+cause it.
+
+On three trials, the new settings show no extra tokens or tool calls on
+`irrelevant`, which meets that part of sub-issue A's condition. The settings still
+default to off: the other part of the condition, the replay eval on a developer's
+real `knowledge.db`, has not run.
