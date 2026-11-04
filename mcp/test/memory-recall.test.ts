@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openDb, type DB } from '../src/db.js';
 import { cleanup, tempDbPath } from './helpers.js';
 import { DEFAULT_CONFIG, type EklavyaConfig } from '../src/config.js';
-import { HOOK_CONTEXT_CHARS, INDEX_MAX_ITEMS, alreadyRecalled, learningCounts, markEmitted, ownWords, recall, recallForPrompt, startupDisplay } from '../src/memory/recall.js';
+import { HOOK_CONTEXT_CHARS, INDEX_MAX_ITEMS, alreadyRecalled, learningCounts, lookupNudge, markEmitted, ownWords, recall, recallForPrompt, startupDisplay } from '../src/memory/recall.js';
 import { appendEvent, insertEntry, receiptTotals, supersedeEntry, timeline } from '../src/memory/store.js';
 import { TOOL_PREFIX, estimateTokens, pullLine, savingsFrom } from '../src/memory/tokens.js';
 import { GLOBAL_PROJECT } from '../src/store.js';
@@ -629,6 +629,34 @@ describe('ownWords', () => {
     expect(ownWords('compare a < b and b > c')).toBe('compare a < b and b > c');
     expect(ownWords('why does <Button>Save</Button> fire twice')).toBe('why does <Button>Save</Button> fire twice');
     expect(ownWords('<pasted_content id="x">log</pasted_content> explain')).toBe('explain');
+  });
+});
+
+describe('lookupNudge (issue #272)', () => {
+  it('asks for a search when a link, ticket key or image carries the prompt', () => {
+    const pr = lookupNudge('[Image #1] https://dev.azure.com/org/_git/repo/pullrequest/57988?path=/a.java');
+    expect(pr).toContain('Start with 57988');
+    expect(pr).toContain(`${TOOL_PREFIX}memory_search`);
+    expect(pr).toContain('memory_search({query:');
+    expect(lookupNudge('look at OPP-498')).toContain('Start with OPP-498');
+    // A Jira link names its key twice; it is listed once.
+    expect(lookupNudge('https://x.atlassian.net/browse/OPP-498')).toContain('Start with OPP-498,');
+    // A link with no identifier still nudges, without a starting point.
+    const bare = lookupNudge('<command-message>wt</command-message> <command-name>/wt</command-name> <command-args>check prod https://bg.example.com/x</command-args>');
+    expect(bare).toContain('search this project');
+    expect(bare).not.toContain('Start with');
+    expect(lookupNudge('https://github.com/a/b/issues/272', 'bash')).toContain('`eklavya memory search "<key terms>"` in Bash');
+  });
+
+  it('stays quiet without a link or key, or with enough words of its own', () => {
+    expect(lookupNudge('[Image #1] fix this')).toBeNull();
+    expect(lookupNudge('carry on with UTF-8 handling')).toBeNull();
+    // Standard names shaped like a key are not tickets, and a link path names no item.
+    expect(lookupNudge('use SHA-256 and ISO-8601 here')).toBeNull();
+    expect(lookupNudge('https://github.com/a/b/issues/new')).not.toContain('Start with');
+    expect(
+      lookupNudge('memory usage issue https://github.com/a/b/issues/272 recall is saved but never used by the agent'),
+    ).toBeNull();
   });
 });
 

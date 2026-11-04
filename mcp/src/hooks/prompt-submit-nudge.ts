@@ -59,7 +59,9 @@ import { isSessionOff, setCurrentSession } from '../session.js';
 import { batchIfFull, identityOf, record } from './capture-lib.js';
 import type { ResolvedConfig } from '../config.js';
 import type { EvidenceIdentity } from '../memory/identity.js';
-import { markEmitted, recallForPrompt, type RecallResult } from '../memory/recall.js';
+import { lookupNudge, markEmitted, recallForPrompt, type RecallResult } from '../memory/recall.js';
+import { countEntries } from '../memory/store.js';
+import { GLOBAL_PROJECT } from '../store.js';
 import { countUse } from '../telemetry.js';
 import { promptLine } from './delegation-lib.js';
 import { HOST_PROMPT, SLASH, TASK_PROMPT_CHARS } from '../prompt-text.js';
@@ -236,6 +238,16 @@ await run(async (input) => {
     if (recalled?.block) {
       context.push(recalled.block);
       sent = () => markEmitted(db, recalled, identity.sessionId);
+    }
+    // Recall cannot read a link or a screenshot, so for a prompt that is mostly
+    // one, say plainly to search rather than leave it to a conditional note.
+    // Only where a search can find something: outside a checkout nothing is
+    // filed unless `retrieval.cross_project` is on, and a new project has
+    // nothing yet. The count runs only on the rare prompt that qualifies.
+    const nudge = lookupNudge(input.prompt, resolved.config.memory.lookup_hint);
+    const cross = resolved.config.retrieval.cross_project;
+    if (nudge && (cross || identity.project !== GLOBAL_PROJECT) && countEntries(db, cross ? null : identity.project) > 0) {
+      context.push(nudge);
     }
   }
 
