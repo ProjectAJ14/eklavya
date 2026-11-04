@@ -45,24 +45,23 @@ jobs:
       - name: Install dependencies
         run: npm ci
         working-directory: mcp
-      # Takes 17-30s (average 21s over 35 runs). A hung apt mirror once held a
-      # shard for 6+ minutes and blocked the next push through the concurrency
-      # group, so each attempt is cut at about twice the average and retried.
-      # The cut-off kills npx but can leave its apt-get running, and that apt-get
-      # holds the dpkg lock, so a retry started at once fails on the lock
-      # ("Could not get lock /var/lib/dpkg/lock-frontend"). Each retry first waits,
-      # for up to 90s, for the lock to be free; the orphan then usually finishes
-      # the install and the retry is quick.
+      # Usually 17-30s. The OS packages come from the Azure apt mirror, which is
+      # sometimes slow or stalls. Retrying the whole install under `timeout` did
+      # not work: `timeout` killed npx but not the apt-get it had started, so that
+      # apt-get kept the dpkg lock and every retry failed on it. So apt runs once,
+      # and apt itself drops and retries a connection that sends nothing for 20s;
+      # a slow but moving download is left to finish. Only the browser download,
+      # which is plain Node and dies with `timeout`, is cut and retried.
+      # timeout-minutes still bounds the whole step if the mirror is down.
       - name: Install Chromium
         timeout-minutes: 5
         run: |
+          printf 'Acquire::http::Timeout "20";\nAcquire::Retries "5";\n' \
+            | sudo tee /etc/apt/apt.conf.d/99ci-retries >/dev/null
+          npx playwright-core install-deps chromium
           for attempt in 1 2 3; do
-            timeout -k 5 45 npx playwright-core install --with-deps chromium && exit 0
-            echo "Chromium install attempt $attempt failed or timed out"
-            for _ in $(seq 45); do
-              sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || break
-              sleep 2
-            done
+            timeout -k 5 60 npx playwright-core install chromium && exit 0
+            echo "Chromium download attempt $attempt failed or timed out"
           done
           exit 1
         working-directory: mcp
