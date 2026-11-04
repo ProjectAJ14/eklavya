@@ -173,6 +173,10 @@
       "shard": 1,
       "seconds": 5
     },
+    "test/economy-cli.test.ts": {
+      "shard": 3,
+      "seconds": 25
+    },
     "test/economy-core.test.ts": {
       "shard": 4,
       "seconds": 10

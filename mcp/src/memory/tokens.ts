@@ -57,13 +57,15 @@ export function savingsFrom(input: SavingsInput): Savings {
 export function savingsLine(s: Savings): string {
   switch (s.kind) {
     case 'none':
-      return 'Your savings: — no context reused yet';
+      return 'Recall: — no context reused yet';
     case 'unavailable':
-      return 'Your savings: — unavailable';
+      return 'Recall: — size against its sources unavailable';
     case 'overhead':
       return `Reuse overhead: ${s.tokens} tokens (estimated)`;
     case 'saving':
-      return `Your savings: ${s.percent}% less context from reuse (estimated)`;
+      // Smaller than what it summarises, not money saved: the agent might never
+      // have read those sources (issue #259).
+      return `Recall: ${s.percent}% smaller than its sources (estimated)`;
   }
 }
 
@@ -105,7 +107,7 @@ export type LookupStyle = 'mcp' | 'bash';
 export function recalledLine(entries: number, tokens: number, indexed = 0, percent = 0): string {
   const size = sizeOf(tokens);
   const titles = indexed ? ` + ${indexed} ${indexed === 1 ? 'title' : 'titles'}` : '';
-  return `Memory · ${entries} past ${entries === 1 ? 'entry' : 'entries'}${titles} recalled (~${size} tokens)${percent > 0 ? ` · ~${percent}% less context` : ''}`;
+  return `Memory · ${entries} past ${entries === 1 ? 'entry' : 'entries'}${titles} recalled (~${size} tokens)${percent > 0 ? ` · ~${percent}% smaller than its sources` : ''}`;
 }
 
 /**

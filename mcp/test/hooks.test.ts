@@ -375,7 +375,7 @@ describe('SessionStart output', () => {
     });
     insertEntry(db, { project: cwd, title: 'Refresh cookie rotation', narrative: 'Rotated.', eventIds: [ev.id] });
     const res = runHook(SESSION_START, { session_id: SESSION, cwd, hook_event_name: 'SessionStart' }, { NO_COLOR: '1' });
-    expect(res.shown).toMatch(/^Memory · \d+ past entr(y|ies) recalled \(~\d+ tokens\) · ~\d+% less context$/m);
+    expect(res.shown).toMatch(/^Memory · \d+ past entr(y|ies) recalled \(~\d+ tokens\) · ~\d+% smaller than its sources$/m);
   });
 
   it('says only what it recalled when there is no evidence to compare against', () => {
@@ -383,7 +383,7 @@ describe('SessionStart output', () => {
     insertEntry(db, { project: cwd, title: 'Refresh cookie rotation', narrative: 'Rotated on every refresh.' });
     const res = runHook(SESSION_START, { session_id: SESSION, cwd, hook_event_name: 'SessionStart' }, { NO_COLOR: '1' });
     expect(res.shown).toMatch(/^Memory · 1 past entry recalled \(~\d+ tokens\)$/m);
-    expect(res.shown).not.toMatch(/less context/);
+    expect(res.shown).not.toMatch(/smaller than its sources/);
     expect(res.context).toContain('<eklavya-memory');
   });
 
@@ -408,7 +408,7 @@ describe('SessionStart output', () => {
   it('recalls nothing into a folder outside a checkout', () => {
     insertEntry(db, { project: GLOBAL_PROJECT, title: 'Work in some other folder', narrative: 'Not this one.' });
     const res = sessionStart();
-    expect(res.shown).not.toMatch(/^Memory ·|less context/m);
+    expect(res.shown).not.toMatch(/^Memory ·|smaller than its sources/m);
     expect(res.context).not.toContain('<eklavya-memory');
   });
 

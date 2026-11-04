@@ -70,7 +70,7 @@ describe('dashboard usage events', () => {
     expect(literal.length).toBeGreaterThan(0);
     for (const n of literal) expect(USAGE_EVENTS.has(n), n).toBe(true);
     const block = page.slice(page.indexOf('const WORKFLOWS = {'));
-    for (const w of ['learning', 'memory', 'artifacts', 'feedback', 'settings']) {
+    for (const w of ['learning', 'memory', 'artifacts', 'feedback', 'cost', 'settings']) {
       expect(block, w).toMatch(new RegExp(`^  ${w}: \\{$`, 'm'));
       expect(USAGE_EVENTS.has(`dash:view_${w}`)).toBe(true);
     }

@@ -496,7 +496,7 @@ describe('eklavya memory', () => {
     expect(res.stdout).toMatch(/oldest job:\s+—/);
     expect(res.stdout).toMatch(/provider:\s+anthropic:claude-sonnet-5 \(via claude -p, on your subscription\)/);
     expect(res.stdout).toMatch(/summarizer:\s+anthropic:claude-sonnet-5/);
-    expect(res.stdout).toMatch(/Your savings: — no context reused yet/);
+    expect(res.stdout).toMatch(/Recall: — no context reused yet/);
   });
 
   it('searches, and says so plainly when there is nothing to find', () => {

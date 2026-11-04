@@ -38,6 +38,7 @@ import {
   type EklavyaConfig,
 } from './config.js';
 import { applySetting, knownKeys, SETTING_RULES, valueAt, type SettingRule } from './config-path.js';
+import { costReport } from './cost-report.js';
 import {
   artifactsDir, dashboardPort, dbPath, DEFAULT_PORT, eklavyaHome, globalConfigPath, projectConfigPath, projectsDir,
 } from './paths.js';
@@ -2246,7 +2247,7 @@ export function openedItem(db: DB, body: unknown): { status: number; body: Recor
  */
 export const USAGE_EVENTS = new Set([
   'dash:opened',
-  ...['learning', 'memory', 'artifacts', 'feedback', 'settings'].map((w) => `dash:view_${w}`),
+  ...['learning', 'memory', 'artifacts', 'feedback', 'cost', 'settings'].map((w) => `dash:view_${w}`),
   'explainer:opened',
   ...[25, 50, 75, 100].map((n) => `explainer:depth_${n}`),
 ]);
@@ -3001,6 +3002,13 @@ export function startDashboard(
             per: Number(g('per')) || MEMORY_PER,
           }),
         )));
+      }
+      if (url.pathname === '/api/cost') {
+        // Not memoised: the ledger is written by detached folds the change
+        // cursor does not watch, and the report is a handful of indexed reads.
+        const project = url.searchParams.get('project') || null;
+        const config = project && fs.existsSync(project) ? loadConfig(project).config : loadConfig().config;
+        return send(res, 200, 'application/json', JSON.stringify(costReport(db, config, project)));
       }
       if (url.pathname === '/api/feedback') {
         const out = feedbackItem(db, url.searchParams.get('id'));

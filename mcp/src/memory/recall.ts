@@ -6,6 +6,7 @@ import { ESTIMATOR, RECEIPT_HINT, estimateTokens, pullLine } from './tokens.js';
 import { keywordSearch, search, semanticSearch, termRarity, type SearchFilter, type SearchHit } from './search.js';
 import { LOCAL_EMBEDDER, LOCAL_EMBEDDER_V2 } from './embed.js';
 import { informativeTerms } from './terms.js';
+import { entryUse } from './use.js';
 import { entryEvents, markReceiptEmitted, recordReceipt, timeline, type Delivery, type EntryRow } from './store.js';
 import { defangFence } from './privacy.js';
 
@@ -202,12 +203,12 @@ function parseList(json: string | null): string[] {
  * that closes `</eklavya-memory>` would otherwise end the evidence frame early
  * and leave the rest of itself reading as instruction.
  */
-function renderEntry(entry: EntryRow, index: number, narrativeChars?: number): string {
+function renderEntry(entry: EntryRow, index: number, narrativeChars?: number, stale?: string | null): string {
   const files = parseList(entry.files).map((f) => defangFence(String(f)));
   const facts = parseList(entry.facts).map((f) => defangFence(String(f)));
   const title = defangFence(entry.title);
   const type = defangFence(entry.type ?? 'change');
-  const lines = [`${index}. [#${entry.id}] ${title} — ${type}, ${entry.occurred_at.slice(0, 10)}`];
+  const lines = [`${index}. [#${entry.id}] ${title} — ${type}, ${entry.occurred_at.slice(0, 10)}${stale ? ` — may be outdated (${defangFence(stale)})` : ''}`];
   if (entry.narrative) {
     const cut = narrativeChars !== undefined && entry.narrative.length > narrativeChars;
     const text = cut ? `${entry.narrative.slice(0, narrativeChars)}… [excerpt: memory_get #${entry.id} for the rest]` : entry.narrative;
@@ -292,13 +293,16 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     }).filter((entry) => allowed(entry.id));
   // Newest work, which the timeline is made of; the seam's fallback pool.
   const recent: EntryRow[] = ranked.length || opts.candidates ? [] : recentList();
-  // The seam query's matches, best first, ties to the newer (issue #258).
+  // Entries that were used when sent before rank first among equals (issue #259).
+  const utilities = opts.index && opts.seamQuery ? entryUse(db, recent.map((e) => e.id)) : new Map<number, { utility: number }>();
+  const utility = (id: number) => utilities.get(id)?.utility ?? 0;
+  // The seam query's matches, best first, ties to the more useful, then the newer (issue #258).
   // Session summaries are left to the checkpoint and the timeline.
   const seamRanked: EntryRow[] =
     opts.index && opts.seamQuery && recent.length
       ? search(db, opts.seamQuery, config.retrieval.mode, { ...filter, limit: limit * 3 + exclude.size })
           .filter((h) => allowed(h.entry.id) && h.entry.kind !== 'session_summary')
-          .sort((a, b) => b.score - a.score || b.entry.occurred_at.localeCompare(a.entry.occurred_at))
+          .sort((a, b) => b.score - a.score || utility(b.entry.id) - utility(a.entry.id) || b.entry.occurred_at.localeCompare(a.entry.occurred_at))
           .map((h) => h.entry)
       : [];
   const seamIds = new Set(seamRanked.map((e) => e.id));
@@ -335,9 +339,13 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     newest && (!later || later.session_id === newest.session_id || later.occurred_at <= newest.occurred_at)
       ? newest
       : undefined;
+  // Entries that may be outdated go after the rest (issue #259) and say so.
+  const use = config.memory.stale_check ? entryUse(db, pool.map((e) => e.id)) : new Map<number, { stale_reason: string | null }>();
+  const staleOf = (e: EntryRow) => use.get(e.id)?.stale_reason ?? null;
+  const fresh = (list: EntryRow[]) => [...list.filter((e) => !staleOf(e)), ...list.filter((e) => staleOf(e))];
   const detailPool = opts.index
-    ? [...(checkpoint ? [checkpoint] : []), ...pool.filter((e) => e.kind !== 'session_summary')]
-    : pool;
+    ? [...(checkpoint ? [checkpoint] : []), ...fresh(pool.filter((e) => e.kind !== 'session_summary'))]
+    : fresh(pool);
 
   // A checkout path is not ours to trust either: a directory named with a quote
   // or a fence tag must not rewrite the header it is quoted in.
@@ -364,7 +372,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
   for (const entry of detailPool) {
     if (kept.length >= limit) break;
     const number = kept.length + (checkpoint ? 0 : 1);
-    let text = entry === checkpoint ? renderCheckpoint(entry) : renderEntry(entry, number);
+    let text = entry === checkpoint ? renderCheckpoint(entry) : renderEntry(entry, number, undefined, staleOf(entry));
     let cost = estimateTokens(text);
     // A prompt's candidates are ranked, so the best one that does not fit is
     // cut to the room left rather than skipped: skipping it handed that room to
@@ -375,7 +383,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     const room = maxTokens - delivered;
     if (opts.scope === 'prompt' && delivered + cost > maxTokens && entry.narrative && room >= MIN_EXCERPT_TOKENS) {
       const overhead = estimateTokens(renderEntry({ ...entry, narrative: 'x' }, number, 0));
-      text = renderEntry(entry, number, Math.max(0, (room - overhead) * 4));
+      text = renderEntry(entry, number, Math.max(0, (room - overhead) * 4), staleOf(entry));
       cost = estimateTokens(text);
     }
     // The first entry may overrun at a seam, where one long summary is still the
@@ -487,6 +495,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     sessionId: opts.sessionId ?? null,
     scope: opts.scope ?? 'session_start',
     method: ESTIMATOR,
+    queryTerms: informativeTerms(opts.query ?? opts.seamQuery ?? '').slice(0, 12).join(' ') || null,
     delivery: opts.delivery ?? 'prepared',
     wrapperTokens:
       wrapperTokens +

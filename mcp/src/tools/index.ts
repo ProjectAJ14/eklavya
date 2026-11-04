@@ -20,7 +20,7 @@ import {
   memoryStatus,
   memoryTimeline,
 } from './memory_read_tools.js';
-import { memoryCorrect, memoryDelete, memoryWrite } from './memory_write_tools.js';
+import { memoryCorrect, memoryDelete, memoryFlagStale, memoryWrite } from './memory_write_tools.js';
 import { panelAnswerTool, panelSyncTool, presentQuestionTool } from './panel_tools.js';
 import { countUse } from '../telemetry.js';
 
@@ -45,6 +45,7 @@ export const TOOLS: ToolDef[] = [
   memoryWrite,
   memoryCorrect,
   memoryDelete,
+  memoryFlagStale,
   codeOutline,
   codeFindSymbol,
   memoryCollections,

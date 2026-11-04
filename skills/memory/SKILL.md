@@ -22,11 +22,12 @@ Read-only unless they asked for a change. Never quiz here.
 | "remember that ..." | `memory_write` |
 | "that is wrong, actually ..." | `memory_correct` |
 | "forget that" | `memory_delete` — confirm first, and say soft delete keeps the audit trail |
+| "that one is out of date" (and the right version is not known) | `memory_flag_stale` with a few words on what changed; it stays searchable, ranks lower and is labelled |
 
 Everything is scoped to this project. Pass `all_projects: true` (to
 `memory_search`, then to `memory_get` for what it found) only when they asked
 for another codebase by name, and say so in the answer when you do.
-`memory_correct` and `memory_delete` refuse another project's id with
+`memory_correct`, `memory_delete` and `memory_flag_stale` refuse another project's id with
 `other_project`; to change it, pass a `cwd` inside the project it names.
 
 ## Search then hydrate, never the other way round

@@ -2650,7 +2650,7 @@ const deliveryPill = (d) =>
  */
 function savingsText(s, receipts) {
   if (!s) return 'No receipts yet.';
-  if (s.kind === 'saving') return `${s.percent}% less context than reading the same material from source (estimated).`;
+  if (s.kind === 'saving') return `Recall is ${s.percent}% smaller than the material it was made from (estimated). That is a size, not money saved: Claude might never have read those sources.`;
   if (s.kind === 'overhead') return `${s.tokens} tokens more than reading from source — reuse cost more than it saved.`;
   if (s.kind === 'unavailable') return 'Nothing emitted yet, so there is no saving to report.';
   return receipts
@@ -3555,7 +3555,7 @@ function viewMemoryDashboard() {
 
   // The pipeline in two lines: is reuse paying for itself, and is capture alive.
   // Each opens its page; the arithmetic lives there.
-  const verdict = R.savings.kind === 'saving' ? `${R.savings.percent}% less context`
+  const verdict = R.savings.kind === 'saving' ? `recall ${R.savings.percent}% smaller than its sources`
     : R.savings.kind === 'overhead' ? `+${R.savings.tokens} tokens of overhead` : 'nothing emitted yet';
   const stuck = Q.failed + Q.paused;
   const pipeline = lines([
@@ -5482,6 +5482,11 @@ const ICONS = {
   timeline:  '<path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/>',
   reuse:     '<path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>',
   health:    '<path d="M3 12h4l2-6 3 12 2-6h7"/>',
+  cost:      '<circle cx="12" cy="12" r="9"/><path d="M15 9h-4a2 2 0 0 0 0 4h2a2 2 0 0 1 0 4H9M12 6v2M12 16v2"/>',
+  calls:     '<path d="M4 17l6-6-6-6"/><path d="M12 19h8"/>',
+  guard:     '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>',
+  tools:     '<path d="M14 7l3-3 3 3-3 3"/><path d="M17 7L7 17l-3 3"/><path d="M4 4l6 6"/>',
+  facts:     '<path d="M12 3v4M5 7h14l-2 12H7z"/>',
   settings:  '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
   feedback:  '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M7 7h10M7 11h6"/>',
   history:   '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
@@ -5567,6 +5572,21 @@ const WORKFLOWS = {
       item:      { parent: 'history', view: (p) => viewFeedbackItem(p) },
     },
   },
+  cost: {
+    name: 'Cost',
+    groups: [
+      { id: 'spend', label: 'Spend', items: ['sessions', 'calls'] },
+      { id: 'controls', label: 'Controls', items: ['guard', 'tools', 'facts'] },
+    ],
+    pages: {
+      dashboard: { label: 'Dashboard', view: () => viewCost() },
+      sessions:  { label: 'Sessions', view: () => viewCostPage('sessions') },
+      calls:     { label: 'Eklavya\'s calls', view: () => viewCostPage('calls') },
+      guard:     { label: 'Loop guard', view: () => viewCostPage('guard') },
+      tools:     { label: 'Tool pruning', view: () => viewCostPage('tools') },
+      facts:     { label: 'Pinned facts', view: () => viewCostPage('facts') },
+    },
+  },
   settings: {
     name: 'Settings',
     groups: [],
@@ -5577,6 +5597,100 @@ const WORKFLOWS = {
     },
   },
 };
+
+/* ---------- Cost (issue #259) ---------- */
+
+/**
+ * Every figure here comes from the ledger the CLI reads (`eklavya cost --export csv`),
+ * and says how it was obtained: measured (from transcripts and claude -p envelopes),
+ * estimated (arithmetic on an estimate) or a count of events.
+ */
+const COST_ABOUT = `Effective tokens are a session's usage in fresh-input-token equivalents of the model that
+  served it: cache reads weigh 0.1, 5-minute cache writes 1.25, 1-hour writes 2 and output 5. Measured figures are
+  read from Claude Code's transcripts and from the JSON each of Eklavya's own claude -p calls returns; nothing but
+  numbers and tool names is stored. A model with no price row is shown as unpriced, never guessed.`;
+const costUrl = () => '/api/cost' + (PROJECT !== null ? '?project=' + encodeURIComponent(PROJECT) : '');
+
+function viewCost() {
+  return [
+    pageHead('Cost', [], COST_ABOUT),
+    slot('cost-main', costUrl(), drawCost, { label: 'Reading the ledger…', region: true }),
+  ].join('');
+}
+
+function drawCost(d) {
+  const own = d.overhead.reduce((sum, o) => sum + (o.effective || 0), 0);
+  const g = d.guard;
+  const tiles1 = tiles([
+    ['Sessions priced', d.totals.sessions, ('measured · ledger'), '', CH('sessions')],
+    ['Effective tokens', d.totals.effective, (`measured · ${d.totals.unpriced_sessions} with unpriced models`), '', CH('sessions')],
+    ['Eklavya in sessions', d.totals.eklavya_in_sessions, ('measured · quiz turns and its subagents'), '', CH('sessions')],
+    [`Eklavya's calls, ${d.days} days`, own, ('measured · claude -p envelopes'), '', CH('calls')],
+  ]);
+  const tiles2 = tiles([
+    ['Recalls sent', d.memory_use.recalls, (`count · ${d.days} days`), '', MH('reuse')],
+    ['Reads after a recall', d.memory_use.after_recall, (`measured · ${d.memory_use.zero_result} found nothing · ${d.memory_use.flagged} flagged outdated, ${d.memory_use.refreshed} refreshed`), '', MH('reuse')],
+    ['Stuck turns redirected', g.redirect ?? 0, (`count · ${g.notice ?? 0} notices, ${g.judge ?? 0} judge calls`), '', CH('guard')],
+    ['Tools denied', d.tools ? d.tools.denied.length : 0, (d.tools ? `count · ${d.tools.proposed.length} proposed` : 'pick a project'), '', CH('tools')],
+  ]);
+  const weeks = d.weeks.length
+    ? card('By week', 'Measured: the sum of each week\'s priced sessions and Eklavya\'s background calls.',
+        table([{ t: 'Week' }, { t: 'Sessions', n: 1 }, { t: 'Effective', n: 1 }, { t: 'Eklavya in sessions', n: 1 }, { t: 'Background calls', n: 1 }],
+          d.weeks.map((w) => `<tr><td>${esc(w.week)}</td><td class="num">${fmtN(w.sessions)}</td><td class="num">${fmtN(w.effective)}</td>
+            <td class="num">${fmtN(w.eklavya_effective)}</td><td class="num">${fmtN(w.overhead_effective)}</td></tr>`)))
+    : nextStep('<strong>No session has been priced yet.</strong> A session is priced when it ends, or ten minutes after it goes quiet.');
+  const experiment = d.experiment.ran
+    ? nextStep(`<strong>Memory on vs off:</strong> ${plural(d.experiment.on, 'session')} with memory on, ${plural(d.experiment.off, 'session')} off. Run <code>eklavya experiment memory --report</code> for the medians.`, true)
+    : '';
+  const net = nextStep('<strong>Net effect:</strong> not computed. It needs the benchmark run with and without these controls; until then only the measured figures above stand.');
+  return tiles1 + tiles2 + weeks + experiment + net;
+}
+
+function viewCostPage(which) {
+  const titles = { sessions: 'Sessions', calls: 'Eklavya\'s calls', guard: 'Loop guard', tools: 'Tool pruning', facts: 'Pinned facts' };
+  return [
+    pageHead(titles[which], [], COST_ABOUT),
+    slot('cost-' + which, costUrl(), (d) => drawCostPage(which, d), { label: 'Reading the ledger…', cls: 'card card--flush', region: true }),
+  ].join('');
+}
+
+function drawCostPage(which, d) {
+  const empty = (text) => `<p class="empty">${esc(text)}</p>`;
+  if (which === 'sessions') {
+    if (!d.sessions.length) return empty('No session has been priced yet.');
+    return table([{ t: 'Session' }, { t: 'Effective', n: 1 }, { t: 'Fresh · cached · written · out' }, { t: 'Eklavya', n: 1 }],
+      d.sessions.map((s) => `<tr><td>${esc(s.started_at ? fmtDate(s.started_at) : '—')} <span class="slug">${esc(s.project ? pname(s.project) : '—')}</span>
+        <br><code class="slug">${esc(s.model ?? '—')}</code>${s.unpriced ? ' <span class="pill due">unpriced</span>' : ''} <span class="slug">· ${plural(s.prompts, 'prompt')}</span></td>
+        <td class="num">${fmtN(s.effective)}</td>
+        <td class="slug">${fmtN(s.input)} · ${fmtN(s.cache_read)} · ${fmtN(s.cache_write_5m + s.cache_write_1h)} · ${fmtN(s.output)}</td>
+        <td class="num">${fmtN(s.eklavya_effective)}</td></tr>`));
+  }
+  if (which === 'calls') {
+    if (!d.overhead_rows.length) return empty('Eklavya has made no model call that was recorded.');
+    return table([{ t: 'When' }, { t: 'Source' }, { t: 'Model' }, { t: 'Effective', n: 1 }, { t: 'Reported $', n: 1 }],
+      d.overhead_rows.map((o) => `<tr><td>${esc(fmtDate(o.occurred_at))}</td><td>${esc(o.source)}${o.in_session ? ' <span class="pill">in a session</span>' : ''}</td>
+        <td><code class="slug">${esc(o.model ?? '—')}</code>${o.unpriced ? ' <span class="pill due">unpriced</span>' : ''}</td>
+        <td class="num">${fmtN(o.effective)}</td><td class="num">${o.cost_usd === null ? '—' : esc(o.cost_usd.toFixed(3))}</td></tr>`));
+  }
+  if (which === 'guard') {
+    if (!d.guard_events.length) return empty('The loop guard has not stepped in. It is off unless economy.loopguard is set.');
+    return table([{ t: 'When' }, { t: 'What' }, { t: 'Why' }],
+      d.guard_events.map((e) => `<tr><td>${esc(fmtDate(e.at))}</td><td><span class="pill">${esc(e.kind)}</span></td><td>${esc(e.reason ?? '')}</td></tr>`));
+  }
+  if (which === 'tools') {
+    if (!d.tools) return empty('Pick a project: tool pruning is per checkout.');
+    const rows = [
+      ...d.tools.denied.map((t) => `<tr><td><code class="slug">${esc(t)}</code></td><td><span class="pill">denied</span></td><td>eklavya toolprune restore ${esc(t)}</td></tr>`),
+      ...d.tools.proposed.map((r) => `<tr><td><code class="slug">${esc(r.tool)}</code></td><td>unused for ${plural(r.prompts_since, 'prompt')} across ${plural(r.sessions_since, 'session')}</td><td>eklavya toolprune apply ${esc(r.tool)}</td></tr>`),
+      ...d.tools.kept.map((t) => `<tr><td><code class="slug">${esc(t)}</code></td><td>kept by you</td><td>—</td></tr>`),
+    ];
+    return rows.length ? table([{ t: 'Tool' }, { t: 'State' }, { t: 'Command' }], rows) : empty(`Nothing to propose yet (economy.toolprune: ${d.tools.mode}).`);
+  }
+  if (!d.facts.length) return empty('No pinned fact yet. A fact forms once three sessions confirm it.');
+  return table([{ t: 'Fact' }, { t: 'State' }, { t: 'Kind' }, { t: 'Confirmed', n: 1 }, { t: 'Applied', n: 1 }],
+    d.facts.map((f) => `<tr><td>${esc(f.text)}</td><td><span class="pill${f.state === 'retired' ? ' due' : ''}">${esc(f.state)}</span>${f.retired_reason ? ` ${esc(f.retired_reason)}` : ''}</td>
+      <td>${esc(f.kind)} · ${esc(f.source)}</td><td class="num">${fmtN(f.confirmations)}</td><td class="num">${fmtN(f.applied)}/${fmtN(f.exercised)}</td></tr>`));
+}
 
 /**
  * A canonical link. The project scope rides along unless `q` overrides it —
@@ -5594,6 +5708,7 @@ function href(wf, page, param, q = {}) {
 const LH = (page, param, q) => href('learning', page, param, q);
 const MH = (page, param, q) => href('memory', page, param, q);
 const AH = (page, param, q) => href('artifacts', page, param, q);
+const CH = (page, param, q) => href('cost', page, param, q);
 /** A session opened from Memory stays in Memory, and from Learning in Learning. */
 const sessHref = (id) => href(CUR.wf, 'session', id);
 
@@ -5707,6 +5822,8 @@ const navCounts = (wf) => derived('nav:' + wf, () => {
   if (wf === 'feedback') return {};
   // No honest count for a settings page: how many keys a file sets is not a to-do.
   if (wf === 'settings') return {};
+  // The ledger is fetched by the page, not carried in the state payload: no count to show before it is read.
+  if (wf === 'cost') return {};
   return {
     timeline: sum((p) => p.memory.entries),
     sessions: sum((p) => p.memory.sessions),

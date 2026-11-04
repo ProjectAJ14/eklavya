@@ -748,6 +748,8 @@ export function recordReceipt(
     delivery: Delivery;
     items: ReceiptItem[];
     wrapperTokens?: number;
+    /** The informative terms of the recall's query (issue #259); never the whole prompt. */
+    queryTerms?: string | null;
   },
 ): number {
   const base = opts.items.reduce((s, i) => s + i.sourceTokens, 0);
@@ -758,8 +760,8 @@ export function recordReceipt(
         .prepare(
           `INSERT INTO context_receipts
              (receipt_uid, project, session_id, scope, method, base_tokens, delivered_tokens,
-              item_count, delivery, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              item_count, delivery, created_at, query_terms)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           receiptUid(),
@@ -772,6 +774,7 @@ export function recordReceipt(
           opts.items.length,
           opts.delivery,
           nowIso(),
+          opts.queryTerms ?? null,
         ).lastInsertRowid,
     );
     const item = db.prepare(
@@ -855,7 +858,8 @@ export function totalsDelivery(totals: ReceiptTotals): Delivery {
 
 /**
  * One call to a memory read tool, receipt or not (`memory_reads`, migration
- * 018). Ids, counts and timings only: never the query, never a narrative.
+ * 018). Ids, counts and timings, and since migration 039 the informative terms
+ * of a search's query (`terms.ts`): never the query as typed, never a narrative.
  */
 export interface MemoryRead {
   tool: string;
@@ -866,13 +870,17 @@ export interface MemoryRead {
   outcome: 'ok' | 'empty' | 'error';
   latencyMs: number;
   resultTokens: number;
+  /** The informative terms of a search's query (issue #259), never the query itself. */
+  queryTerms?: string | null;
 }
 
 export function recordRead(db: DB, read: MemoryRead): void {
   db.prepare(
     `INSERT INTO memory_reads
-       (created_at, project, session_id, tool, receipt_id, entry_ids, outcome, latency_ms, result_tokens)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (created_at, project, session_id, tool, receipt_id, entry_ids, outcome, latency_ms, result_tokens, query_terms,
+        seconds_since_recall)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+       (SELECT CAST(strftime('%s', ?) - strftime('%s', created_at) AS INTEGER) FROM context_receipts WHERE id = ?))`,
   ).run(
     nowIso(),
     read.project,
@@ -883,6 +891,9 @@ export function recordRead(db: DB, read: MemoryRead): void {
     read.outcome,
     Math.max(0, Math.round(read.latencyMs)),
     read.resultTokens,
+    read.queryTerms ?? null,
+    nowIso(),
+    read.receiptId,
   );
 }
 

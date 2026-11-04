@@ -156,7 +156,7 @@ Request: Find why QA users get logged out after 10 minutes
 Next steps: set REFRESH_ENABLED=true in the QA configmap and verify with a 15-minute idle test
 ```
 
-The session banner says what was delivered, for example `Memory · 3 past entries + 45 titles recalled (~2.1k tokens) · ~88% less context`, counting the full entries and the timeline lines. The percentage is an estimate of how much smaller the recall is than the evidence behind its full entries (four characters per token); it is left off when that is not a saving. A project with only a few entries shows no titles, for example `Memory · 3 past entries recalled (~1.1k tokens)`. It prints no memory line when nothing was recalled.
+The session banner says what was delivered, for example `Memory · 3 past entries + 45 titles recalled (~2.1k tokens) · ~88% smaller than its sources`, counting the full entries and the timeline lines. The percentage is an estimate of how much smaller the recall is than the evidence behind its full entries (four characters per token); it is left off when that is not a saving. A project with only a few entries shows no titles, for example `Memory · 3 past entries recalled (~1.1k tokens)`. It prints no memory line when nothing was recalled.
 
 #### Ranking session start by your current work
 

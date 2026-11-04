@@ -1,3 +1,4 @@
+import { flagStale } from '../memory/use.js';
 import { z } from 'zod';
 import { policyFrom } from '../memory/capture.js';
 import { redact } from '../memory/privacy.js';
@@ -163,5 +164,25 @@ export const memoryDelete: ToolDef = {
     const hard = args.hard ?? false;
     deleteEntry(db, args.id, hard);
     return { id: args.id, hard, deleted: true, project: entry.project };
+  },
+};
+
+export const memoryFlagStale: ToolDef = {
+  name: 'memory_flag_stale',
+  title: 'Flag a memory entry as possibly outdated',
+  description:
+    `Mark an entry as possibly outdated when you have seen that the code no longer matches it. It stays searchable, ranks below current entries and is labelled "may be outdated" when recalled; memory_get shows the reason. Nothing is deleted. To replace it with what is true now, use memory_correct instead. ${OWN_RULE}`,
+  inputSchema: {
+    id: z.number().int().describe('The entry to flag.'),
+    reason: z.string().min(3).max(300).describe('What changed, in a few words: "retry.ts now uses a token bucket".'),
+    cwd: z.string().optional().describe(CWD_HINT),
+  },
+  handler: (args: { id: number; reason: string; cwd?: string }, { db }) => {
+    const entry = entryById(db, args.id);
+    if (!entry) return { error: 'not_found', detail: `No memory entry with id ${args.id}.` };
+    const foreign = otherProject(entry, memoryScope(args.cwd).project);
+    if (foreign) return foreign;
+    flagStale(db, args.id, args.reason);
+    return { id: args.id, flagged: true, reason: args.reason.slice(0, 300) };
   },
 };
