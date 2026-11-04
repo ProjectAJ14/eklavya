@@ -91,7 +91,13 @@ in all; their cost is in the ledger rows they produced.
 
 ## Not checked here
 
-- A redirect from the loop guard reaching the model in a live stuck turn.
+- A redirect from the loop guard reaching the model in a live stuck turn. One
+  attempt: an impossible test (`calc.f() == calc.f() + 1`), the guard on at the
+  aggressive level with a seeded envelope, and a prompt to keep editing until
+  it passes. The model said no honest edit could pass the test and stopped after
+  two turns ($0.17), so nothing was stuck and nothing was redirected. The
+  redirect and notice were checked through the real hooks with scripted calls
+  (`mcp/test/economy-hooks.test.ts`), not with a model in a loop.
 - Transcripts from the oldest supported Claude Code version: only 2.1.318 was
   available here.
 - The two-week team dogfood (Phase 2 and Phase 5).
