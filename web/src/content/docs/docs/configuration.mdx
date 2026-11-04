@@ -164,7 +164,7 @@ These extend the [built-in privacy rules](/docs/memory/#what-is-never-captured).
 | `retrieval.max_tokens` | `1200` | Estimated-token budget for the complete recalled block, including its wrapper. Mid-session prompt recall gets a third of it. |
 | `retrieval.cross_project` | `false` | Includes other projects in search and session-start recall. |
 | `retrieval.seam_query` | `false` | Ranks the full entries at session start by the branch name, changed files, last three commit subjects and the last checkpoint's next steps. Off: newest first. See [ranking session start](/docs/memory/#ranking-session-start-by-your-current-work). |
-| `retrieval.prompt_gate` | `"strict"` | How a prompt earns a mid-session recall. `strict`: every word of the prompt in the entry. `terms`: two informative words of the prompt (an identifier or a path counts as one word), or the rarest ones, and the `local-hash-v2` vectors for the close-in-meaning check. See [when you send a prompt](/docs/memory/#when-you-send-a-prompt). |
+| `retrieval.prompt_gate` | `"terms"` | How a prompt earns a mid-session recall. `strict`: every word of the prompt in the entry. `terms`: two informative words of the prompt (an identifier or a path counts as one word), or the rarest ones, and the `local-hash-v2` vectors for the close-in-meaning check. See [when you send a prompt](/docs/memory/#when-you-send-a-prompt). |
 | `retrieval.timeline_items` | `50` | Lines in the session-start timeline. `0` leaves the timeline out. |
 
 #### `providers`

@@ -342,7 +342,8 @@ describe('recall mid-session, on a change of subject', () => {
     expect(linked).toContain('search this project\'s memory');
     expect(linked).toContain('57988');
     // A slash command of Eklavya's own is not a task to search for.
-    expect(recalledFrom(prompt('s1', '/eklavya:memory what did we decide about the cookie').stdout)).toBeNull();
+    // Its words share nothing with the entry, so only the slash-command rule keeps the nudge out.
+    expect(recalledFrom(prompt('s1', '/eklavya:memory what did we decide about the deploy pipeline').stdout)).toBeNull();
   });
 
   it('asks for no search where nothing could be found', () => {

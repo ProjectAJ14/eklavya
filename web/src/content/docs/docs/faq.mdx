@@ -126,10 +126,10 @@ sensitive material.
 ## Why didn't memory bring up an old decision?
 
 By default session start sends the newest work, and a prompt recalls an
-entry only when every word of the prompt is in it. Two settings widen that:
-`retrieval.seam_query` ranks session start by your branch, changed files and
-recent commits, and `retrieval.prompt_gate terms` lets a prompt match on its
-informative words. Both are off while they are measured. You can always ask
+entry when two of the prompt's informative words, or its rarest ones, are in it
+(`retrieval.prompt_gate terms`). `retrieval.seam_query` ranks session start by
+your branch, changed files and recent commits instead; it stays off because a
+replay of real sessions showed no gain. You can always ask
 `/eklavya:memory` about it. See [how recall works](/docs/memory/#how-recall-works).
 
 ## How much does Eklavya itself cost me?
