@@ -276,7 +276,7 @@ export const setConfig: ToolDef = {
       })
       .optional()
       .describe(
-        'Cost controls. ledger prices sessions from their transcripts (numbers only). loopguard (default off) redirects a stuck turn once. toolprune (default propose) lists unused tools and writes nothing unless the developer applies. envfacts (default free) learns environment facts from repeated failures.',
+        'Cost controls. ledger prices sessions from their transcripts (numbers only). loopguard (default nudge) redirects a stuck turn once. toolprune (default propose) lists unused tools and writes nothing unless the developer applies. envfacts (default free) learns environment facts from repeated failures.',
       ),
   },
   handler: (args: Record<string, unknown>, ctx) => {

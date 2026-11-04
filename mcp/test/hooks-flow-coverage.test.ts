@@ -261,8 +261,8 @@ describe('prompt-submit-nudge', () => {
   const prompt = (text: string, env: Record<string, string> = {}) =>
     runHook(NUDGE, { session_id: SESSION, cwd, hook_event_name: 'UserPromptSubmit', prompt: text }, env);
 
-  it('does nothing, not even the session pointer, with questions and memory both off', () => {
-    configure({ quiz: { enabled: false }, memory: { enabled: false } });
+  it('does nothing, not even the session pointer, with questions, memory and the loop guard off', () => {
+    configure({ quiz: { enabled: false }, memory: { enabled: false }, economy: { loopguard: 'off' } });
     expect(prompt('hello there').status).toBe(0);
     expect(getCurrentSession(db, cwd)).toBeNull();
   });

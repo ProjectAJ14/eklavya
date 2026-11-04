@@ -181,8 +181,8 @@ export interface MemoryConfig {
 
 /**
  * Cost controls (issue #257), ported from TokenEconomizer. Each part is
- * separate, and the ones that change what Claude sees ship off or in propose
- * mode until they are measured.
+ * separate. The loop guard nudges by default; tool pruning only proposes,
+ * because writing a deny list is a change to the developer's settings.
  */
 export interface EconomyConfig {
   /** Price every session from its transcript in the background, and record Eklavya's own model calls. */
@@ -190,8 +190,7 @@ export interface EconomyConfig {
   /**
    * The loop guard: `nudge` redirects a stuck turn once, then tells the
    * developer. `stop` additionally ends a headless (`claude -p`) turn after the
-   * nudges are spent; an interactive turn is never stopped. `off` by default
-   * until it is measured.
+   * nudges are spent; an interactive turn is never stopped. `nudge` by default.
    */
   loopguard: 'off' | 'nudge' | 'stop';
   loopguard_level: 'conservative' | 'default' | 'aggressive';
@@ -529,7 +528,7 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
   },
   economy: {
     ledger: true,
-    loopguard: 'off',
+    loopguard: 'nudge',
     loopguard_level: 'default',
     judge_confidence: 0.7,
     nudges: 1,
