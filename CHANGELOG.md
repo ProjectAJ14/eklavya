@@ -1,3 +1,10 @@
+# [1.92.0](https://github.com/ProjectAJ14/eklavya/compare/v1.91.1...v1.92.0) (2026-11-04)
+
+
+### Features
+
+* **economy:** cost controls and memory recall, port of TokenEconomizer ([#266](https://github.com/ProjectAJ14/eklavya/issues/266)) ([8a18593](https://github.com/ProjectAJ14/eklavya/commit/8a1859353e5739ca82b355a8ddc03cc287624916)), closes [#257](https://github.com/ProjectAJ14/eklavya/issues/257) [#258](https://github.com/ProjectAJ14/eklavya/issues/258) [#257](https://github.com/ProjectAJ14/eklavya/issues/257) [#260](https://github.com/ProjectAJ14/eklavya/issues/260) [#261](https://github.com/ProjectAJ14/eklavya/issues/261) [#257](https://github.com/ProjectAJ14/eklavya/issues/257) [#262](https://github.com/ProjectAJ14/eklavya/issues/262) [#263](https://github.com/ProjectAJ14/eklavya/issues/263) [#264](https://github.com/ProjectAJ14/eklavya/issues/264) [#257](https://github.com/ProjectAJ14/eklavya/issues/257) [#259](https://github.com/ProjectAJ14/eklavya/issues/259) [#265](https://github.com/ProjectAJ14/eklavya/issues/265)
+
 ## [1.91.1](https://github.com/ProjectAJ14/eklavya/compare/v1.91.0...v1.91.1) (2026-11-02)
 
 
