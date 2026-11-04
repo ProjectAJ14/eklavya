@@ -309,3 +309,22 @@ describe('last edges', () => {
     expect(r.tools!.denied).toEqual(['X']);
   });
 });
+
+describe('coercion and tie-breaks', () => {
+  it('coerces the new memory and economy keys, keeping defaults for bad values', async () => {
+    const { coerce } = await import('../src/config.js');
+    const bad = coerce({ memory: { pinned_facts: 'x', stale_check: 'yes', stale_refresh_per_day: -1 }, economy: { judge_confidence: 2, backstop_mult: Number.NaN, toolprune_protect: 'Bash', nudges: 'one' } }, DEFAULT_CONFIG);
+    expect(bad.memory).toMatchObject({ pinned_facts: 8, stale_check: true, stale_refresh_per_day: 5 });
+    expect(bad.economy).toMatchObject({ judge_confidence: 0.7, backstop_mult: 2.5, toolprune_protect: [], nudges: 1 });
+    const good = coerce({ memory: { pinned_facts: 50, stale_check: false }, economy: { judge_confidence: 0.5, toolprune_protect: ['CronCreate'], ledger: false, loopguard: 'nudge' } }, DEFAULT_CONFIG);
+    expect(good.memory).toMatchObject({ pinned_facts: 20, stale_check: false });
+    expect(good.economy).toMatchObject({ judge_confidence: 0.5, toolprune_protect: ['CronCreate'], ledger: false, loopguard: 'nudge' });
+  });
+
+  it('breaks an equal match with equal utility by recency', () => {
+    insertEntry(db, { project: repo, sessionId: 'x', title: 'Retry backoff jitter', occurredAt: '2026-01-01T00:00:00Z' });
+    const newer = insertEntry(db, { project: repo, sessionId: 'x', title: 'Retry backoff jitter', occurredAt: '2026-02-01T00:00:00Z' });
+    const r = recall(db, config((c) => (c.retrieval.mode = 'keyword')), { project: repo, index: true, seamQuery: 'retry backoff jitter' });
+    expect(r.entries[0]!.id).toBe(newer);
+  });
+});

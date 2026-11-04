@@ -143,11 +143,18 @@ describe('the loop guard through the hooks', () => {
     seedEnvelope();
     hook(PROMPT, { session_id: 'g1', cwd: repo, hook_event_name: 'UserPromptSubmit', prompt: 'make the tests pass please' });
     hook(CAPTURE, { session_id: 'g1', cwd: repo, hook_event_name: 'PostToolUse', tool_name: 'Read', tool_input: { file_path: 'x' }, tool_response: null });
-    const outs = spin(10);
-    expect(outs).toHaveLength(2);
-    expect(JSON.parse(outs[0]!).hookSpecificOutput.additionalContext).toContain('[Eklavya loop check]');
-    // Each answers under the event it came from.
-    expect(outs.map((o) => JSON.parse(o).hookSpecificOutput.hookEventName).sort()).toEqual(['PostToolUse', 'PostToolUseFailure']);
+    expect(spin(9)).toEqual([]);
+    // The edit that tips it over gets the one redirect.
+    const redirect = JSON.parse(hook(CAPTURE, { session_id: 'g1', cwd: repo, hook_event_name: 'PostToolUse', tool_name: 'Edit', tool_input: { file_path: 'src/a.ts' }, tool_response: { success: true } }).stdout);
+    expect(redirect.hookSpecificOutput).toMatchObject({ hookEventName: 'PostToolUse', additionalContext: expect.stringContaining('[Eklavya loop check] So far') });
+    // The next stuck call comes with no event name and no input: the one notice still answers, as PostToolUse.
+    const notice = JSON.parse(hook(CAPTURE, { session_id: 'g1', cwd: repo, tool_name: 'Bash', tool_response: { is_error: true, error: 'AssertionError: expected 1 to be 2' } }).stdout);
+    expect(notice.hookSpecificOutput).toMatchObject({ hookEventName: 'PostToolUse', additionalContext: expect.stringContaining('Tell the developer') });
+    // Then the guard is quiet for the rest of the turn.
+    expect(spin(3)).toEqual([]);
+    // A call without an event name or input is still folded, and answers as PostToolUse.
+    const bare = hook(CAPTURE, { session_id: 'g1', cwd: repo, tool_name: 'Bash', tool_response: { is_error: true, error: 'AssertionError: expected 1 to be 2' } });
+    expect(bare.status).toBe(0);
     hook(STOP, { session_id: 'g1', cwd: repo, hook_event_name: 'Stop' });
     expect(db.prepare('SELECT outcome FROM econ_turns').get()).toEqual({ outcome: 'red' });
   });
