@@ -315,6 +315,9 @@ describe('recall mid-session, on a change of subject', () => {
     const context = recalledFrom(res.stdout);
     expect(context).toContain('<eklavya-memory');
     expect(context).toContain('refresh cookie');
+    expect(context).toContain('memory_correct');
+    // A recall block already says what to open, so no reminder rides with it.
+    expect(context).not.toContain('Automatic recall found nothing');
   });
 
   it('says nothing twice about the same entry, so a recall is not a per-turn tax', () => {
@@ -338,8 +341,8 @@ describe('recall mid-session, on a change of subject', () => {
     const linked = recalledFrom(prompt('s1', '[Image #1] https://github.com/acme/app/pull/57988 check this').stdout);
     expect(linked).toContain('search this project\'s memory');
     expect(linked).toContain('57988');
-    // A prose prompt with nothing to find stays silent, as measured in 2026-10-02.
-    expect(recalledFrom(prompt('s1', 'Set up a kubernetes horizontal pod autoscaler for the worker deployment').stdout)).toBeNull();
+    // A slash command of Eklavya's own is not a task to search for.
+    expect(recalledFrom(prompt('s1', '/eklavya:memory what did we decide about the cookie').stdout)).toBeNull();
   });
 
   it('asks for no search where nothing could be found', () => {
@@ -360,10 +363,10 @@ describe('recall mid-session, on a change of subject', () => {
     }
   });
 
-  it('stays silent when nothing in the project matches', () => {
+  it('sends no memory but says to search when nothing in the project matches a task (issue #272)', () => {
     remember('Rotated the refresh cookie on every use', 'The jti is stored per refresh.');
-    expect(
-      recalledFrom(prompt('s1', 'Set up a kubernetes horizontal pod autoscaler for the worker deployment').stdout),
-    ).toBeNull();
+    const context = recalledFrom(prompt('s1', 'Set up a kubernetes horizontal pod autoscaler for the worker deployment').stdout);
+    expect(context).not.toContain('<eklavya-memory');
+    expect(context).toContain('Automatic recall found nothing for this prompt');
   });
 });

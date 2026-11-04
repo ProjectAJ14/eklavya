@@ -2,7 +2,7 @@ import type { DB } from '../db.js';
 import type { EklavyaConfig } from '../config.js';
 import { decayedScore, isKnown, isOwed, streakOf } from '../srs.js';
 import { GLOBAL_PROJECT, projectKey } from '../store.js';
-import { ESTIMATOR, RECEIPT_HINT, estimateTokens, pullLine, toolSearch, type LookupStyle } from './tokens.js';
+import { ESTIMATOR, RECEIPT_HINT, SEARCH_RULE, estimateTokens, pullLine, toolSearch, type LookupStyle } from './tokens.js';
 import { keywordSearch, search, semanticSearch, termRarity, type SearchFilter, type SearchHit } from './search.js';
 import { LOCAL_EMBEDDER, LOCAL_EMBEDDER_V2 } from './embed.js';
 import { informativeTermGroups, informativeTerms } from './terms.js';
@@ -357,7 +357,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
   // after the last one. Counting it afterwards means the block the model
   // receives is reliably larger than the budget that was supposed to bound it.
   const wrapperTokens = estimateTokens(
-    [`<eklavya-memory project="${projectAttr}" items="00" receipt="000000">`, note, RECEIPT_HINT(0, [1000000, 1000000]), footer].join('\n'),
+    [`<eklavya-memory project="${projectAttr}" items="00" receipt="000000">`, note, RECEIPT_HINT(0, [1000000, 1000000]), opts.index ? SEARCH_RULE(config.memory.lookup_hint) : '', footer].join('\n'),
   );
 
   // Fill to the token budget rather than the item count: six short notes and
@@ -420,10 +420,6 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     if (!chosen.length) return [];
     const lines = [
       'Recent work, oldest first: [#id] time type · title. A "session" line stands for a whole session, usually what was asked in it. Look further back with memory_search.',
-      // Concrete moments rather than "if relevant": the conditional wording
-      // alone was followed in about 4% of real working sessions (issue #272).
-      // Named events, not every task, so work with no history stays quiet.
-      'Before you investigate a ticket, PR, bug or error, or when the developer refers to earlier work, search memory for its key terms first: these titles are only the latest.',
     ];
     let day = '';
     for (const entry of chosen) {
@@ -455,7 +451,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     // match; a session start's are newest-first and name none.
     const hint = RECEIPT_HINT(Number(receipt), opts.scope === 'prompt' ? items.slice(0, 2).map((x) => x.e.id) : [], lookup);
     const block = opts.index
-      ? [header, note, ...(opts.pinned ?? []), hint, ...indexLines, ...(detail.length ? [DETAIL_HEADING, ...detail] : []), ...closing, footer].join('\n')
+      ? [header, note, ...(opts.pinned ?? []), hint, SEARCH_RULE(lookup), ...indexLines, ...(detail.length ? [DETAIL_HEADING, ...detail] : []), ...closing, footer].join('\n')
       : [header, note, hint, ...items.map((x) => x.text), footer].join('\n');
     return { timelineRows, indexLines, detail, block };
   };
@@ -725,12 +721,21 @@ export function lookupNudge(prompt: string, style: LookupStyle = 'mcp'): string 
     .filter((w) => w.length > 2 && !FILLER.has(w));
   if (words.length >= LINK_PROMPT_TERMS) return null;
   const start = ids.size ? ` Start with ${[...ids].slice(0, 4).join(', ')}, then the subject once you know it.` : '';
-  const how =
-    style === 'bash'
-      ? 'run `eklavya memory search "<key terms>"` in Bash'
-      : `load the tools (${toolSearch('memory_search', 'memory_get')}), then memory_search({query: "<key terms>"})`;
-  return `[Eklavya] This prompt is mostly a link, ticket key or image, so automatic recall had little to match. Before reading code or querying other systems, search this project's memory for earlier work on it: ${how}.${start}`;
+  return `[Eklavya] This prompt is mostly a link, ticket key or image, so automatic recall had little to match. Before reading code or querying other systems, search this project's memory for earlier work on it: ${howToSearch(style)}.${start}`;
 }
+
+const howToSearch = (style: LookupStyle) =>
+  style === 'bash'
+    ? 'run `eklavya memory search "<key terms>"` in Bash'
+    : `load the tools (${toolSearch('memory_search', 'memory_get')}), then memory_search({query: "<key terms>"})`;
+
+/**
+ * Mid-session, for a task-sized prompt automatic recall found nothing for: the
+ * session-start rule is far back by then, and a new subject is exactly where
+ * the automatic match is weakest (issue #272).
+ */
+export const searchNudge = (style: LookupStyle = 'mcp') =>
+  `[Eklavya] Automatic recall found nothing for this prompt. If it starts a task or changes the subject, search this project's memory for its key terms before reading code or querying other systems: ${howToSearch(style)}.`;
 
 /** Fewer meaningful terms than this and a prompt is matched by words alone. */
 const MIN_TERMS = 3;
@@ -787,6 +792,9 @@ export function recallForPrompt(
   db: DB,
   config: EklavyaConfig,
   opts: { project: string; sessionId: string; prompt: string },
+  // Set when an entry passed the gate, even if it was already handed over and
+  // nothing new is sent: "recalled nothing" and "nothing matched" differ.
+  match?: { matched: boolean },
 ): RecallResult | null {
   const query = ownWords(opts.prompt);
   // Too short to be about anything. "yes", "carry on", "fix it" match whatever
@@ -827,6 +835,7 @@ export function recallForPrompt(
         minScore: MIN_COSINE,
       });
   if (!lexical.length && !semantic.length) return null;
+  if (match) match.matched = true;
 
   // Ranked here and handed to `recall` as candidates, rather than letting it
   // search a third and fourth time for rows this function has already found.

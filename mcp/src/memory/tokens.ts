@@ -127,4 +127,25 @@ export const RECEIPT_HINT = (receiptId: number, best: number[] = [], style: Look
   (best.length
     ? `Best match${best.length > 1 ? 'es' : ''}: ${best.map((id) => `#${id}`).join(', ')}. If the task touches ${best.length > 1 ? 'them' : 'it'}, open ${best.length > 1 ? 'them' : 'it'} before answering: `
     : 'Task needs an earlier decision, fix or unfinished work? Open a matching entry before answering: ') +
-  (style === 'bash' ? '`eklavya memory show <id>` in Bash.' : `memory_get({ids: [<id>], receipt_id: ${receiptId}}).`);
+  (style === 'bash' ? '`eklavya memory show <id>` in Bash.' : `memory_get({ids: [<id>], receipt_id: ${receiptId}}).`) +
+  ` ${STALE_HINT}`;
+
+/**
+ * Memory that is never corrected goes on being recalled wrong. Said on every
+ * recall note, because the moment an entry is seen to be outdated is the moment
+ * it is open next to the code that disproves it. Neither tool deletes: a
+ * correction supersedes and keeps the original for the audit trail.
+ */
+export const STALE_HINT =
+  'An entry the current code contradicts: replace it with memory_correct({id, body}), or memory_flag_stale({id, reason}) if what is true now is unclear.';
+
+/**
+ * The standing rule a session start gives (issue #272). Conditional wording
+ * alone ("needs an earlier decision? open an entry") was followed in about 4%
+ * of real working sessions, so this names the moments to search instead of
+ * leaving relevance to the model. It costs a search in sessions where memory
+ * holds nothing useful (about one in five on the 2026-10-02 eval's irrelevant
+ * arm); the maintainer chose that over memory that is saved and never read.
+ */
+export const SEARCH_RULE = (style: LookupStyle = 'mcp') =>
+  `Use this memory throughout the session, not only now: before starting a task, and whenever the work turns to another area, file, bug, ticket, PR or earlier decision, search it for the key terms (${style === 'bash' ? '`eklavya memory search "<terms>"` in Bash' : 'memory_search'}) and read what matches before reading code or querying other systems.`;
