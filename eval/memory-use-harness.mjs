@@ -24,6 +24,7 @@
  *               shows the tools are discoverable and callable in a fresh session
  *
  *   node eval/memory-use-harness.mjs run --plugin <dir> --label <name> [--arms relevant,off] [--trials 3]
+ *   node eval/memory-use-harness.mjs run ... --config '{"retrieval":{"prompt_gate":"terms"}}'
  *   node eval/memory-use-harness.mjs score <run-dir> [<run-dir> ...]
  *
  * The fact never appears in the prompt or the fixture, so a `;` delimiter with
@@ -155,10 +156,24 @@ function prepare(trialDir, plugin, arm) {
   fs.mkdirSync(home, { recursive: true });
   fs.writeFileSync(
     path.join(home, 'config.json'),
-    JSON.stringify({ auto_update: false, telemetry: false, dashboard_autostart: false, quiz: { enabled: false }, memory: { enabled: arm.memory } }, null, 2),
+    JSON.stringify(withExtra({ auto_update: false, telemetry: false, dashboard_autostart: false, quiz: { enabled: false }, memory: { enabled: arm.memory } }), null, 2),
   );
   const seeded = seed(plugin, home, fs.realpathSync(repo), arm.seed);
   return { repo, home, seeded };
+}
+
+/**
+ * `--config '<json>'`: settings merged into every trial's config, one level
+ * deep per namespace, to compare a setting against the defaults (issue #258:
+ * `{"retrieval":{"seam_query":true,"prompt_gate":"terms"}}`). An arm's own
+ * `memory.enabled` still wins.
+ */
+function withExtra(base) {
+  const extra = JSON.parse(flag('config') ?? '{}');
+  const out = { ...base };
+  for (const [k, v] of Object.entries(extra)) out[k] = v && typeof v === 'object' && !Array.isArray(v) ? { ...(out[k] ?? {}), ...v } : v;
+  if (base.memory) out.memory = { ...out.memory, enabled: base.memory.enabled };
+  return out;
 }
 
 const sessions = [];
@@ -232,7 +247,7 @@ async function runCommand() {
   const host = spawnSync('claude', ['--version'], { encoding: 'utf8' }).stdout.trim();
   fs.writeFileSync(
     path.join(outDir, 'run.json'),
-    JSON.stringify({ label, plugin, revision, dirty, version, host, trials, arms, model: flag('model') ?? 'host default', started: new Date().toISOString() }, null, 2),
+    JSON.stringify({ label, plugin, revision, dirty, version, host, trials, arms, config: JSON.parse(flag('config') ?? '{}'), model: flag('model') ?? 'host default', started: new Date().toISOString() }, null, 2),
   );
 
   const jobs = [];
