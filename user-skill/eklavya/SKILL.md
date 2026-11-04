@@ -267,7 +267,7 @@ panel_sync (mcp) denied by auto mode`, or a denial of `get_session_quiz_plan`
 with an odd reason like "Irreversible Local Destruction", means Claude Code's
 auto mode refused a call Eklavya's hooks or panel make on their own; a plugin
 cannot grant its own permissions. When they ask you to fix it, read
-`~/.claude/settings.json` and add these ten to `permissions.allow`, keeping every
+`~/.claude/settings.json` and add these twelve to `permissions.allow`, keeping every
 existing entry and adding none twice:
 `mcp__plugin_eklavya_eklavya__panel_sync`,
 `mcp__plugin_eklavya_eklavya__panel_answer`,
@@ -277,8 +277,10 @@ existing entry and adding none twice:
 `mcp__plugin_eklavya_eklavya__record_attempt`,
 `mcp__plugin_eklavya_eklavya__upsert_concepts`,
 `mcp__plugin_eklavya_eklavya__get_learner_profile`,
-`mcp__plugin_eklavya_eklavya__memory_search` and
-`mcp__plugin_eklavya_eklavya__memory_get`.
+`mcp__plugin_eklavya_eklavya__memory_search`,
+`mcp__plugin_eklavya_eklavya__memory_get`,
+`mcp__plugin_eklavya_eklavya__memory_correct` and
+`mcp__plugin_eklavya_eklavya__memory_flag_stale`.
 Eklavya's other read tools (`memory_timeline`, `memory_file_history`, `memory_status`,
 `memory_collections`, `code_outline`, `code_find_symbol`) are marked read-only, so auto
 and plan mode should run them without an entry; add one only if a denial names it.

@@ -398,6 +398,8 @@ describe('the auto-mode allow rule', () => {
   const unprompted = [
     'panel_sync', 'panel_answer', 'present_question', 'log_session_concepts', 'get_session_quiz_plan',
     'record_attempt', 'upsert_concepts', 'get_learner_profile', 'memory_search', 'memory_get',
+    // Recall notes ask Claude to correct an outdated entry (issue #272); neither deletes.
+    'memory_correct', 'memory_flag_stale',
   ];
   // Named by a hook or recall note but deliberately not allowed; each needs its reason here.
   const kept_out: Record<string, string> = {

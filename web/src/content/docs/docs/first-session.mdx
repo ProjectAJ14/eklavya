@@ -142,7 +142,7 @@ To see the panel before a real question arrives, run [`/eklavya-panel-demo`](/do
 ### If auto mode blocks Eklavya
 
 Claude Code's auto mode judges each tool call before it runs, and a plugin
-cannot grant its own permissions. Eklavya makes ten calls without you asking,
+cannot grant its own permissions. Eklavya makes twelve calls without you asking,
 because its hooks tell Claude to or its panel makes them itself:
 
 | Tools | Why they run on their own |
@@ -151,11 +151,12 @@ because its hooks tell Claude to or its panel makes them itself:
 | `upsert_concepts`, `get_learner_profile` | The tutor skill, which those hooks load, reads your profile first and links new concepts. |
 | `panel_sync`, `panel_answer`, `present_question` | The panel polls and submits answers itself, and Claude hands it each question. |
 | `memory_search`, `memory_get` | The recall notes point Claude at these to read earlier work. |
+| `memory_correct`, `memory_flag_stale` | The recall notes ask Claude to fix an entry the current code contradicts. Neither deletes anything: a correction keeps the original for the audit trail. |
 
 A refusal reads like `plugin:eklavya:eklavya - panel_sync (mcp) denied by auto
 mode`, or names another of these tools. Auto mode can also deny a harmless call
 with an unrelated reason such as "Irreversible Local Destruction", so a message
-that sounds wrong still means this fix. Add all ten to the `permissions.allow`
+that sounds wrong still means this fix. Add all twelve to the `permissions.allow`
 list in your user settings, `~/.claude/settings.json`, keeping the entries
 already there:
 
@@ -172,7 +173,9 @@ already there:
       "mcp__plugin_eklavya_eklavya__upsert_concepts",
       "mcp__plugin_eklavya_eklavya__get_learner_profile",
       "mcp__plugin_eklavya_eklavya__memory_search",
-      "mcp__plugin_eklavya_eklavya__memory_get"
+      "mcp__plugin_eklavya_eklavya__memory_get",
+      "mcp__plugin_eklavya_eklavya__memory_correct",
+      "mcp__plugin_eklavya_eklavya__memory_flag_stale"
     ]
   }
 }
@@ -181,15 +184,15 @@ already there:
 Or paste this into Claude Code and let Claude make the change:
 
 ```text
-Eklavya's tools are being denied by auto mode. Add mcp__plugin_eklavya_eklavya__panel_sync, mcp__plugin_eklavya_eklavya__panel_answer, mcp__plugin_eklavya_eklavya__present_question, mcp__plugin_eklavya_eklavya__log_session_concepts, mcp__plugin_eklavya_eklavya__get_session_quiz_plan, mcp__plugin_eklavya_eklavya__record_attempt, mcp__plugin_eklavya_eklavya__upsert_concepts, mcp__plugin_eklavya_eklavya__get_learner_profile, mcp__plugin_eklavya_eklavya__memory_search and mcp__plugin_eklavya_eklavya__memory_get to permissions.allow in my ~/.claude/settings.json, keeping my existing entries.
+Eklavya's tools are being denied by auto mode. Add mcp__plugin_eklavya_eklavya__panel_sync, mcp__plugin_eklavya_eklavya__panel_answer, mcp__plugin_eklavya_eklavya__present_question, mcp__plugin_eklavya_eklavya__log_session_concepts, mcp__plugin_eklavya_eklavya__get_session_quiz_plan, mcp__plugin_eklavya_eklavya__record_attempt, mcp__plugin_eklavya_eklavya__upsert_concepts, mcp__plugin_eklavya_eklavya__get_learner_profile, mcp__plugin_eklavya_eklavya__memory_search, mcp__plugin_eklavya_eklavya__memory_get, mcp__plugin_eklavya_eklavya__memory_correct and mcp__plugin_eklavya_eklavya__memory_flag_stale to permissions.allow in my ~/.claude/settings.json, keeping my existing entries.
 ```
 
 The Desktop Code tab runs the same engine and reads the same
 `~/.claude/settings.json`, so one rule is meant to cover the terminal and
 Desktop alike; a project's `.claude/settings.json` also applies in both. A
 Desktop session in a different permission mode can still ask or refuse. An allow
-rule is checked before auto mode decides, so these ten calls run
-without being judged. Allow only these ten rather than the whole Eklavya
+rule is checked before auto mode decides, so these twelve calls run
+without being judged. Allow only these twelve rather than the whole Eklavya
 server, which would also let tools such as `memory_delete`, `memory_write` and
 `set_config` run without asking.
 

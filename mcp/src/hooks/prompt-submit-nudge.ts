@@ -59,7 +59,9 @@ import { isSessionOff, setCurrentSession } from '../session.js';
 import { batchIfFull, identityOf, record } from './capture-lib.js';
 import type { ResolvedConfig } from '../config.js';
 import type { EvidenceIdentity } from '../memory/identity.js';
-import { markEmitted, recallForPrompt, type RecallResult } from '../memory/recall.js';
+import { lookupNudge, markEmitted, ownWords, recallForPrompt, searchNudge, type RecallResult } from '../memory/recall.js';
+import { countEntries } from '../memory/store.js';
+import { GLOBAL_PROJECT } from '../store.js';
 import { countUse } from '../telemetry.js';
 import { promptLine } from './delegation-lib.js';
 import { HOST_PROMPT, SLASH, TASK_PROMPT_CHARS } from '../prompt-text.js';
@@ -76,13 +78,19 @@ function promptRecall(
   resolved: ResolvedConfig,
   identity: EvidenceIdentity,
   prompt: string,
+  seen: { matched: boolean },
 ): RecallResult | null {
   try {
-    return recallForPrompt(db, resolved.config, {
-      project: identity.project,
-      sessionId: identity.sessionId,
-      prompt,
-    });
+    return recallForPrompt(
+      db,
+      resolved.config,
+      {
+        project: identity.project,
+        sessionId: identity.sessionId,
+        prompt,
+      },
+      seen,
+    );
   } catch {
     return null;
   }
@@ -232,10 +240,26 @@ await run(async (input) => {
     // we already know about the thing they just asked for", which is the one
     // that catches a change of subject halfway through a session. It returns
     // nothing far more often than not, on purpose.
-    const recalled = promptRecall(db, resolved, identity, input.prompt);
+    const seen = { matched: false };
+    const recalled = promptRecall(db, resolved, identity, input.prompt, seen);
     if (recalled?.block) {
       context.push(recalled.block);
       sent = () => markEmitted(db, recalled, identity.sessionId);
+    }
+    // Recall cannot read a link or a screenshot, so for a prompt that is mostly
+    // one, say plainly to search, with what to start from. Any other task-sized
+    // prompt that matched nothing gets the general reminder; one that matched,
+    // even an entry already handed over, has had its memory. Only where a search can find something:
+    // outside a checkout nothing is filed unless `retrieval.cross_project` is
+    // on, and a new project has nothing yet.
+    const style = resolved.config.memory.lookup_hint;
+    const own = ownWords(input.prompt);
+    const nudge =
+      lookupNudge(input.prompt, style) ??
+      (!seen.matched && own.length >= TASK_PROMPT_CHARS && !SLASH.test(own) ? searchNudge(style) : null);
+    const cross = resolved.config.retrieval.cross_project;
+    if (nudge && (cross || identity.project !== GLOBAL_PROJECT) && countEntries(db, cross ? null : identity.project) > 0) {
+      context.push(nudge);
     }
   }
 
