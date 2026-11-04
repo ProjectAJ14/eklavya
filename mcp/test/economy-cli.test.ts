@@ -221,7 +221,7 @@ describe('eklavya judge, toolprune, facts and experiment', () => {
     toolpruneCommand(['restore']);
     expect(out).toContain('Nothing of Eklavya\'s to restore.');
     toolpruneCommand(['refresh-catalog']);
-    expect(out).toContain('tool(s) seen loaded');
+    expect(out).toContain('tool(s) seen loaded across your repositories');
     expect(() => toolpruneCommand(['bogus'])).toThrow('exit 1');
     fs.writeFileSync(path.join(process.env.EKLAVYA_HOME!, 'config.json'), JSON.stringify({ economy: { toolprune: 'off' } }));
     expect(() => toolpruneCommand(['apply'])).toThrow('exit 1');

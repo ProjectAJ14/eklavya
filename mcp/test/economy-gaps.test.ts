@@ -328,3 +328,46 @@ describe('coercion and tie-breaks', () => {
     expect(r.entries[0]!.id).toBe(newer);
   });
 });
+
+describe('the catalog follows the Claude Code version, and the dashboard can apply and restore', () => {
+  it('drops evidence for tools a new version no longer loads', async () => {
+    const { refreshCatalog, recordToolUse, evidence } = await import('../src/toolprune-store.js');
+    const t = (version: string | null, deferredTools: string[]) => ({ version, tools: {}, deferredTools, prompts: 3 });
+    expect(refreshCatalog(db, repo, t(null, []))).toBe(false);
+    for (const [sid, v, tools] of [['a', '2.1.1', ['Old', 'Kept']], ['b', '2.1.1', ['Old', 'Kept']]] as const) {
+      openSession(db, { sessionId: sid, project: repo, transcriptPath: null });
+      expect(refreshCatalog(db, repo, t(v, [...tools]))).toBe(false);
+      recordToolUse(db, repo, sid, t(v, [...tools]));
+    }
+    expect(refreshCatalog(db, repo, t('2.2.0', ['Kept', 'New']))).toBe(true);
+    expect(evidence(db, repo).map((r) => r.tool)).toEqual(['Kept']);
+  });
+
+  it('refresh-catalog needs no checkout', () => {
+    process.chdir(home);
+    toolpruneCommand(['refresh-catalog']);
+    expect(out).toContain('across your repositories');
+  });
+
+  it('applies and restores through the dashboard\'s write routes, only for a known checkout', async () => {
+    const { WRITES } = await import('../src/dashboard.js');
+    const { appendEvent } = await import('../src/memory/store.js');
+    appendEvent(db, { eventUid: 'inv', project: repo, checkout: repo, sessionId: 'i', kind: 'prompt', body: 'x' });
+    for (const sid of ['a', 'b']) {
+      openSession(db, { sessionId: sid, project: repo, transcriptPath: null });
+      afterFold(db, config(), { sessionId: sid, found: true, effective: 1, unpriced: [], project: repo, summary: { tools: {}, deferredTools: ['CronCreate'], prompts: 6, version: null } as never, file: null });
+    }
+    const apply = WRITES['/api/toolprune/apply']!.handler;
+    const restore = WRITES['/api/toolprune/restore']!.handler;
+    expect(apply(db, { project: '/nowhere' })).toMatchObject({ status: 400 });
+    expect(apply(db, null)).toMatchObject({ status: 400 });
+    expect(apply(db, { project: repo, tools: ['CronCreate', 3] })).toEqual({ status: 200, body: { ok: true, tools: ['CronCreate'] } });
+    expect(restore(db, { project: repo })).toEqual({ status: 200, body: { ok: true, tools: ['CronCreate'] } });
+    // A restored tool is kept, so nothing is left to apply; a broken file refuses a restore.
+    expect(apply(db, { project: repo })).toEqual({ status: 200, body: { ok: true, tools: [] } });
+    fs.mkdirSync(path.join(repo, '.claude'), { recursive: true });
+    fs.writeFileSync(path.join(repo, '.claude', 'settings.local.json'), '{ broken');
+    db.prepare(`INSERT INTO econ_settings_writes (project, record, applied_at) VALUES (?, ?, 'x')`).run(repo, JSON.stringify({ file: path.join(repo, '.claude', 'settings.local.json'), original: null, added: ['Y'], excludeLine: null }));
+    expect(restore(db, { project: repo })).toMatchObject({ status: 409 });
+  });
+});

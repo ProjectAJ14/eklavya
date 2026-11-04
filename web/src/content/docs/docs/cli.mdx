@@ -130,9 +130,9 @@ Every tool a session loads costs context on every request. `eklavya toolprune` l
 | `eklavya toolprune apply [tool...]` | Adds the proposed tools (or the ones named) as bare names to `permissions.deny` in this checkout's `.claude/settings.local.json`, from the next session. Your own rules are left alone. A file it creates is added to `.git/info/exclude`. It refuses a file that is not valid JSON and a `.claude` that leads out of the repository through a symlink. |
 | `eklavya toolprune restore [tool...]` | Removes exactly the entries Eklavya added; when nothing else in the file changed, the file is byte-for-byte what it was. Restored tools are not proposed again. |
 | `eklavya toolprune measure` | How many proposed tools are deferred and about how many tokens of tool listing they cost a request. Full definition sizes of non-deferred tools are not measured. |
-| `eklavya toolprune refresh-catalog` | Prices waiting sessions now, so the evidence includes them. |
+| `eklavya toolprune refresh-catalog` | Prices every waiting session, in any repository, so the evidence is current. Needs no checkout; `eklavya install` runs it in the background. |
 
-Whether a bare tool name in `permissions.deny` removes the tool from a session depends on your Claude Code version; check with `/permissions` after applying. `/eklavya:toolprune` runs the same commands from a session.
+The catalog follows your Claude Code version: when a session in a repository ran on a different version from the last one counted, tools that version did not load at all stop being candidates. Whether a bare tool name in `permissions.deny` removes the tool from a session depends on your Claude Code version; check with `/permissions` after applying. `/eklavya:toolprune` runs the same commands from a session.
 
 ### `eklavya artifacts`
 

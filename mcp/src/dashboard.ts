@@ -39,6 +39,7 @@ import {
 } from './config.js';
 import { applySetting, knownKeys, SETTING_RULES, valueAt, type SettingRule } from './config-path.js';
 import { costReport } from './cost-report.js';
+import { applyProposal, restoreTools } from './toolprune-store.js';
 import {
   artifactsDir, dashboardPort, dbPath, DEFAULT_PORT, eklavyaHome, globalConfigPath, projectConfigPath, projectsDir,
 } from './paths.js';
@@ -2274,7 +2275,30 @@ export type WriteHandler = (db: DB, body: unknown) => { status: number; body: Re
  * one handler; `acceptWrite` gives it the same guard as the rest, and the
  * table-driven test in `dashboard.test.ts` runs every guard against it.
  */
+/**
+ * `POST /api/toolprune/apply` and `/restore`: `{ project, tools? }`. The same
+ * writes as `eklavya toolprune apply|restore` (issue #263), to a checkout the
+ * Settings pages may also write for, never a path the page names freely.
+ */
+function toolprune(action: 'apply' | 'restore'): WriteHandler {
+  return (db, body) => {
+    const b = (body && typeof body === 'object' ? body : {}) as { project?: unknown; tools?: unknown };
+    const project = typeof b.project === 'string' ? pickProject(configurableProjects(db, { fresh: true }), b.project) : null;
+    if (!project) return { status: 400, body: { error: 'Choose a project with a checkout first.' } };
+    const tools = Array.isArray(b.tools) ? b.tools.filter((t): t is string => typeof t === 'string').slice(0, 100) : undefined;
+    const result =
+      action === 'apply'
+        ? applyProposal(db, loadConfig(project.id).config, project.id, project.id, tools)
+        : restoreTools(db, project.id, project.id, tools);
+    if (!result.ok) return { status: 409, body: { error: result.reason } };
+    return { status: 200, body: { ok: true, tools: result.tools } };
+  };
+}
+
 export const WRITES: Record<string, { handler: WriteHandler; maxBytes: number }> = {
+  // `{ project, tools? }`: a hundred tool names fit easily.
+  '/api/toolprune/apply': { handler: toolprune('apply'), maxBytes: 16 * 1024 },
+  '/api/toolprune/restore': { handler: toolprune('restore'), maxBytes: 16 * 1024 },
   '/api/settings': { handler: updateSetting, maxBytes: MAX_SETTINGS_BODY },
   // An option label is at most LIMITS.option characters; 16 KiB holds one
   // JSON-escaped with room to spare.

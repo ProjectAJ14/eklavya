@@ -7,7 +7,7 @@ import path from 'node:path';
 import type { DB } from './db.js';
 import type { EklavyaConfig } from './config.js';
 import { readCalls } from './economy/transcript.js';
-import { applyProposal, measureProposal, proposal, recordToolUse, restoreNewlyProtected, restoreTools, writeRecord } from './toolprune-store.js';
+import { applyProposal, measureProposal, proposal, recordToolUse, refreshCatalog, restoreNewlyProtected, restoreTools, writeRecord } from './toolprune-store.js';
 import { applySetting } from './config-path.js';
 import { foldSessionFacts, injectable, listFacts, retireFact, sessionEvidence } from './memory/pinned.js';
 import { openDb } from './db.js';
@@ -158,6 +158,7 @@ export function afterFold(db: DB, config: EklavyaConfig, r: FoldResult): void {
   if (!r.project || !r.summary) return;
   const repo = fs.existsSync(path.join(r.project, '.git')) ? r.project : null;
   const steps: (() => void)[] = [
+    () => void refreshCatalog(db, r.project!, r.summary!),
     () => recordToolUse(db, r.project!, r.sessionId, r.summary!),
     () => void (repo && restoreNewlyProtected(db, config, r.project!, repo)),
     () => {
@@ -281,6 +282,7 @@ function checkout(): { project: string; repo: string } {
 export function toolpruneCommand(args: string[]): void {
   const [sub = 'list', ...rest] = args;
   const config = loadConfig().config;
+  if (sub === 'refresh-catalog') return refreshAll(config);
   const { project, repo } = checkout();
   withDb((db) => {
     const only = rest.filter((a) => !a.startsWith('--'));
@@ -316,16 +318,23 @@ export function toolpruneCommand(args: string[]): void {
         );
         return;
       }
-      case 'refresh-catalog': {
-        const ids = quietPending(db, Date.now());
-        for (const id of ids) afterFold(db, config, foldSession(db, config, id));
-        const n = (db.prepare('SELECT COUNT(*) AS n FROM econ_tool_use WHERE project = ?').get(project) as { n: number }).n;
-        process.stdout.write(`Folded ${ids.length} waiting session(s). ${n} tool(s) seen loaded in this repository.\n`);
-        return;
-      }
       default:
         fail('Usage: eklavya toolprune [list|apply|restore|measure|refresh-catalog] [tool...]');
     }
+  });
+}
+
+/**
+ * `eklavya toolprune refresh-catalog`: prices every session still waiting, in
+ * any repository, so the catalog and the evidence are current. Install runs
+ * it; it needs no checkout.
+ */
+function refreshAll(config: EklavyaConfig): void {
+  withDb((db) => {
+    const ids = quietPending(db, Date.now());
+    for (const id of ids) afterFold(db, config, foldSession(db, config, id));
+    const n = (db.prepare('SELECT COUNT(DISTINCT tool) AS n FROM econ_tool_use').get() as { n: number }).n;
+    process.stdout.write(`Folded ${ids.length} waiting session(s). ${n} tool(s) seen loaded across your repositories.\n`);
   });
 }
 

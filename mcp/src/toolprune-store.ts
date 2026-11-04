@@ -55,6 +55,23 @@ export function writeRecord(db: DB, project: string): WriteRecord | null {
   return row ? (JSON.parse(row.record) as WriteRecord) : null;
 }
 
+/**
+ * The catalog follows the Claude Code version (issue #263): when a session
+ * here ran on a different version from the last one counted, a tool that
+ * version did not load at all is no longer a candidate, so its evidence goes.
+ * The first session seen only records the version.
+ */
+export function refreshCatalog(db: DB, project: string, t: Pick<TranscriptSummary, 'version' | 'tools' | 'deferredTools'>): boolean {
+  if (!t.version) return false;
+  const key = `toolprune:cc-version:${project}`;
+  const last = (db.prepare('SELECT value FROM meta WHERE key = ?').get(key) as { value: string } | undefined)?.value;
+  db.prepare('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, t.version);
+  if (!last || last === t.version) return false;
+  const loaded = [...new Set([...t.deferredTools, ...Object.keys(t.tools)])];
+  db.prepare(`DELETE FROM econ_tool_use WHERE project = ? AND tool NOT IN (SELECT value FROM json_each(?))`).run(project, JSON.stringify(loaded));
+  return true;
+}
+
 /** Tools to propose for this project: the rule, less tools kept by hand and ones already written. */
 export function proposal(db: DB, config: EklavyaConfig, project: string): ToolEvidence[] {
   const e = config.economy;

@@ -4185,6 +4185,8 @@ $('fix').addEventListener('close', () => {
   if (bar && a) { paintFix(bar, a, FIX.q, FIX.q.corrected_at !== null); $('fix-open')?.focus(); }
 });
 $('view').addEventListener('click', (e) => {
+  const prune = e.target.closest('[data-prune]');
+  if (prune) prunePress(prune);
   if (e.target.closest('#fix-open')) openFix();
   if (e.target.closest('#fix-retry')) loadFix(S.artifacts.find((x) => x.id === CUR.param));
 });
@@ -5663,6 +5665,19 @@ function viewCostPage(which) {
   return [pageHead(titles[which], [], COST_ABOUT), slots[which]()].join('');
 }
 
+/** Apply or Restore on the Tool pruning page: one write, then the page is read again. */
+function prunePress(b) {
+  b.disabled = true;
+  const act = b.dataset.prune;
+  postJson(`/api/toolprune/${act}`, { project: PROJECT, tools: [b.dataset.tool] })
+    .then((r) => {
+      toast.success(r.tools.length ? `${act === 'apply' ? 'Denied' : 'Restored'} ${r.tools.join(', ')}.` : 'Nothing changed.');
+      respForget('/api/cost');
+      render();
+    })
+    .catch((err) => { b.disabled = false; toast.alert(String(err.message || err)); });
+}
+
 function drawCostPage(which, d) {
   const empty = (text) => `<p class="empty">${esc(text)}</p>`;
   if (which === 'sessions') {
@@ -5688,12 +5703,18 @@ function drawCostPage(which, d) {
   }
   if (which === 'tools') {
     if (!d.tools) return empty('Pick a project: tool pruning is per checkout.');
+    // Apply and Restore write this checkout's .claude/settings.local.json, the same as `eklavya toolprune`.
+    // No Apply while pruning is off: `eklavya toolprune apply` would refuse too.
+    const btn = (act, tool, label, off = false) => (off ? '—' : `<button class="chip" data-prune="${act}" data-tool="${esc(tool)}">${esc(label)}</button>`);
     const rows = [
-      ...d.tools.denied.map((t) => `<tr><td><code class="slug">${esc(t)}</code></td><td><span class="pill">denied</span></td><td>eklavya toolprune restore ${esc(t)}</td></tr>`),
-      ...d.tools.proposed.map((r) => `<tr><td><code class="slug">${esc(r.tool)}</code></td><td>unused for ${plural(r.prompts_since, 'prompt')} across ${plural(r.sessions_since, 'session')}</td><td>eklavya toolprune apply ${esc(r.tool)}</td></tr>`),
+      ...d.tools.denied.map((t) => `<tr><td><code class="slug">${esc(t)}</code></td><td><span class="pill">denied</span></td><td>${btn('restore', t, 'Restore')}</td></tr>`),
+      // The name goes through `btn`, which escapes it.
+      ...d.tools.proposed.map(({ tool: name, prompts_since: p, sessions_since: n }) => `<tr><td><code class="slug">${esc(name)}</code></td><td>unused for ${plural(p, 'prompt')} across ${plural(n, 'session')}</td><td>${btn('apply', name, 'Apply', d.tools.mode === 'off')}</td></tr>`),
       ...d.tools.kept.map((t) => `<tr><td><code class="slug">${esc(t)}</code></td><td>kept by you</td><td>—</td></tr>`),
     ];
-    return rows.length ? table([{ t: 'Tool' }, { t: 'State' }, { t: 'Command' }], rows) : empty(`Nothing to propose yet (economy.toolprune: ${d.tools.mode}).`);
+    return rows.length
+      ? table([{ t: 'Tool' }, { t: 'State' }, { t: 'Action' }], rows) + `<p class="empty">Changes apply from the next session in this checkout.</p>`
+      : empty(`Nothing to propose yet (economy.toolprune: ${d.tools.mode}).`);
   }
   if (!d.facts.length) return empty('No pinned fact yet. A fact forms once three sessions confirm it.');
   return table([{ t: 'Fact' }, { t: 'State' }, { t: 'Kind' }, { t: 'Confirmed', n: 1 }, { t: 'Applied', n: 1 }],
