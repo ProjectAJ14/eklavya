@@ -1,0 +1,14 @@
+{
+  "claudeCode": "2.1.318",
+  "scenario": "long",
+  "models": [
+    "claude-sonnet-5-5"
+  ],
+  "modelUsage": {
+    "input": 12,
+    "cacheRead": 105484,
+    "cacheWrite": 13095,
+    "output": 2951
+  },
+  "costUSD": 0.0925
+}
