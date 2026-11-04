@@ -122,6 +122,7 @@ export function foldSessionFacts(
   db.transaction(() => {
     // `only`: touch just the facts this evidence is about (an observer
     // proposal mid-session), so the session's own fold still decays the rest.
+    const markAvoided = db.prepare('UPDATE pinned_fact_shown SET avoided = ? WHERE session_id = ? AND fact_id = ?');
     const live = (db.prepare(`SELECT * FROM pinned_facts WHERE project = ? AND state != 'retired'`).all(project) as FactRow[]).filter(
       (f) => !opts.only || byKey.has(f.fact_key),
     );
@@ -133,6 +134,8 @@ export function foldSessionFacts(
       }
       const e = byKey.get(f.fact_key);
       byKey.delete(f.fact_key);
+      // A FormRepair fact this session was shown: did it run the intent and never the failing form?
+      if (f.family === 'form_repair') markAvoided.run(e?.exercised && !e.verdict ? 1 : 0, sessionId, f.id);
       const params = JSON.parse(f.params!) as Record<string, string | number>;
       let verdict = e?.verdict ?? null;
       // A run that did not need the missing module can pass by luck, so a

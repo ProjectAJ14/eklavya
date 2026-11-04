@@ -12,7 +12,7 @@ explicitly requested by the learner can teach in its own conversation; an explai
 | `eklavya-tutor` | No | Yes, when delegated to teach | Tools | `agents/tutor.md`, plus the memory line when the project has memory |
 | `eklavya-explainer` | No | No | Tools | `agents/explainer.md` |
 
-The loop guard (`economy.loopguard`, off by default) tracks a subagent's tool
+The loop guard (`economy.loopguard`, `nudge` by default) tracks a subagent's tool
 calls as a turn of its own, opened at SubagentStart and keyed by `agent_id`,
 but it never sends a subagent a redirect or a notice: whether a PostToolUse
 `additionalContext` reaches a background agent is not verified yet (issue

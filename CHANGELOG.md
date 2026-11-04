@@ -1,3 +1,17 @@
+# [1.94.0](https://github.com/ProjectAJ14/eklavya/compare/v1.93.0...v1.94.0) (2026-11-04)
+
+
+### Features
+
+* **economy:** loop guard on by default, failures-avoided estimate, Cost page layout ([#275](https://github.com/ProjectAJ14/eklavya/issues/275)) ([e2bf71d](https://github.com/ProjectAJ14/eklavya/commit/e2bf71d15100754cf04868975d44309f3ae6c01d)), closes [#268](https://github.com/ProjectAJ14/eklavya/issues/268)
+
+# [1.93.0](https://github.com/ProjectAJ14/eklavya/compare/v1.92.1...v1.93.0) (2026-11-04)
+
+
+### Features
+
+* **memory:** match prompts on informative words by default ([#274](https://github.com/ProjectAJ14/eklavya/issues/274)) ([451eda7](https://github.com/ProjectAJ14/eklavya/commit/451eda71e003c06be1278704e9d2bf486739169b)), closes [#267](https://github.com/ProjectAJ14/eklavya/issues/267)
+
 ## [1.92.1](https://github.com/ProjectAJ14/eklavya/compare/v1.92.0...v1.92.1) (2026-11-04)
 
 

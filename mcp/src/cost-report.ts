@@ -47,6 +47,15 @@ export function costReport(db: DB, config: EklavyaConfig, project: string | null
     .all(project, project) as { effective: number; settings: string }[]) {
     (JSON.parse(s.settings).memory?.enabled === false ? arms.off : arms.on).push(s.effective);
   }
+  // Estimated: a session shown a FormRepair fact that ran its intent and never its failing form.
+  const avoided = (
+    db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM pinned_fact_shown s JOIN pinned_facts f ON f.id = s.fact_id
+         WHERE s.avoided = 1 AND s.shown_at >= ? AND (? IS NULL OR f.project = ?)`,
+      )
+      .get(since, project, project) as { n: number }
+  ).n;
   const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
   return {
     days: DAYS,
@@ -60,6 +69,8 @@ export function costReport(db: DB, config: EklavyaConfig, project: string | null
     },
     overhead: overheadBySource(db, project, since),
     overhead_rows: overheadRows,
+    loopguard: config.economy.loopguard,
+    failures_avoided: avoided,
     guard: guardCounts(db, project, since),
     guard_events: guardEvents,
     memory_use: { recalls, ...reads, ...staleCounts(db, project) },

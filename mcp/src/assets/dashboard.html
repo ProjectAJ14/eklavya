@@ -274,7 +274,6 @@
   .page__back:hover { color:var(--spot); }
 
   .card { background:var(--panel); border:1px solid var(--line); padding:var(--space-6); }
-  .card--flush { padding:0; }
   .head { margin-bottom:var(--space-4); }
   .head h2 { font-size:var(--text-md); font-weight:var(--weight-bold); letter-spacing:-.01em; margin:0; }
   .head p { color:var(--faint); font-size:13.5px; margin:2px 0 0; max-width:78ch; overflow-wrap:anywhere; }
@@ -1433,6 +1432,9 @@ const T = {
   reuse:    { page:1, only:'all' },
   artifacts:{ page:1, q:'' },
   fbhistory:{ page:1 },
+  costsessions:{ page:1 },
+  costcalls:{ page:1 },
+  costguard:{ page:1 },
 };
 const PER = 20;
 
@@ -5296,7 +5298,7 @@ function viewFeedbackHistory() {
   const p = new URLSearchParams();
   if (PROJECT !== null) p.set('project', PROJECT);
   p.set('page', T.fbhistory.page);
-  const rows = slot('fb-rows', '/api/feedback/list?' + p, drawFbHistory, { label: 'Loading history…', cls: 'card card--flush', region: true });
+  const rows = slot('fb-rows', '/api/feedback/list?' + p, drawFbHistory, { label: 'Loading history…', cls: 'card', region: true });
   return [
     pageHead('History', [plural(S.feedback.acknowledged, 'acknowledged item')], FB.about),
     rows,
@@ -5613,7 +5615,9 @@ const WORKFLOWS = {
 const COST_ABOUT = `Effective tokens are a session's usage in fresh-input-token equivalents of the model that
   served it: cache reads weigh 0.1, 5-minute cache writes 1.25, 1-hour writes 2 and output 5. Measured figures are
   read from Claude Code's transcripts and from the JSON each of Eklavya's own claude -p calls returns; nothing but
-  numbers and tool names is stored. A model with no price row is shown as unpriced, never guessed.`;
+  numbers and tool names is stored. A model with no price row is shown as unpriced, never guessed. Failures avoided
+  by facts is an estimate: the sessions shown a pinned fact that ran its command and never its failing form, which
+  some of them may have done without reading the fact.`;
 const costUrl = () => '/api/cost' + (PROJECT !== null ? '?project=' + encodeURIComponent(PROJECT) : '');
 
 function viewCost() {
@@ -5636,8 +5640,12 @@ function drawCost(d) {
     ['Recalls sent', d.memory_use.recalls, (`count · ${d.days} days`), '', MH('reuse')],
     ['Reads after a recall', d.memory_use.after_recall, (`measured · ${d.memory_use.zero_result} found nothing · ${d.memory_use.flagged} flagged outdated, ${d.memory_use.refreshed} refreshed`), '', MH('reuse')],
     ['Stuck turns redirected', g.redirect ?? 0, (`count · ${g.notice ?? 0} notices, ${g.judge ?? 0} judge calls`), '', CH('guard')],
-    ['Tools denied', d.tools ? d.tools.denied.length : 0, (d.tools ? `count · ${d.tools.proposed.length} proposed` : 'pick a project'), '', CH('tools')],
+    ['Failures avoided by facts', d.failures_avoided, (`estimated · ${d.days} days`), '', CH('facts')],
   ]);
+  // Tool pruning only proposes by default: a proposal waiting is the reader's to apply.
+  const prune = d.tools && d.tools.proposed.length
+    ? nextStep(`<strong>Tool pruning:</strong> ${plural(d.tools.proposed.length, 'unused tool')} could be denied in this checkout, ${d.tools.denied.length} already are. <a href="${esc(CH('tools'))}">Review them</a>.`)
+    : '';
   const weeks = d.weeks.length
     ? card('By week', 'Measured: the sum of each week\'s priced sessions and Eklavya\'s background calls.',
         table([{ t: 'Week' }, { t: 'Sessions', n: 1 }, { t: 'Effective', n: 1 }, { t: 'Eklavya in sessions', n: 1 }, { t: 'Background calls', n: 1 }],
@@ -5648,12 +5656,12 @@ function drawCost(d) {
     ? nextStep(`<strong>Memory on vs off:</strong> ${plural(d.experiment.on, 'session')} with memory on, ${plural(d.experiment.off, 'session')} off. Run <code>eklavya experiment memory --report</code> for the medians.`, true)
     : '';
   const net = nextStep('<strong>Net effect:</strong> not computed. It needs the benchmark run with and without these controls; until then only the measured figures above stand.');
-  return tiles1 + tiles2 + weeks + experiment + net;
+  return tiles1 + tiles2 + prune + weeks + experiment + net;
 }
 
 function viewCostPage(which) {
   const titles = { sessions: 'Sessions', calls: 'Eklavya\'s calls', guard: 'Loop guard', tools: 'Tool pruning', facts: 'Pinned facts' };
-  const host = { label: 'Reading the ledger…', cls: 'card card--flush', region: true };
+  const host = { label: 'Reading the ledger…', cls: 'card', region: true };
   const draw = (d) => drawCostPage(which, d);
   // One literal id per page, so each region keeps its own remembered height.
   const slots = {
@@ -5683,24 +5691,30 @@ function drawCostPage(which, d) {
   const empty = (text) => `<p class="empty">${esc(text)}</p>`;
   if (which === 'sessions') {
     if (!d.sessions.length) return empty('No session has been priced yet.');
-    return table([{ t: 'Session' }, { t: 'Effective', n: 1 }, { t: 'Fresh · cached · written · out' }, { t: 'Eklavya', n: 1 }],
-      d.sessions.map((s) => `<tr><td>${esc(s.started_at ? fmtDate(s.started_at) : '—')} <span class="slug">${esc(s.project ? pname(s.project) : '—')}</span>
-        <br><code class="slug">${esc(s.model ?? '—')}</code>${s.unpriced ? ' <span class="pill due">unpriced</span>' : ''} <span class="slug">· ${plural(s.prompts, 'prompt')}</span></td>
+    const p = page('costsessions', d.sessions.length);
+    return table([{ t: 'Session' }, { t: 'Effective', n: 1 }, { t: 'Eklavya', n: 1 }],
+      slice(d.sessions, p).map((s) => `<tr><td>${esc(s.started_at ? fmtDate(s.started_at) : '—')} <span class="slug">${esc(s.project ? pname(s.project) : '—')}</span>
+        <br><code class="slug">${esc(s.model ?? '—')}</code>${s.unpriced ? ' <span class="pill due">unpriced</span>' : ''} <span class="slug">· ${plural(s.prompts, 'prompt')}
+        · ${fmtN(s.input)} fresh · ${fmtN(s.cache_read)} cached · ${fmtN(s.cache_write_5m + s.cache_write_1h)} written · ${fmtN(s.output)} out</span></td>
         <td class="num">${fmtN(s.effective)}</td>
-        <td class="slug">${fmtN(s.input)} · ${fmtN(s.cache_read)} · ${fmtN(s.cache_write_5m + s.cache_write_1h)} · ${fmtN(s.output)}</td>
-        <td class="num">${fmtN(s.eklavya_effective)}</td></tr>`));
+        <td class="num">${fmtN(s.eklavya_effective)}</td></tr>`))
+      + pager('costsessions', d.sessions.length, p);
   }
   if (which === 'calls') {
     if (!d.overhead_rows.length) return empty('Eklavya has made no model call that was recorded.');
+    const p = page('costcalls', d.overhead_rows.length);
     return table([{ t: 'When' }, { t: 'Source' }, { t: 'Model' }, { t: 'Effective', n: 1 }, { t: 'Reported $', n: 1 }],
-      d.overhead_rows.map((o) => `<tr><td>${esc(fmtDate(o.occurred_at))}</td><td>${esc(o.source)}${o.in_session ? ' <span class="pill">in a session</span>' : ''}</td>
+      slice(d.overhead_rows, p).map((o) => `<tr><td>${esc(fmtDate(o.occurred_at))}</td><td>${esc(o.source)}${o.in_session ? ' <span class="pill">in a session</span>' : ''}</td>
         <td><code class="slug">${esc(o.model ?? '—')}</code>${o.unpriced ? ' <span class="pill due">unpriced</span>' : ''}</td>
-        <td class="num">${fmtN(o.effective)}</td><td class="num">${o.cost_usd === null ? '—' : esc(o.cost_usd.toFixed(3))}</td></tr>`));
+        <td class="num">${fmtN(o.effective)}</td><td class="num">${o.cost_usd === null ? '—' : esc(o.cost_usd.toFixed(3))}</td></tr>`))
+      + pager('costcalls', d.overhead_rows.length, p);
   }
   if (which === 'guard') {
-    if (!d.guard_events.length) return empty('The loop guard has not stepped in. It is off unless economy.loopguard is set.');
+    if (!d.guard_events.length) return empty(d.loopguard === 'off' ? 'The loop guard is off (economy.loopguard).' : 'The loop guard has not stepped in: no turn has looked stuck.');
+    const p = page('costguard', d.guard_events.length);
     return table([{ t: 'When' }, { t: 'What' }, { t: 'Why' }],
-      d.guard_events.map((e) => `<tr><td>${esc(fmtDate(e.at))}</td><td><span class="pill">${esc(e.kind)}</span></td><td>${esc(e.reason ?? '')}</td></tr>`));
+      slice(d.guard_events, p).map((e) => `<tr><td>${esc(fmtDate(e.at))}</td><td><span class="pill">${esc(e.kind)}</span></td><td>${esc(e.reason ?? '')}</td></tr>`))
+      + pager('costguard', d.guard_events.length, p);
   }
   if (which === 'tools') {
     if (!d.tools) return empty('Pick a project: tool pruning is per checkout.');
@@ -5717,6 +5731,7 @@ function drawCostPage(which, d) {
       ? table([{ t: 'Tool' }, { t: 'State' }, { t: 'Action' }], rows) + `<p class="empty">Changes apply from the next session in this checkout.</p>`
       : empty(`Nothing to propose yet (economy.toolprune: ${d.tools.mode}).`);
   }
+  if (PROJECT === null) return empty('Pick a project: pinned facts are per checkout.');
   if (!d.facts.length) return empty('No pinned fact yet. A fact forms once three sessions confirm it.');
   return table([{ t: 'Fact' }, { t: 'State' }, { t: 'Kind' }, { t: 'Confirmed', n: 1 }, { t: 'Applied', n: 1 }],
     d.facts.map((f) => `<tr><td>${esc(f.text)}</td><td><span class="pill${f.state === 'retired' ? ' due' : ''}">${esc(f.state)}</span>${f.retired_reason ? ` ${esc(f.retired_reason)}` : ''}</td>

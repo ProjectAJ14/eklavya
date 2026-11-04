@@ -307,6 +307,13 @@ describe('last edges', () => {
     const r = costReport(db, config(), repo);
     expect(r.facts).toHaveLength(1);
     expect(r.tools!.denied).toEqual(['X']);
+    expect(r).toMatchObject({ loopguard: 'nudge', failures_avoided: 0 });
+    // A session shown a fact that never ran the failing form counts, in its project only.
+    const fid = (db.prepare('SELECT id FROM pinned_facts').get() as { id: number }).id;
+    db.prepare(`INSERT INTO pinned_fact_shown (session_id, fact_id, shown_at, avoided) VALUES ('c2', ?, ?, 1)`).run(fid, new Date().toISOString());
+    expect(costReport(db, config(), repo).failures_avoided).toBe(1);
+    expect(costReport(db, config(), null).failures_avoided).toBe(1);
+    expect(costReport(db, config(), '/elsewhere').failures_avoided).toBe(0);
   });
 });
 

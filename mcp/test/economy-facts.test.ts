@@ -143,6 +143,26 @@ describe('the lifecycle', () => {
     expect(listFacts(db, P, true)[0]).toMatchObject({ state: 'retired', retired_reason: 'contradicted' });
   });
 
+  it('records which shown sessions avoided the failing form (issue #268)', () => {
+    for (const s of ['s1', 's2', 's3']) foldSessionFacts(db, P, s, sessionEvidence(db, P, missing));
+    const avoided = (sid: string) => (db.prepare('SELECT avoided FROM pinned_fact_shown WHERE session_id = ?').get(sid) as { avoided: number | null }).avoided;
+    // Shown, then the working form only: avoided.
+    pinnedLines(db, config(), P, 'a');
+    foldSessionFacts(db, P, 'a', sessionEvidence(db, P, [bash('python -m pytest', 'ok')]));
+    expect(avoided('a')).toBe(1);
+    // Shown, and the failing form run anyway: not avoided.
+    pinnedLines(db, config(), P, 'b');
+    foldSessionFacts(db, P, 'b', sessionEvidence(db, P, missing));
+    expect(avoided('b')).toBe(0);
+    // Shown, and the intent never needed: nothing was avoided.
+    pinnedLines(db, config(), P, 'c');
+    foldSessionFacts(db, P, 'c', sessionEvidence(db, P, [bash('ls', 'a')]));
+    expect(avoided('c')).toBe(0);
+    // Shown but not yet folded: unknown.
+    pinnedLines(db, config(), P, 'd');
+    expect(avoided('d')).toBeNull();
+  });
+
   it('needs two sessions in a row to retire a missing-module fact', () => {
     const missingModule = [bash('python app.py', "ModuleNotFoundError: No module named 'y'", true), bash('.venv/bin/python app.py', 'ok')];
     for (const s of ['m1', 'm2', 'm3']) foldSessionFacts(db, P, s, sessionEvidence(db, P, missingModule));

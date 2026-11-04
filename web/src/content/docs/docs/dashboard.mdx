@@ -210,12 +210,12 @@ The Cost workflow reads the cost ledger, the same rows `eklavya cost --export cs
 
 | Page | What it lists |
 | --- | --- |
-| **Dashboard** | Sessions priced, their effective tokens (and how many used a model with no price row), Eklavya's share inside sessions (quiz turns and its subagents), Eklavya's background calls in the last 30 days, recalls sent and memory reads after them (with how many found nothing, and how many entries are flagged outdated or were refreshed), stuck turns redirected and tools denied; then the sums by week. A memory on/off note appears once `eklavya experiment memory` has run. The net effect is not computed: it needs the benchmark run. |
-| **Sessions** | Each priced session: when, project, model, effective tokens, the fresh · cached · written · output split and Eklavya's share. |
-| **Eklavya's calls** | Each observer, feedback, judge and refresh call, and each Eklavya subagent (labelled as inside its session, never added twice), with what `claude -p` reported it cost. |
-| **Loop guard** | Every redirect, notice, judge call and headless stop, with the reason. |
+| **Dashboard** | Sessions priced, their effective tokens (and how many used a model with no price row), Eklavya's share inside sessions (quiz turns and its subagents), Eklavya's background calls in the last 30 days, recalls sent and memory reads after them (with how many found nothing, and how many entries are flagged outdated or were refreshed), stuck turns redirected, and **failures avoided by facts** in the last 30 days (estimated: sessions shown a pinned command fact that ran its command and never its failing form, which opens Pinned facts); a note when tool pruning has tools to propose for the chosen project; then the sums by week. A memory on/off note appears once `eklavya experiment memory` has run. The net effect is not computed: it needs the benchmark run. |
+| **Sessions** | Each priced session, 20 to a page: when, project, effective tokens and Eklavya's share, with the model, prompts and the fresh · cached · written · output split on its second line. |
+| **Eklavya's calls** | 20 to a page: each observer, feedback, judge and refresh call, and each Eklavya subagent (labelled as inside its session, never added twice), with what `claude -p` reported it cost. |
+| **Loop guard** | Every redirect, notice, judge call and headless stop, with the reason, 20 to a page. |
 | **Tool pruning** | For the chosen project: tools denied, each with a **Restore** button; tools proposed with their evidence, each with an **Apply** button (none while `economy.toolprune` is `off`); and tools you kept. The buttons make the same change as `eklavya toolprune apply` and `restore`, from the next session. |
-| **Pinned facts** | For the chosen project: every fact, active, forming or retired, with its confirmations and how often it applied. |
+| **Pinned facts** | For the chosen project (pick one first: facts are per checkout): every fact, active, forming or retired, with its confirmations and how often it applied. |
 
 The ledger is read when the page opens, not carried in the live stream, so a session that ends while the page is open appears at the next visit.
 

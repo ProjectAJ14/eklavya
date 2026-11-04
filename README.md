@@ -104,10 +104,10 @@ does that.
 `eklavya cost` shows what your recent sessions here cost, measured from Claude
 Code's own transcripts (token counts only), and how much of it was Eklavya's.
 Its prompt counts are prompts you typed, not background tasks reporting back.
-Three optional controls ship off or in propose mode until they are measured: a
-loop guard that redirects a turn stuck repeating the same failure, tool pruning
-that proposes denying tools a repository never uses, and pinned facts learned
-from failures that recur. See [cost controls](https://eklavya-run.web.app/docs/how-it-works/#cost-controls).
+Three controls come with it: a loop guard that redirects a turn stuck repeating
+the same failure (on), pinned facts learned from failures that recur (on), and
+tool pruning, which only proposes denying tools a repository never uses until
+you apply it. See [cost controls](https://eklavya-run.web.app/docs/how-it-works/#cost-controls).
 
 ## Artifacts
 

@@ -2003,9 +2003,9 @@ describe('the SubagentStart directive', () => {
       expect(additionalContext(subagent())).not.toContain('memory_search');
     });
 
-    it('says nothing at all with questions and memory both off', () => {
+    it('says nothing at all with questions, memory and the loop guard off', () => {
       remember();
-      configure({ quiz: { enabled: false }, memory: { enabled: false } });
+      configure({ quiz: { enabled: false }, memory: { enabled: false }, economy: { loopguard: 'off' } });
       expect(silent(subagent())).toBe(true);
     });
 
