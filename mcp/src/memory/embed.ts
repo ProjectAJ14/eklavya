@@ -1,3 +1,5 @@
+import { informativeTerms } from './terms.js';
+
 /**
  * Local semantic vectors (ADR-03).
  *
@@ -14,6 +16,22 @@
 
 export const LOCAL_EMBEDDER = 'local-hash-v1';
 export const LOCAL_DIM = 256;
+
+/**
+ * The second local embedder (issue #258): the same hashing idea with the noise
+ * taken out. Stopwords are dropped, identifiers are split on case and
+ * underscores (and kept whole), and the vector has 1,024 buckets instead of
+ * 256, so unrelated words collide a quarter as often. A query may weight its
+ * words by rarity (see `semanticSearch`), so a word every entry uses counts for
+ * less than one only a few do.
+ *
+ * New entries are embedded with this one. Entries written before it keep their
+ * `local-hash-v1` vector until the worker re-embeds them in the background
+ * (`reembedLegacy` in store.ts); search compares each entry with the query
+ * embedded the same way, so both stay readable during the switch.
+ */
+export const LOCAL_EMBEDDER_V2 = 'local-hash-v2';
+export const LOCAL_DIM_V2 = 1024;
 
 function fnv1a(s: string): number {
   let h = 0x811c9dc5;
@@ -47,6 +65,26 @@ export function embedLocal(text: string, dim = LOCAL_DIM): Float32Array {
   // twenty times more about the document than a word used once. `log1p` rather
   // than `1 + log`, which goes negative below 1 -- a single n-gram hit weighs
   // 0.35, and a negative weight makes two related documents score as opposites.
+  for (let i = 0; i < dim; i++) {
+    const v = vec[i]!;
+    if (v > 0) vec[i] = Math.log1p(v);
+  }
+  return normalise(vec);
+}
+
+/**
+ * `local-hash-v2`. `weight` scales each term (default 1); search passes a
+ * rarity weight for the query, entries are embedded unweighted.
+ */
+export function embedLocalV2(text: string, weight: (term: string) => number = () => 1): Float32Array {
+  const dim = LOCAL_DIM_V2;
+  const vec = new Float32Array(dim);
+  for (const term of informativeTerms(text)) {
+    const w = weight(term);
+    vec[fnv1a(term) % dim]! += w;
+    const padded = `^${term}$`;
+    for (let i = 0; i + 4 <= padded.length; i++) vec[fnv1a(padded.slice(i, i + 4)) % dim]! += 0.35 * w;
+  }
   for (let i = 0; i < dim; i++) {
     const v = vec[i]!;
     if (v > 0) vec[i] = Math.log1p(v);

@@ -38,6 +38,8 @@
  * (`min_minutes_between_checkpoints` here, `min_minutes_between_quizzes` under
  * `end`), `max_stop_blocks_per_session`, and the remaining session budget.
  */
+import { closeTurn } from '../loop-guard.js';
+import { economyOff } from './economy-lib.js';
 import { isCowork } from '../surface.js';
 import { run, openExisting, config, cwdOf, sessionId, minutesSince } from './lib.js';
 import { isSessionOff, quietMinutesLeft, workSince } from '../session.js';
@@ -70,6 +72,22 @@ await run(async (input) => {
   const cwd = cwdOf(input);
   const sid = sessionId(input, db);
   if (!sid) return 0;
+
+  // The loop guard's turn ends here, unless this hook blocks the Stop to ask a
+  // question: Claude then carries on in the same turn, and the Stop after that
+  // closes it. A green turn teaches the guard how long turns in this repository
+  // usually run (issue #262). On exit, so every early return below closes it.
+  let blocking = false;
+  if (config(cwd).config.economy.loopguard !== 'off' && !economyOff()) {
+    process.once('exit', () => {
+      if (blocking) return;
+      try {
+        closeTurn(db, { sessionId: sid });
+      } catch {
+        /* An unclosed turn is closed as unknown at the next prompt. */
+      }
+    });
+  }
 
   // The end of a turn is the natural seam: close the open batch and summarise
   // it. Before every learning gate below, because memory is not governed by
@@ -357,6 +375,7 @@ await run(async (input) => {
   // their session just hit an error. No `systemMessage` -- that field is a
   // warning banner too, and the hook already has a `statusMessage`.
   countUse(db, 'quiz:stop');
+  blocking = true;
   process.stdout.write(
     `${JSON.stringify({
       hookSpecificOutput: { hookEventName: 'Stop', additionalContext: context },

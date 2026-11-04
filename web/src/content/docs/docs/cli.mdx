@@ -72,6 +72,7 @@ Run project-specific commands from inside the checkout. Memory maintenance does 
 | `import <source.db>` | Imports Claude Mem history. Options are [below](#importing-claude-mem-history). |
 | `export <file> [--force]` | Writes a private, versioned JSON memory backup. Refuses to replace an existing file without `--force`. |
 | `restore <file>` | Adds missing memory from an export and rebuilds its search data. Repeating the restore adds no duplicates. |
+| `facts [--all]` / `facts retire <id>` | Lists this project's [pinned facts](/docs/memory/#pinned-facts) with their evidence: how many sessions confirmed each, how often it applied, and whether it is shown at session start. `--all` adds retired ones. `retire <id>` stops one being shown. |
 | `sync push\|pull\|status [--target <dir>]` | Exchanges memory entries, tags, corrections and deletions through a shared folder. Requires `sync.enabled` and a target. A record that arrives late is still applied; `pull` and `status` report what other devices still owe. Learning history, raw evidence and receipts do not sync. |
 
 If processing paused because of login, quota or a missing `claude` command, fix that problem and run `eklavya memory process` to resume now. Otherwise, automatic seams check at most every 30 minutes and resume once the login is back or an hour has passed since a usage limit; meanwhile they write local observations for waiting work. See [when the model is unavailable](/docs/memory/#when-the-model-is-unavailable). Only one worker runs at a time; it handles up to four batches before handing remaining ready jobs to a fresh worker. To keep model processing off, clear `providers.observer`.
@@ -101,6 +102,37 @@ eklavya memory import ~/.claude-mem/claude-mem.db --dry-run
 | `--map-here <name>` | Assigns it to the checkout you are in. |
 
 Imports preserve original dates, do not duplicate rows, and never count imported concepts as assessed knowledge. Re-running with a better map moves unplaced rows to their checkout. Unplaced history remains searchable with `--all-projects`. Unsupported newer source schemas are rejected. See [Moving from Claude Mem](/docs/migrating/) for the installer flow and rollback.
+
+## Cost
+
+These read the cost ledger (`economy.ledger`, on by default). A session is priced from its Claude Code transcript when it ends, or by the next session start once it has been quiet for ten minutes. Effective tokens are fresh-input-token equivalents of the model that served them: cache reads weigh 0.1, 5-minute cache writes 1.25, 1-hour cache writes 2 and output 5. A model with no price row is shown as unpriced rather than guessed.
+
+| Command | Purpose and options |
+| --- | --- |
+| `eklavya cost` | The last ten priced sessions in this repository: effective tokens and model, the fresh, cached, written and output split, Eklavya's share (turns that called its tools, and its subagents) and its background calls, then what the loop guard did and Eklavya's own `claude -p` calls in the last seven days. `--limit <n>`, `--all` for every repository, `--by-week` for weekly sums, `--export csv` for one row per session, which a team lead can collect without a central service. |
+| `eklavya fold <session> [--transcript <file>]` / `fold --pending` | Prices a session now, or every session that has gone quiet. The hooks run this for you, detached. |
+| `eklavya judge <turn>` | Asks `providers.judge` whether a loop-guard turn is stuck. The guard starts this for you, detached; the call is recorded in the ledger. |
+| `eklavya experiment memory --sessions <n>` | Alternates `memory.enabled` for this project at each priced session, for `n` sessions (2–200), then puts your setting back. `--report` shows the median effective tokens and prompts per arm; `--stop` ends it early. A few dozen sessions is a signal, not proof. |
+
+```bash
+eklavya cost
+eklavya cost --by-week
+eklavya cost --all --export csv > cost.csv
+```
+
+### Tool pruning
+
+Every tool a session loads costs context on every request. `eklavya toolprune` lists the tools this repository's sessions load and never use: unused for `economy.toolprune_evidence` prompts across `economy.toolprune_min_sessions` sessions, or for `economy.toolprune_sessions` sessions. It never proposes Claude Code's core tools (Bash, Read, Edit, Write, MultiEdit, NotebookEdit, Grep, Glob, AskUserQuestion, the plan-mode tools, TodoWrite, WebFetch, WebSearch, Agent, Task, Skill, ToolSearch), any Eklavya tool, or one listed in `economy.toolprune_protect`.
+
+| Command | Purpose |
+| --- | --- |
+| `eklavya toolprune [list]` | The proposal with its evidence, and what Eklavya already denied. Writes nothing. |
+| `eklavya toolprune apply [tool...]` | Adds the proposed tools (or the ones named) as bare names to `permissions.deny` in this checkout's `.claude/settings.local.json`, from the next session. Your own rules are left alone. A file it creates is added to `.git/info/exclude`. It refuses a file that is not valid JSON and a `.claude` that leads out of the repository through a symlink. |
+| `eklavya toolprune restore [tool...]` | Removes exactly the entries Eklavya added; when nothing else in the file changed, the file is byte-for-byte what it was. Restored tools are not proposed again. |
+| `eklavya toolprune measure` | How many proposed tools are deferred and about how many tokens of tool listing they cost a request. Full definition sizes of non-deferred tools are not measured. |
+| `eklavya toolprune refresh-catalog` | Prices every waiting session, in any repository, so the evidence is current. Needs no checkout; `eklavya install` runs it in the background. |
+
+The catalog follows your Claude Code version: when a session in a repository ran on a different version from the last one counted, tools that version did not load at all stop being candidates. A bare tool name in `permissions.deny` removes that tool from the next session (checked on Claude Code 2.1.318); on another version, check with `/permissions` after applying. `/eklavya:toolprune` runs the same commands from a session.
 
 ### `eklavya artifacts`
 

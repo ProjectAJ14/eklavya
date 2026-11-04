@@ -82,9 +82,25 @@ This needs [`explain_on_wrong`](/docs/configuration/#every-key) on (the default)
   ]}
 />
 
-Raw events, observations, and answers live in `~/.eklavya/knowledge.db` by default. Recall is limited to the current project unless you enable cross-project retrieval. See [memory](/docs/memory/) for capture controls, search, collections, code indexing, and optional integrations, or [your data](/docs/your-data/) for storage and backup.
+Raw events, observations, and answers live in `~/.eklavya/knowledge.db` by default. Recall is limited to the current project unless you enable cross-project retrieval. Session start sends the newest work unless `retrieval.seam_query` ranks it by what you are working on, and a prompt is matched by the gate `retrieval.prompt_gate` sets. See [memory](/docs/memory/) for capture controls, search, collections, code indexing, and optional integrations, or [your data](/docs/your-data/) for storage and backup.
 
 Recalled text becomes part of the Claude conversation. New installs also send captured evidence to `claude-sonnet-5` for memory summaries and prompt feedback, through your Claude Code login. Notifications and sync are optional and use the services or folders you configure. Installation and update checks contact the package registry. The daily [usage ping](/docs/usage-analytics/) sends anonymous counts to Google Analytics unless you turn it off.
+
+## Cost controls
+
+Four parts, translated from [TokenEconomizer](https://github.com/microsoft/TokenEconomizer) (Apache-2.0). Each has its own setting under [`economy`](/docs/configuration/#economy--cost-controls).
+
+**The ledger** (on). Session start opens a row for the session; when it ends (`SessionEnd`), or once its transcript has been quiet for ten minutes, a detached `eklavya fold` reads the transcript's token usage, de-duplicated by message and with subagents folded in, and prices it per model: cache reads at 0.1 of fresh input, 5-minute cache writes at 1.25, 1-hour writes at 2, output at 5. Turns that called Eklavya's tools and Eklavya's own subagents are its share. Every `claude -p` call Eklavya makes (observer, feedback, judge, refresh) is recorded from the JSON it returns. A model with no price row is reported as unpriced. The session banner gains a line such as `Last session · 1.2M effective tokens on claude-opus-4-6 · Eklavya 3%`.
+
+### The loop guard
+
+Off by default (`economy.loopguard`). Each prompt opens a turn, and every tool call is folded into it: edits per file (shell edits such as `sed -i` count), error outputs, check runs and how often a failure repeats one seen before. A turn is stuck when it has run a while, keeps editing one file or scatters across several, keeps erroring and repeats the same failures. With `providers.judge` set, a free gate decides when the turn is worth a look and a detached judge call decides whether it is stuck; the hook never waits for it. Without one, the strict rule decides once the turn is past the repository's usual green-turn length. A stuck turn gets one redirect as context (`economy.nudges`), mirroring its own actions and suggesting a different hypothesis, then one notice: Claude is asked to tell you in a line, and the status bar shows `loop guard: this turn looks stuck`. An interactive turn is never stopped. Subagent turns are tracked but not nudged. Turns that end green, meaning a check ran after the last edit and passed, teach the guard how long turns here usually run; a turn that edited without checking is unknown and teaches nothing.
+
+**Tool pruning** (propose). The fold counts, per repository, how many prompts and sessions have passed since each loaded tool was last used. `eklavya toolprune` lists the unused ones and writes the deny list only when you apply it. See [tool pruning](/docs/cli/#tool-pruning).
+
+**Pinned facts** (free). Recurring failures become one-line environment facts that lead the session-start recall once three sessions confirm them. See [pinned facts](/docs/memory/#pinned-facts).
+
+The hooks only open rows and fold counts; transcripts are read, models are called and settings files are written by detached processes or by you. `EKLAVYA_ECONOMY=off` turns the ledger, the guard and the banner's cost line off for one session.
 
 ## Prompt feedback
 

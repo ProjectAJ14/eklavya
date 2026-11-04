@@ -24,6 +24,7 @@
  *               shows the tools are discoverable and callable in a fresh session
  *
  *   node eval/memory-use-harness.mjs run --plugin <dir> --label <name> [--arms relevant,off] [--trials 3]
+ *   node eval/memory-use-harness.mjs run ... --config '{"retrieval":{"prompt_gate":"terms"}}'
  *   node eval/memory-use-harness.mjs score <run-dir> [<run-dir> ...]
  *
  * The fact never appears in the prompt or the fixture, so a `;` delimiter with
@@ -37,6 +38,7 @@
  * per trial with its database seeded before the session starts, questions,
  * updates, telemetry and the dashboard off. All fixture memory is synthetic.
  */
+import Database from '../mcp/node_modules/better-sqlite3/lib/index.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -155,10 +157,24 @@ function prepare(trialDir, plugin, arm) {
   fs.mkdirSync(home, { recursive: true });
   fs.writeFileSync(
     path.join(home, 'config.json'),
-    JSON.stringify({ auto_update: false, telemetry: false, dashboard_autostart: false, quiz: { enabled: false }, memory: { enabled: arm.memory } }, null, 2),
+    JSON.stringify(withExtra({ auto_update: false, telemetry: false, dashboard_autostart: false, quiz: { enabled: false }, memory: { enabled: arm.memory } }), null, 2),
   );
   const seeded = seed(plugin, home, fs.realpathSync(repo), arm.seed);
   return { repo, home, seeded };
+}
+
+/**
+ * `--config '<json>'`: settings merged into every trial's config, one level
+ * deep per namespace, to compare a setting against the defaults (issue #258:
+ * `{"retrieval":{"seam_query":true,"prompt_gate":"terms"}}`). An arm's own
+ * `memory.enabled` still wins.
+ */
+function withExtra(base) {
+  const extra = JSON.parse(flag('config') ?? '{}');
+  const out = { ...base };
+  for (const [k, v] of Object.entries(extra)) out[k] = v && typeof v === 'object' && !Array.isArray(v) ? { ...(out[k] ?? {}), ...v } : v;
+  if (base.memory) out.memory = { ...out.memory, enabled: base.memory.enabled };
+  return out;
 }
 
 const sessions = [];
@@ -206,9 +222,20 @@ function inspectCode(repo) {
 
 function dbFacts(home) {
   const db = path.join(home, 'knowledge.db');
+  // The `sqlite3` CLI when there is one; otherwise the driver the runtime
+  // already ships (a cloud container may have no CLI).
   const q = (sql) => {
-    const out = spawnSync('sqlite3', ['-json', db, sql], { encoding: 'utf8' }).stdout.trim();
-    return out ? JSON.parse(out) : [];
+    const res = spawnSync('sqlite3', ['-json', db, sql], { encoding: 'utf8' });
+    if (!res.error) {
+      const out = res.stdout.trim();
+      return out ? JSON.parse(out) : [];
+    }
+    const conn = new Database(db, { readonly: true });
+    try {
+      return conn.prepare(sql).all();
+    } finally {
+      conn.close();
+    }
   };
   return {
     receipts: q('SELECT scope, delivery, item_count, delivered_tokens FROM context_receipts ORDER BY id'),
@@ -232,7 +259,7 @@ async function runCommand() {
   const host = spawnSync('claude', ['--version'], { encoding: 'utf8' }).stdout.trim();
   fs.writeFileSync(
     path.join(outDir, 'run.json'),
-    JSON.stringify({ label, plugin, revision, dirty, version, host, trials, arms, model: flag('model') ?? 'host default', started: new Date().toISOString() }, null, 2),
+    JSON.stringify({ label, plugin, revision, dirty, version, host, trials, arms, config: JSON.parse(flag('config') ?? '{}'), model: flag('model') ?? 'host default', started: new Date().toISOString() }, null, 2),
   );
 
   const jobs = [];

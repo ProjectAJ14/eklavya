@@ -432,11 +432,12 @@ describe('memory read log', () => {
     expect(status.host_acknowledgement).toBe('unavailable');
   });
 
-  it('never stores what was asked or what came back', () => {
+  it('stores only the informative terms of what was asked, never the query as typed or what came back', () => {
     write({ title: 'Secretive title', body: 'A narrative nobody should find in the read log.' });
-    call<any>(memorySearch, { query: 'secretive narrative query words' });
+    call<any>(memorySearch, { query: 'can you please find the secretive narrative for me' });
     const row = JSON.stringify(reads());
-    expect(row).not.toMatch(/Secretive|narrative|query words/);
+    expect(reads()[0]).toMatchObject({ query_terms: 'find secretive narrative' });
+    expect(row).not.toMatch(/Secretive title|nobody should find|can you please/);
   });
 
   it('answers a receipt that is gone, unlinked, instead of failing the read', () => {

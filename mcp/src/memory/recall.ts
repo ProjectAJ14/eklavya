@@ -3,7 +3,10 @@ import type { EklavyaConfig } from '../config.js';
 import { decayedScore, isKnown, isOwed, streakOf } from '../srs.js';
 import { GLOBAL_PROJECT, projectKey } from '../store.js';
 import { ESTIMATOR, RECEIPT_HINT, estimateTokens, pullLine } from './tokens.js';
-import { keywordSearch, search, semanticSearch, type SearchHit } from './search.js';
+import { keywordSearch, search, semanticSearch, termRarity, type SearchFilter, type SearchHit } from './search.js';
+import { LOCAL_EMBEDDER, LOCAL_EMBEDDER_V2 } from './embed.js';
+import { informativeTermGroups, informativeTerms } from './terms.js';
+import { entryUse } from './use.js';
 import { entryEvents, markReceiptEmitted, recordReceipt, timeline, type Delivery, type EntryRow } from './store.js';
 import { defangFence } from './privacy.js';
 
@@ -95,6 +98,18 @@ export interface RecallOptions {
    * thing and stays a ranked list.
    */
   index?: boolean;
+  /**
+   * Seam only: what the developer is working on now (`seamQueryOf`), when
+   * `retrieval.seam_query` is on. The "in full" entries are then the best
+   * matches for it, recency breaking ties, and the timeline stays the newest
+   * work. Null or no match: newest first, as without it.
+   */
+  seamQuery?: string | null;
+  /**
+   * Seam only: the pinned facts (`memory/pinned.ts`), shown first. Their
+   * budget is their own (`memory.pinned_facts`), not `retrieval.max_tokens`.
+   */
+  pinned?: string[] | null;
 }
 
 /**
@@ -111,7 +126,7 @@ export interface RecallOptions {
  * ponytail: fixed allowances rather than config keys; make them dials if
  * someone needs a wider or narrower timeline.
  */
-export const INDEX_MAX_ITEMS = 50;
+export const INDEX_MAX_ITEMS = 50; // the default of `retrieval.timeline_items`
 export const INDEX_MAX_TOKENS = 1_100;
 /** Claude Code replaces any hook output longer than this with a stub. */
 export const HOOK_CONTEXT_CHARS = 10_000;
@@ -188,12 +203,12 @@ function parseList(json: string | null): string[] {
  * that closes `</eklavya-memory>` would otherwise end the evidence frame early
  * and leave the rest of itself reading as instruction.
  */
-function renderEntry(entry: EntryRow, index: number, narrativeChars?: number): string {
+function renderEntry(entry: EntryRow, index: number, narrativeChars?: number, stale?: string | null): string {
   const files = parseList(entry.files).map((f) => defangFence(String(f)));
   const facts = parseList(entry.facts).map((f) => defangFence(String(f)));
   const title = defangFence(entry.title);
   const type = defangFence(entry.type ?? 'change');
-  const lines = [`${index}. [#${entry.id}] ${title} — ${type}, ${entry.occurred_at.slice(0, 10)}`];
+  const lines = [`${index}. [#${entry.id}] ${title} — ${type}, ${entry.occurred_at.slice(0, 10)}${stale ? ` — may be outdated (${defangFence(stale)})` : ''}`];
   if (entry.narrative) {
     const cut = narrativeChars !== undefined && entry.narrative.length > narrativeChars;
     const text = cut ? `${entry.narrative.slice(0, narrativeChars)}… [excerpt: memory_get #${entry.id} for the rest]` : entry.narrative;
@@ -264,22 +279,40 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
   const ranked: EntryRow[] = opts.candidates
     ? opts.candidates.filter((e) => allowed(e.id) && (!ownSession || e.session_id !== ownSession))
     : hits.map((h) => h.entry);
+  const timelineCap = config.retrieval.timeline_items;
+  const recentList = (): EntryRow[] =>
+    timeline(db, {
+      // `cross_project` widens the seam recall too, not only a search. A dial
+      // that only applied when someone typed a query would be off precisely
+      // where a developer with two checkouts open would notice it.
+      project: config.retrieval.cross_project ? null : opts.project,
+      // A corrected entry is history, not memory to act on (issue #83).
+      excludeSuperseded: true,
+      excludeSessionId: ownSession,
+      limit: limit + exclude.size + (opts.index ? timelineCap : 0),
+    }).filter((entry) => allowed(entry.id));
+  // Newest work, which the timeline is made of; the seam's fallback pool.
+  const recent: EntryRow[] = ranked.length || opts.candidates ? [] : recentList();
+  // Entries that were used when sent before rank first among equals (issue #259).
+  const utilities = opts.index && opts.seamQuery ? entryUse(db, recent.map((e) => e.id)) : new Map<number, { utility: number }>();
+  const utility = (id: number) => utilities.get(id)?.utility ?? 0;
+  // The seam query's matches, best first, ties to the more useful, then the newer (issue #258).
+  // Session summaries are left to the checkpoint and the timeline.
+  const seamRanked: EntryRow[] =
+    opts.index && opts.seamQuery && recent.length
+      ? search(db, opts.seamQuery, config.retrieval.mode, { ...filter, embedder: 'v2', limit: limit * 3 + exclude.size })
+          .filter((h) => allowed(h.entry.id) && h.entry.kind !== 'session_summary')
+          .sort((a, b) => b.score - a.score || utility(b.entry.id) - utility(a.entry.id) || b.entry.occurred_at.localeCompare(a.entry.occurred_at))
+          .map((h) => h.entry)
+      : [];
+  const seamIds = new Set(seamRanked.map((e) => e.id));
   const pool: EntryRow[] = ranked.length
     ? ranked
     : opts.candidates
       // A caller that supplied candidates and had none left after exclusion
       // meant "nothing", not "fall back to whatever is recent".
       ? []
-      : timeline(db, {
-        // `cross_project` widens the seam recall too, not only a search. A dial
-        // that only applied when someone typed a query would be off precisely
-        // where a developer with two checkouts open would notice it.
-        project: config.retrieval.cross_project ? null : opts.project,
-        // A corrected entry is history, not memory to act on (issue #83).
-        excludeSuperseded: true,
-        excludeSessionId: ownSession,
-        limit: limit + exclude.size + (opts.index ? INDEX_MAX_ITEMS : 0),
-        }).filter((entry) => allowed(entry.id));
+      : [...seamRanked, ...recent.filter((e) => !seamIds.has(e.id))];
   if (!pool.length) return empty;
 
   // The seam: the newest session summary is the checkpoint and goes first in
@@ -299,16 +332,20 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
   // And only when it is the last work here: a later session with no summary
   // (too short, or its checkpoint still queued) did newer work, which the
   // timeline and the full entries already show.
-  const later = pool.find(
+  const later = (recent.length ? recent : pool).find(
     (e) => e.kind !== 'session_summary' && e.project === opts.project && e.session_id !== opts.sessionId,
   );
   const checkpoint =
     newest && (!later || later.session_id === newest.session_id || later.occurred_at <= newest.occurred_at)
       ? newest
       : undefined;
+  // Entries that may be outdated go after the rest (issue #259) and say so.
+  const use = config.memory.stale_check ? entryUse(db, pool.map((e) => e.id)) : new Map<number, { stale_reason: string | null }>();
+  const staleOf = (e: EntryRow) => use.get(e.id)?.stale_reason ?? null;
+  const fresh = (list: EntryRow[]) => [...list.filter((e) => !staleOf(e)), ...list.filter((e) => staleOf(e))];
   const detailPool = opts.index
-    ? [...(checkpoint ? [checkpoint] : []), ...pool.filter((e) => e.kind !== 'session_summary')]
-    : pool;
+    ? [...(checkpoint ? [checkpoint] : []), ...fresh(pool.filter((e) => e.kind !== 'session_summary'))]
+    : fresh(pool);
 
   // A checkout path is not ours to trust either: a directory named with a quote
   // or a fence tag must not rewrite the header it is quoted in.
@@ -335,7 +372,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
   for (const entry of detailPool) {
     if (kept.length >= limit) break;
     const number = kept.length + (checkpoint ? 0 : 1);
-    let text = entry === checkpoint ? renderCheckpoint(entry) : renderEntry(entry, number);
+    let text = entry === checkpoint ? renderCheckpoint(entry) : renderEntry(entry, number, undefined, staleOf(entry));
     let cost = estimateTokens(text);
     // A prompt's candidates are ranked, so the best one that does not fit is
     // cut to the room left rather than skipped: skipping it handed that room to
@@ -346,7 +383,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     const room = maxTokens - delivered;
     if (opts.scope === 'prompt' && delivered + cost > maxTokens && entry.narrative && room >= MIN_EXCERPT_TOKENS) {
       const overhead = estimateTokens(renderEntry({ ...entry, narrative: 'x' }, number, 0));
-      text = renderEntry(entry, number, Math.max(0, (room - overhead) * 4));
+      text = renderEntry(entry, number, Math.max(0, (room - overhead) * 4), staleOf(entry));
       cost = estimateTokens(text);
     }
     // The first entry may overrun at a seam, where one long summary is still the
@@ -363,12 +400,13 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
   // allowance, then put in order and grouped by day. Charged like the wrapper
   // — delivered, never claimed as a saving. `cap` is how many lines it may
   // have; shedding below lowers it.
-  const DETAIL_HEADING = 'Latest, in full:';
+  const DETAIL_HEADING = seamRanked.length ? 'Closest to the current work, in full:' : 'Latest, in full:';
+  const lookup = config.memory.lookup_hint;
   type Item = { e: EntryRow; text: string };
   const pickTimeline = (sent: Set<number>, cap: number): EntryRow[] => {
     const chosen: EntryRow[] = [];
     let spent = 0;
-    for (const entry of pool) {
+    for (const entry of recent) {
       if (chosen.length >= cap) break;
       if (sent.has(entry.id)) continue;
       const cost = estimateTokens(timelineLine(entry)) + 1;
@@ -394,7 +432,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     }
     // What the full entries cost and how to load the tool that opens one: the
     // titles alone were opened in about 1% of sessions.
-    lines.push(pullLine(chosen.reduce((sum, e) => sum + estimateTokens(renderEntry(e, 1)), 0)));
+    lines.push(pullLine(chosen.reduce((sum, e) => sum + estimateTokens(renderEntry(e, 1)), 0), lookup));
     return lines;
   };
 
@@ -411,9 +449,9 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     const header = `<eklavya-memory project="${projectAttr}" items="${items.length + timelineRows.length}" receipt="${receipt}">`;
     // Only a prompt's candidates are ranked, so only there is the first the best
     // match; a session start's are newest-first and name none.
-    const hint = RECEIPT_HINT(Number(receipt), opts.scope === 'prompt' ? items.slice(0, 2).map((x) => x.e.id) : []);
+    const hint = RECEIPT_HINT(Number(receipt), opts.scope === 'prompt' ? items.slice(0, 2).map((x) => x.e.id) : [], lookup);
     const block = opts.index
-      ? [header, note, hint, ...indexLines, ...(detail.length ? [DETAIL_HEADING, ...detail] : []), ...closing, footer].join('\n')
+      ? [header, note, ...(opts.pinned ?? []), hint, ...indexLines, ...(detail.length ? [DETAIL_HEADING, ...detail] : []), ...closing, footer].join('\n')
       : [header, note, hint, ...items.map((x) => x.text), footer].join('\n');
     return { timelineRows, indexLines, detail, block };
   };
@@ -423,7 +461,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
   // order they matter least: the checkpoint's detail, then the "in full"
   // entries from the oldest end, then the timeline by halves.
   let items: Item[] = kept.map((e, i) => ({ e, text: rendered[i]! }));
-  let cap = INDEX_MAX_ITEMS;
+  let cap = timelineCap;
   let view = layout(items, cap, RECEIPT_MEASURE);
   if (opts.index) {
     const over = () => view.block.length > (opts.maxChars ?? HOOK_CONTEXT_CHARS);
@@ -441,8 +479,10 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     }
   }
   const keptNow = items.map((x) => x.e);
+  const pinnedTokens = opts.index && opts.pinned?.length ? estimateTokens(opts.pinned.join('\n')) : 0;
   delivered =
     wrapperTokens +
+    pinnedTokens +
     items.reduce((sum, x) => sum + estimateTokens(x.text), 0) +
     (view.indexLines.length ? estimateTokens(view.indexLines.join('\n')) : 0) +
     (opts.index && view.detail.length ? estimateTokens(DETAIL_HEADING) : 0);
@@ -455,9 +495,11 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     sessionId: opts.sessionId ?? null,
     scope: opts.scope ?? 'session_start',
     method: ESTIMATOR,
+    queryTerms: informativeTerms(opts.query ?? opts.seamQuery ?? '').slice(0, 12).join(' ') || null,
     delivery: opts.delivery ?? 'prepared',
     wrapperTokens:
       wrapperTokens +
+      pinnedTokens +
       (view.indexLines.length ? estimateTokens(view.indexLines.join('\n')) : 0) +
       (opts.index && view.detail.length ? estimateTokens(DETAIL_HEADING) : 0),
     items: items.map((x) => ({
@@ -642,6 +684,52 @@ const MIN_TERMS = 3;
 const UNSPACED = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Thai}]/u;
 const FILLER = new Set(['the', 'and', 'for', 'with', 'use', 'using', 'please', 'this', 'that', 'can', 'you', 'now', 'run', 'try']);
 
+/**
+ * The cosine a prompt's closest entry must reach, per embedder, because each
+ * embedder has its own scale.
+ *
+ * Measured, not chosen. `local-hash-v1`: on the eval corpus an on-topic
+ * paraphrase scores around 0.55 and an unrelated prompt around 0.24, and the
+ * gate sits at 0.35. `local-hash-v2`, from `eval/retrieval-harness.mjs
+ * --prompts` on full-length prompts: the closest unrelated entry scores 0.216
+ * at the 90th percentile, and 0.25 keeps every unrelated prompt shut
+ * (eval/results/2026-11-04-recall-gate.md).
+ */
+export const MIN_COSINE: Record<string, number> = { [LOCAL_EMBEDDER]: 0.35, [LOCAL_EMBEDDER_V2]: 0.25 };
+
+/** Share of the prompt's rarity weight the matched terms must carry to pass on their own. */
+export const TERMS_SHARE = 0.6;
+
+/**
+ * The `terms` prompt gate (issue #258): search on the prompt's informative
+ * terms with OR and per-field weights, then keep an entry only when at least
+ * two of those terms appear in it, or the ones that do carry `TERMS_SHARE` of
+ * the prompt's total rarity (so a one-word identifier nobody else uses can
+ * still pass alone, and two common words cannot).
+ */
+export function termsGate(db: DB, query: string, scope: SearchFilter): SearchHit[] {
+  // One group per word of the prompt: `fetchUser` or a whole path counts as one
+  // matched word however many terms it splits into.
+  const groups = informativeTermGroups(query);
+  const terms = groups.flat();
+  if (!terms.length) return [];
+  const rarity = termRarity(db, terms);
+  const weightOf = (group: string[]) => Math.max(...group.map((t) => rarity.get(t)!));
+  const total = groups.reduce((sum, g) => sum + weightOf(g), 0);
+  return keywordSearch(db, terms.join(' '), { ...scope, any: true, limit: (scope.limit ?? 12) * 2 })
+    .filter((hit) => {
+      const e = hit.entry;
+      const text = [e.title, e.narrative, e.facts, e.files, e.keywords].filter(Boolean).join(' ');
+      // Whole terms only: "log" must not match "catalog".
+      const words = new Set(informativeTerms(text));
+      // A word counts with its rarest term that the entry actually has.
+      const matched = groups.map((g) => g.filter((t) => words.has(t))).filter((g) => g.length);
+      const weight = matched.reduce((sum, g) => sum + weightOf(g), 0);
+      return matched.length >= 2 || weight >= TERMS_SHARE * total;
+    })
+    .slice(0, scope.limit ?? 12);
+}
+
 export function recallForPrompt(
   db: DB,
   config: EklavyaConfig,
@@ -670,14 +758,21 @@ export function recallForPrompt(
   // not. At a seam, offering the project's recent work is right whatever the
   // developer types next. Here the developer has said what they are doing, so
   // an entry that merely ranked highest among few is noise charged to their
-  // context. Two ways to pass: every word of the query in the entry, or a
-  // cosine high enough to mean the same subject rather than the same domain.
-  //
-  // MIN_COSINE is measured, not chosen: on the eval corpus an on-topic
-  // paraphrase scores around 0.55 and an unrelated prompt around 0.24.
-  const MIN_COSINE = 0.35;
-  const lexical = keywordSearch(db, sparse ? terms.join(' ') : query, { ...scope, strict: true });
-  const semantic = sparse ? [] : semanticSearch(db, query, scope).filter((h) => h.score >= MIN_COSINE);
+  // context. Two ways to pass: enough of the query in the entry (see
+  // `retrieval.prompt_gate`), or a cosine high enough to mean the same subject
+  // rather than the same domain.
+  const lexical =
+    config.retrieval.prompt_gate === 'terms'
+      ? termsGate(db, query, scope)
+      : keywordSearch(db, sparse ? terms.join(' ') : query, { ...scope, strict: true });
+  const semantic = sparse
+    ? []
+    : semanticSearch(db, query, {
+        ...scope,
+        // The second embedder ships with the `terms` gate, so the default changes nothing (issue #258).
+        embedder: config.retrieval.prompt_gate === 'terms' ? 'v2' : 'v1',
+        minScore: MIN_COSINE,
+      });
   if (!lexical.length && !semantic.length) return null;
 
   // Ranked here and handed to `recall` as candidates, rather than letting it

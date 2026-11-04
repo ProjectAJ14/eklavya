@@ -81,14 +81,20 @@ All launch `node` with `args`. Timeouts are in seconds: 10 for each registration
 | SubagentStart | `agent_type`, session identity | Implementer logging directive; tutor exempt |
 | PreToolUse | `tool_name`, `tool_input.command`, `tool_input.file_path` or `tool_input.questions[].header`/`question`, `agent_id` | Optional commit denial; before a Read, the file's past work as `additionalContext`, or, for a whole-file Read (no offset or offset 1, no limit or one reaching the last line) of a code file of 32 KB or more that has history (`memory.file_hold`), a `permissionDecision: "deny"` carrying the titles and the way to read less, repeated on every such Read of that file in the session (not yet observed on a live host; covered by the hook's tests); on a card host, a refusal of an `Eklavya`-headed question that lacks `[Eklavya]` (the refusal is a `permissionDecision: "deny"`; not yet observed on a live Desktop session) |
 | PostToolUse | `tool_name`, `tool_input`, `tool_response`, `agent_id`, `duration_ms` (Bash; 2.1.286) | Capture, eligible checkpoint and the delegation nudge |
-| Stop | Identity, `agent_id`, optional `stop_hook_active`, `last_assistant_message` (2.1.283; absent on older hosts) | Records the turn's final message as memory evidence, then the memory seam and eligible quiz continuation |
+| PostToolUseFailure | `tool_name`, `tool_input`, `tool_use_id`, `error`, `is_interrupt` | Capture as `tool_error`, keyed by `tool_use_id` so a failure `PostToolUse` also reported is stored once; the loop guard folds it as a failed call |
+| Stop | Identity, `agent_id`, optional `stop_hook_active`, `last_assistant_message` (2.1.283; absent on older hosts) | Records the turn's final message as memory evidence, then the memory seam and eligible quiz continuation; closes the loop guard's turn |
+| SessionEnd | Identity, `reason`, `transcript_path` | Opens the cost-ledger row and starts the detached `eklavya fold`; never waits |
 
 [`HookInput`](../mcp/src/hooks/lib.ts) is the exact list Eklavya reads. An
-upstream field existing does not imply the integration uses it. Capture currently
-uses PostToolUse, not PostToolUseFailure; do not promise complete failed-tool
-coverage on hosts that route failures to a separate event. A failure that does
-arrive is `tool_error` evidence and follows the same path exclusions as a read
-or edit (`prepare` in `mcp/src/memory/capture.ts`).
+upstream field existing does not imply the integration uses it. Capture uses
+both PostToolUse (a response with `success: false`, `error` or `is_error`) and
+PostToolUseFailure. Either way a failure is `tool_error` evidence with the same
+800-character cap and path exclusions as a read or edit (`prepare` in
+`mcp/src/memory/capture.ts`), and its `tool_use_id` is its identity, so one
+failure reported by both events is one row. Not verified live in this
+repository: which Claude Code versions send PostToolUseFailure, and whether
+`SessionEnd` fires when a terminal is killed (the next session start folds a
+quiet session either way).
 
 ## Output and audience
 

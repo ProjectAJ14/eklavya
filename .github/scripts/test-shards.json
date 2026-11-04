@@ -173,6 +173,38 @@
       "shard": 1,
       "seconds": 5
     },
+    "test/economy-cli.test.ts": {
+      "shard": 3,
+      "seconds": 25
+    },
+    "test/economy-core.test.ts": {
+      "shard": 4,
+      "seconds": 10
+    },
+    "test/economy-facts.test.ts": {
+      "shard": 5,
+      "seconds": 10
+    },
+    "test/economy-gaps.test.ts": {
+      "shard": 4,
+      "seconds": 15
+    },
+    "test/economy-guard.test.ts": {
+      "shard": 3,
+      "seconds": 10
+    },
+    "test/economy-hooks.test.ts": {
+      "shard": 2,
+      "seconds": 30
+    },
+    "test/economy-ledger.test.ts": {
+      "shard": 5,
+      "seconds": 15
+    },
+    "test/economy-toolprune.test.ts": {
+      "shard": 4,
+      "seconds": 10
+    },
     "test/eval-coverage.test.ts": {
       "shard": 4,
       "seconds": 1
@@ -396,6 +428,10 @@
     "test/memory-recall-coverage.test.ts": {
       "shard": 5,
       "seconds": 1
+    },
+    "test/memory-recall-v2.test.ts": {
+      "shard": 2,
+      "seconds": 15
     },
     "test/memory-recall.test.ts": {
       "shard": 1,

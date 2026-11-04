@@ -33,6 +33,13 @@ export interface HostEvent {
   files?: string[];
   occurredAt?: string;
   source?: 'hook' | 'replay' | 'manual' | 'import';
+  /**
+   * The host's id for the event when it has one (a tool call's `tool_use_id`).
+   * Set, it is the event's identity in place of its content and time, so the
+   * same failure reported by both `PostToolUse` and `PostToolUseFailure` is
+   * stored once.
+   */
+  hostId?: string | null;
 }
 
 export type CaptureOutcome = 'stored' | 'duplicate' | 'excluded' | 'spooled' | 'dropped';
@@ -119,8 +126,8 @@ export function prepare(
       agentId: identity.agentId,
       kind: event.kind,
       tool: event.tool,
-      occurredAt,
-      body: cleaned.text,
+      occurredAt: event.hostId ? '' : occurredAt,
+      body: event.hostId ? `host-id:${event.hostId}` : cleaned.text,
     }),
     project: identity.project,
     checkout: identity.checkout,

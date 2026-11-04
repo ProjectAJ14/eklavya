@@ -122,3 +122,8 @@ for (const entry of [
 // shape, `${CLAUDE_PLUGIN_ROOT}` — expanded by the plugin loader in both cases.
 
 console.log('assets copied to dist/');
+
+// The Apache-2.0 text for the code in src/economy/, ported from
+// microsoft/TokenEconomizer. The licence requires it to travel with the code.
+await mkdir(path.join(root, 'dist', 'economy'), { recursive: true });
+await cp(path.join(root, 'src', 'economy', 'LICENSE'), path.join(root, 'dist', 'economy', 'LICENSE'));

@@ -25,6 +25,7 @@ import {
 import { applySetting, isKnownKey, knownKeys, parseValue, valueAt } from './config-path.js';
 import { levelStanding } from './store.js';
 import { statusLine } from './statusline.js';
+import { guardNote } from './guard-note.js';
 import { isSessionOff } from './session.js';
 import { KNOWN_SQL, START_LEVEL, type Level } from './srs.js';
 import Database from 'better-sqlite3';
@@ -88,6 +89,20 @@ Usage:
   eklavya artifacts list [--json]       Every artifact, newest first [--here: this project only]
   eklavya artifacts open <path|id>      Open one in your browser; a page made with --attempt opens
                                         in the dashboard's viewer, where the answer can be corrected
+  eklavya cost [--limit <n>] [--all]    What recent sessions here cost, from their transcripts: effective
+                                        tokens, the fresh/cached/written/output split, Eklavya's share and
+                                        its own background calls [--by-week] [--export csv]
+  eklavya fold <session> | --pending    Price a session from its transcript now (the hooks do this in the
+                                        background when a session ends or goes quiet)
+  eklavya judge <turn>                  Ask providers.judge whether a loop-guard turn is stuck (the guard
+                                        starts this in the background; it needs economy.loopguard on)
+  eklavya toolprune [list]              Tools this repository's sessions load and never use. Writes nothing
+  eklavya toolprune apply [tool...]     Deny them in .claude/settings.local.json (from the next session)
+  eklavya toolprune restore [tool...]   Remove exactly what Eklavya denied; restored tools are not proposed
+                                        again [measure] [refresh-catalog]
+  eklavya experiment memory --sessions <n>
+                                        Alternate memory.enabled here for n sessions and compare the median
+                                        cost per arm [--report] [--stop]
   eklavya statusline                    Print the dials for a status bar (one line, or nothing)
   eklavya doctor                        Check the install, apply concept packs, and say what to fix
   eklavya db-path                       Print the database location
@@ -130,6 +145,8 @@ Memory:
   eklavya memory restore <file>         Read that file back in. Additive and idempotent — a second
                                         restore adds nothing, and no attempt, mastery or gate row is
                                         touched. Refuses a schema version it does not understand
+  eklavya memory facts [--all]          Pinned facts with their evidence; active ones lead the session-start
+                                        recall [retire <id>]
   eklavya memory sync <push|pull|status>  Exchange memory with your other devices through a shared
                                         folder [--target <dir>]. Memory entries, tags and tombstones
                                         only — attempts, mastery, gates and receipts never leave.
@@ -153,16 +170,25 @@ Config namespaces (nested; edit ~/.eklavya/config.json or this project's file di
              Separate from memory: silencing questions never stops
              recording. (mode: ambient|enforced|off is the retired spelling,
              still read so older configs keep working)
-  memory.{enabled, capture: full|minimal|off, batch_max_events, retention_days, file_hold}
+  memory.{enabled, capture: full|minimal|off, batch_max_events, retention_days, file_hold,
+             lookup_hint: mcp|bash, pinned_facts, stale_check, stale_refresh_per_day}
   privacy.{exclude_paths, exclude_tools, redact_patterns}
-  retrieval.{mode: keyword|semantic|hybrid, max_items, max_tokens, cross_project}
-  providers.{observer, embeddings} — each null or {kind, model}; the model runs
-             through Claude Code on your subscription
+  retrieval.{mode: keyword|semantic|hybrid, max_items, max_tokens, cross_project,
+             seam_query, prompt_gate: strict|terms, timeline_items}
+  providers.{observer, embeddings, judge} — each null or {kind, model}; the model
+             runs through Claude Code on your subscription. judge reads a digest
+             of a stuck turn for the loop guard (default null)
   notifications.{enabled, sinks} — sinks are {kind: webhook|command|file, target,
              args, events}; off by default, and a send cannot be recalled
   sync.{enabled, target, device_id} — target is a folder both devices can see
              (Dropbox, iCloud, Syncthing, a share); off and unset by default.
              device_id is normally left null: it is generated once per install
+  economy.{ledger, loopguard: off|nudge|stop, loopguard_level, judge_confidence,
+             nudges, backstop_mult, envelope_min_samples,
+             toolprune: off|propose|on, toolprune_evidence, toolprune_min_sessions,
+             toolprune_sessions, toolprune_quiet_minutes, toolprune_protect,
+             envfacts: off|free|observer} — cost controls; see eklavya cost,
+             eklavya toolprune and eklavya memory facts
 `;
 
 function fail(message: string): never {
@@ -963,6 +989,7 @@ async function statuslineCommand(argv: string[]): Promise<void> {
     const pinned = resolved.config.difficulty !== 'auto';
 
     let level: Level = pinned ? (resolved.config.difficulty as Level) : START_LEVEL;
+    let note: string | null = null;
     // Nothing the database says is worth losing the bar over, so its own catch:
     // before this, a corrupt or locked file threw past the level lookup and the
     // whole line vanished on every refresh.
@@ -983,6 +1010,8 @@ async function statuslineCommand(argv: string[]): Promise<void> {
         // this the hard way, and a second implementation of the band rules is a
         // second thing to keep in step with the planner.
         if (!pinned) level = levelStanding(db, resolved.config, resolved.repoRoot).level;
+        // The loop guard's notice, where the developer looks (issue #262).
+        if (sid && resolved.config.economy.loopguard !== 'off') note = guardNote(db, sid);
       } catch {
         /* Unreadable database: show the dials, skip what it would have said. */
       } finally {
@@ -993,7 +1022,7 @@ async function statuslineCommand(argv: string[]): Promise<void> {
     // NO_COLOR is the cross-tool convention, and some bars render the string
     // literally rather than through a terminal.
     const color = !process.env.NO_COLOR && !argv.includes('--no-color');
-    const line = statusLine({ config: resolved.config, level, pinned, color });
+    const line = statusLine({ config: resolved.config, level, pinned, color, note });
     if (line) process.stdout.write(`${line}\n`);
   /* c8 ignore start -- every read above already fails soft; this is the last guard for the status bar */
   } catch {
@@ -1256,6 +1285,7 @@ async function forwardToNewerRuntime(): Promise<boolean> {
 
 const COUNTED = new Set([
   'install', 'update', 'export-rules', 'config', 'dashboard', 'memory', 'artifacts', 'doctor', 'db-path', 'telemetry', 'feedback',
+  'cost', 'toolprune', 'experiment',
 ]);
 
 async function main(): Promise<void> {
@@ -1335,6 +1365,16 @@ async function main(): Promise<void> {
       return telemetryCommand(rest);
     case 'feedback':
       return feedbackCommand(rest);
+    case 'fold':
+      return (await import('./cli-economy.js')).foldCommand(rest);
+    case 'cost':
+      return (await import('./cli-economy.js')).costCommand(rest);
+    case 'judge':
+      return (await import('./cli-economy.js')).judgeCommand(rest);
+    case 'toolprune':
+      return (await import('./cli-economy.js')).toolpruneCommand(rest);
+    case 'experiment':
+      return (await import('./cli-economy.js')).experimentCommand(rest);
     case '--version':
     case '-v':
       process.stdout.write(`${paint.ok(JSON.parse(fs.readFileSync(path.join(moduleDir, '..', 'package.json'), 'utf8')).version)}\n`);

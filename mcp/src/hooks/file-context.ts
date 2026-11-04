@@ -152,7 +152,7 @@ await run(async (input) => {
       wrapperTokens: estimateTokens([`${head} receipt="000000">`, note, RECEIPT_HINT(0), '</eklavya-memory>'].join('\n')),
       items: chosen.map((e, i) => ({ entryId: e.id, sourceTokens: 0, sentTokens: estimateTokens(lines[i]) })),
     });
-    const context = [`${head} receipt="${receiptId}">`, note, RECEIPT_HINT(receiptId), ...lines, '</eklavya-memory>'].join('\n');
+    const context = [`${head} receipt="${receiptId}">`, note, RECEIPT_HINT(receiptId, [], resolved.config.memory.lookup_hint), ...lines, '</eklavya-memory>'].join('\n');
 
     if (hold) {
       const ids = chosen.map((e) => e.id).join(', ');

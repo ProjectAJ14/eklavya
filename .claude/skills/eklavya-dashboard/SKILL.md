@@ -1,6 +1,6 @@
 ---
 name: eklavya-dashboard
-description: How Eklavya's dashboard (`eklavya dashboard`) is built and how to change it — the five workflows (Learning, Memory, Artifacts, Feedback, Settings) and their registry, the one JSON payload plus the project inventory, the live event stream and the per-cursor memo behind it, the URL-driven hash router and its legacy redirects, how a redraw keeps the reader's place, the hand-rolled SVG charts, the table/pagination helpers, and the checks a change has to pass. Use whenever adding, editing or debugging anything in mcp/src/dashboard.ts or mcp/src/assets/dashboard.html, or when a request mentions the dashboard's sections, charts, filters, drill-downs or routes.
+description: How Eklavya's dashboard (`eklavya dashboard`) is built and how to change it — the six workflows (Learning, Memory, Artifacts, Feedback, Cost, Settings) and their registry, the one JSON payload plus the project inventory, the live event stream and the per-cursor memo behind it, the URL-driven hash router and its legacy redirects, how a redraw keeps the reader's place, the hand-rolled SVG charts, the table/pagination helpers, and the checks a change has to pass. Use whenever adding, editing or debugging anything in mcp/src/dashboard.ts or mcp/src/assets/dashboard.html, or when a request mentions the dashboard's sections, charts, filters, drill-downs or routes.
 ---
 
 # Working on the dashboard
@@ -8,7 +8,7 @@ description: How Eklavya's dashboard (`eklavya dashboard`) is built and how to c
 `eklavya dashboard` serves the learning and memory history as a local web page.
 It is the long view — `/eklavya:progress` gets twenty lines and answers *what
 now*, this answers *am I getting better* and *what did that session actually
-teach me*. It is five workflows in one shell, **Learning**, **Memory**, **Artifacts**, **Feedback** and
+teach me*. It is six workflows in one shell, **Learning**, **Memory**, **Artifacts**, **Feedback**, **Cost** and
 **Settings**, each with its own Dashboard and sidebar.
 
 Two client/server files, shared design tokens and mascot assets, plus one vendored library. The exception is the tips

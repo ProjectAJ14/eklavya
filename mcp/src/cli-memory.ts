@@ -76,7 +76,7 @@ function fail(message: string): never {
  * to ask for it.
  */
 const MEMORY_USAGE =
-  'Usage: eklavya memory status|search|timeline|show|replay|process|stop|backlog|prune|move|import|export|restore|sync\n' +
+  'Usage: eklavya memory status|search|timeline|show|replay|process|stop|backlog|prune|move|import|export|restore|sync|facts\n' +
   '       run `eklavya --help` for the full list\n';
 
 function flag(argv: string[], name: string, fallback?: string): string | undefined {
@@ -1042,6 +1042,9 @@ export function memoryCommand(argv: string[]): void {
       return memoryRestore(rest);
     case 'sync':
       return memorySync(rest);
+    case 'facts':
+      void import('./cli-economy.js').then((m) => m.factsCommand(rest));
+      return;
     default:
       process.stderr.write(styleUsage(MEMORY_USAGE));
       process.exit(1);

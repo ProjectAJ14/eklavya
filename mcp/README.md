@@ -55,7 +55,7 @@ Code's learning loop.
 | Quiz side panel (experimental) | `present_question` for the model; `panel_sync` and `panel_answer`, called only by the panel mod, never by the model; its header stacks the mark above the topic in a pane under 60 cells wide; on the desktop app each option is a numbered card drawn as one pressable region (a click anywhere on it picks it), while VS Code and the terminal keep native buttons; `/eklavya-panel-demo` opens a mock question the panel answers itself, calling none of these tools |
 | Settings | `get_config`, `set_config` |
 | Find and read memory (`memory_status` includes a `health` verdict with reasons) | `memory_search`, `memory_get`, `memory_timeline`, `memory_file_history`, `memory_status` |
-| Maintain memory | `memory_write`, `memory_correct`, `memory_delete`, `memory_collections` |
+| Maintain memory | `memory_write`, `memory_correct`, `memory_flag_stale`, `memory_delete`, `memory_collections` |
 | Inspect code | `code_outline`, `code_find_symbol` |
 
 `log_session_concepts` and `upsert_concepts` take a concept name of 1 to 3 words (a longer name fails the whole call's input check), a `description` of up to 400 characters and up to 5 `tags`. A new concept that resembles existing ones is not created: the response lists it under `needs_decision` with candidates, and you reuse a candidate's slug or repeat the slug with `new: true`. `log_session_concepts` creates a new concept with the domain and tier you pass, or domain `general` and tier 2 when you pass none. Pass `prerequisites` (up to 5 slugs, existing or in the same call) and each becomes a `prerequisite_of` edge; a slug it cannot find is reported under `prerequisites_not_found`, and the response lists the created concepts that still have no edge under `unlinked`. `upsert_concepts` sets the domain and tier of a model-created concept that still has domain `general`, adds tags to any concept, fills in or refines the description of a model-created concept, and adds edges. It never rewrites the description or domain of a concept from the seed or a pack, or of one that already has a domain (the one it was logged with, or its first tag). Its response lists the concepts it changed under `updated`. `get_concept_graph` returns each concept's `tags`.
@@ -99,9 +99,11 @@ to one session; omission shows the project timeline. Other tools may not accept
 that argument.
 
 `memory_get` reads only this project's entries unless `all_projects` is true;
-an ID from another project comes back under `other_project`. `memory_correct`
-and `memory_delete` refuse another project's ID with `other_project` and change
-nothing. A correction writes its replacement and the supersession together, and
+an ID from another project comes back under `other_project`. `memory_correct`,
+`memory_flag_stale` and `memory_delete` refuse another project's ID with
+`other_project` and change nothing. `memory_flag_stale` marks an entry as
+possibly outdated without deleting it: it ranks lower, is labelled when
+recalled, and `memory_get` returns the reason under `stale`. A correction writes its replacement and the supersession together, and
 sync carries it to other devices.
 
 `memory_delete` can be repeated safely: a second soft delete changes nothing,

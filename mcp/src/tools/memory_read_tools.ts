@@ -1,3 +1,5 @@
+import { informativeTerms } from '../memory/terms.js';
+import { entryUse } from '../memory/use.js';
 import { z } from 'zod';
 import { memoryHealth } from '../memory/health.js';
 import { loadConfig, type EklavyaConfig } from '../config.js';
@@ -109,7 +111,7 @@ function logged(def: ToolDef): ToolDef {
 function noteRead(
   db: ToolContext['db'],
   tool: string,
-  args: { cwd?: string; receipt_id?: number },
+  args: { cwd?: string; receipt_id?: number; query?: unknown },
   payload: unknown,
   started: number,
 ): void {
@@ -127,6 +129,7 @@ function noteRead(
       outcome: !result ? 'error' : ids.length ? 'ok' : 'empty',
       latencyMs: performance.now() - started,
       resultTokens: result ? estimateTokens(JSON.stringify(result)) : 0,
+      queryTerms: typeof args.query === 'string' ? informativeTerms(args.query).slice(0, 12).join(' ') || null : null,
     });
   } catch {
     /* A read that could not be logged is still answered. */
@@ -241,6 +244,7 @@ export const memoryGet: ToolDef = logged({
     const byId = new Map(inScope.map((e) => [e.id, e]));
     const foreign = new Set(found.filter((e) => !byId.has(e.id)).map((e) => e.id));
 
+    const use = entryUse(db, [...byId.keys()]);
     const entries = ids
       .map((id) => byId.get(id))
       .filter((e): e is EntryRow => Boolean(e))
@@ -264,6 +268,10 @@ export const memoryGet: ToolDef = logged({
           // which it is holding before it quotes it.
           superseded_by: entry.superseded_by,
           deleted_at: entry.deleted_at,
+          // Why it may be outdated, when the fold or a model flagged it (issue #259).
+          ...(use.get(entry.id)?.stale_reason
+            ? { stale: { reason: use.get(entry.id)!.stale_reason, since: use.get(entry.id)!.stale_since, flagged_by: use.get(entry.id)!.stale_by } }
+            : {}),
           event_ids: events.map((e) => e.id),
           // Only on request. `event_ids` alone left the model able to see that
           // a claim rested on four events and unable to read one of them —

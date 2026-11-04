@@ -375,7 +375,7 @@ describe('SessionStart output', () => {
     });
     insertEntry(db, { project: cwd, title: 'Refresh cookie rotation', narrative: 'Rotated.', eventIds: [ev.id] });
     const res = runHook(SESSION_START, { session_id: SESSION, cwd, hook_event_name: 'SessionStart' }, { NO_COLOR: '1' });
-    expect(res.shown).toMatch(/^Memory · \d+ past entr(y|ies) recalled \(~\d+ tokens\) · ~\d+% less context$/m);
+    expect(res.shown).toMatch(/^Memory · \d+ past entr(y|ies) recalled \(~\d+ tokens\) · ~\d+% smaller than its sources$/m);
   });
 
   it('says only what it recalled when there is no evidence to compare against', () => {
@@ -383,7 +383,7 @@ describe('SessionStart output', () => {
     insertEntry(db, { project: cwd, title: 'Refresh cookie rotation', narrative: 'Rotated on every refresh.' });
     const res = runHook(SESSION_START, { session_id: SESSION, cwd, hook_event_name: 'SessionStart' }, { NO_COLOR: '1' });
     expect(res.shown).toMatch(/^Memory · 1 past entry recalled \(~\d+ tokens\)$/m);
-    expect(res.shown).not.toMatch(/less context/);
+    expect(res.shown).not.toMatch(/smaller than its sources/);
     expect(res.context).toContain('<eklavya-memory');
   });
 
@@ -408,7 +408,7 @@ describe('SessionStart output', () => {
   it('recalls nothing into a folder outside a checkout', () => {
     insertEntry(db, { project: GLOBAL_PROJECT, title: 'Work in some other folder', narrative: 'Not this one.' });
     const res = sessionStart();
-    expect(res.shown).not.toMatch(/^Memory ·|less context/m);
+    expect(res.shown).not.toMatch(/^Memory ·|smaller than its sources/m);
     expect(res.context).not.toContain('<eklavya-memory');
   });
 
@@ -1008,6 +1008,19 @@ describe('Stop hook — what it tells Claude', () => {
     logConcepts(['jwt-structure']);
     ageClocks();
     expect(stop().context).not.toMatch(/gate|skip/);
+  });
+
+  it('leaves the loop guard\'s turn open when it blocks the Stop, and closes it when it lets the Stop through', () => {
+    configure({ quiz: { enabled: true, enforced: true }, min_minutes_between_quizzes: 0, economy: { loopguard: 'nudge' } });
+    const turn = () => db.prepare("SELECT closed_at FROM econ_turns WHERE session_id = ?").get(SESSION) as { closed_at: string | null };
+    db.prepare("INSERT INTO econ_turns (session_id, agent_id, project, opened_at, state) VALUES (?, '', NULL, ?, '{}')").run(SESSION, new Date().toISOString());
+    logConcepts(['csrf']);
+    expect(stop().context).toMatch(/csrf/);
+    // Claude carries on in the same turn to ask the question.
+    expect(turn().closed_at).toBeNull();
+    configure({ quiz: { enabled: false }, economy: { loopguard: 'nudge' } });
+    expect(stop().context).toBeFalsy();
+    expect(turn().closed_at).not.toBeNull();
   });
 
   it('drops the gate clause on Cowork, which does not commit', () => {

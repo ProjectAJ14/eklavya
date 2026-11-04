@@ -32,6 +32,7 @@
  * what the auto-updater runs (`--auto`: no runtime step, since the updater
  * just installed it, and no questions). See `update.ts`.
  */
+import { startDetached } from './ledger-pending.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -53,7 +54,7 @@ import {
 } from './claude-mem.js';
 import { readJsonForUpdate, readJsonStrict, UnreadableFileError, writeJsonWithBackup } from './safe-write.js';
 import { claimInstall, installHolder, releaseInstall } from './install-lock.js';
-import { compareVersions, runtimeVersion, writeState } from './update.js';
+import { compareVersions, runtimeCli, runtimeVersion, writeState } from './update.js';
 
 const MIN_NODE_MAJOR = 22;
 
@@ -1122,6 +1123,9 @@ async function installSteps(args: string[]): Promise<void> {
   // Only for the runtime this install put there: `--skip-runtime` leaves
   // whatever version was already in it.
   if (!auto && runtimeVersion() === version) writeState({ applied: version, announced: version });
+  // Tool pruning's catalog (issue #263): price any session still waiting, so
+  // its evidence is current. Detached: an install never waits on transcripts.
+  startDetached(runtimeCli(), ['toolprune', 'refresh-catalog']);
   verdict(null, 'DONE · restart Claude Code and Eklavya loads with it');
   if (cliOnPath()) {
     plain(dim('Next: build something in Claude Code — the questions follow. `eklavya doctor` checks the wiring.'));

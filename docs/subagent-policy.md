@@ -12,7 +12,17 @@ explicitly requested by the learner can teach in its own conversation; an explai
 | `eklavya-tutor` | No | Yes, when delegated to teach | Tools | `agents/tutor.md`, plus the memory line when the project has memory |
 | `eklavya-explainer` | No | No | Tools | `agents/explainer.md` |
 
+The loop guard (`economy.loopguard`, off by default) tracks a subagent's tool
+calls as a turn of its own, opened at SubagentStart and keyed by `agent_id`,
+but it never sends a subagent a redirect or a notice: whether a PostToolUse
+`additionalContext` reaches a background agent is not verified yet (issue
+#257). Only the parent's turns are nudged, and only the parent's turns that end
+green teach the guard how long a turn here usually runs. An Eklavya subagent's
+tokens (the explainer, the tutor) are counted in its session's cost and
+labelled as Eklavya's in `eklavya cost`, never added twice.
+
 Sources: [`subagent-start.ts`](../mcp/src/hooks/subagent-start.ts),
+[`loop-guard.ts`](../mcp/src/loop-guard.ts),
 [`session-start.ts`](../mcp/src/hooks/session-start.ts),
 [`checkpoint-quiz.ts`](../mcp/src/hooks/checkpoint-quiz.ts),
 [`delegate-nudge.ts`](../mcp/src/hooks/delegate-nudge.ts),

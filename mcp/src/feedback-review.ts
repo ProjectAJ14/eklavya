@@ -106,7 +106,7 @@ export const REVIEW_SYSTEM = [
   'Be plain, kind and specific.',
 ].join('\n');
 
-export const REVIEW_CALL: CallSpec = { schema: REVIEW_SCHEMA, system: REVIEW_SYSTEM };
+export const REVIEW_CALL: CallSpec = { schema: REVIEW_SCHEMA, system: REVIEW_SYSTEM, source: 'feedback' };
 
 /** The fence tags the prompts are wrapped in, and so the ones a prompt may not spell. */
 const FENCE_TAGS = ['prompt', 'prompts'];

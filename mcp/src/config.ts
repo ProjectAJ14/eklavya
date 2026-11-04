@@ -152,6 +152,77 @@ export interface MemoryConfig {
    * history, so Claude opens the entries before the file (the retry passes).
    */
   file_hold: boolean;
+  /**
+   * How a recall note tells Claude to open an entry (issue #258): `mcp` names
+   * the `memory_get` tool and how to load it; `bash` names the
+   * `eklavya memory show` command instead. An eval arm until it is measured.
+   */
+  lookup_hint: 'mcp' | 'bash';
+  /**
+   * Pinned facts at the top of the session-start recall (issue #264): at most
+   * this many, in about 300 estimated tokens, environment facts limited to 4
+   * of them. Separate from `retrieval.max_tokens`. 0 sends none.
+   */
+  pinned_facts: number;
+  /**
+   * Flag entries whose files changed a lot since, or that were sent often and
+   * never used, as possibly outdated (issue #259). Flags are computed by the
+   * background fold, never by a hook; a flagged entry is ranked lower and
+   * labelled when it is still sent.
+   */
+  stale_check: boolean;
+  /**
+   * Flagged entries the observer may rewrite a day, each a superseding entry
+   * from the old one plus a summary of what changed. 0 only flags. Needs
+   * `providers.observer`; each rewrite is charged to the cost ledger.
+   */
+  stale_refresh_per_day: number;
+}
+
+/**
+ * Cost controls (issue #257), ported from TokenEconomizer. Each part is
+ * separate, and the ones that change what Claude sees ship off or in propose
+ * mode until they are measured.
+ */
+export interface EconomyConfig {
+  /** Price every session from its transcript in the background, and record Eklavya's own model calls. */
+  ledger: boolean;
+  /**
+   * The loop guard: `nudge` redirects a stuck turn once, then tells the
+   * developer. `stop` additionally ends a headless (`claude -p`) turn after the
+   * nudges are spent; an interactive turn is never stopped. `off` by default
+   * until it is measured.
+   */
+  loopguard: 'off' | 'nudge' | 'stop';
+  loopguard_level: 'conservative' | 'default' | 'aggressive';
+  /** The judge's confidence a stuck verdict needs before it redirects. */
+  judge_confidence: number;
+  /** Redirects per turn before the guard only notifies. */
+  nudges: number;
+  /** Past this many envelopes and stuck by the strict rule, redirect without the judge. */
+  backstop_mult: number;
+  /** Ended-green turns a repository needs before its envelope is trusted. */
+  envelope_min_samples: number;
+  /**
+   * Tool pruning: `propose` lists unused tools and writes nothing; `on` writes
+   * the deny list when the repository has been quiet; `off` does neither.
+   * `eklavya toolprune apply` writes in any mode but `off`.
+   */
+  toolprune: 'off' | 'propose' | 'on';
+  /** Prompts without using a tool, across `toolprune_min_sessions` sessions, before it is proposed. */
+  toolprune_evidence: number;
+  toolprune_min_sessions: number;
+  /** Or this many sessions without using it. */
+  toolprune_sessions: number;
+  /** Minutes this repository's sessions must be quiet before `on` writes. */
+  toolprune_quiet_minutes: number;
+  /** Tools never proposed, on top of the built-in protected list. */
+  toolprune_protect: string[];
+  /**
+   * Environment facts: `free` learns them from recurring failures with no model
+   * call; `observer` also accepts facts the observer proposes; `off` learns none.
+   */
+  envfacts: 'off' | 'free' | 'observer';
 }
 
 /**
@@ -182,6 +253,22 @@ export interface RetrievalConfig {
   max_tokens: number;
   /** Off by default: another repository's work is noise, not context. */
   cross_project: boolean;
+  /**
+   * Rank the session-start recall by a query built from the branch name, the
+   * changed files, the last commit subjects and the last checkpoint's next
+   * steps, with recency breaking ties (issue #258). Off: newest first, as before.
+   */
+  seam_query: boolean;
+  /**
+   * How a prompt earns a mid-session recall. `strict` (default): every word of
+   * the prompt in one entry, or a close vector. `terms`: stopwords dropped,
+   * identifiers split, any term matched, and the entry kept when two
+   * informative terms match or the matched terms carry most of the prompt's
+   * rarity.
+   */
+  prompt_gate: 'strict' | 'terms';
+  /** Lines in the session-start timeline; 0 leaves it out. */
+  timeline_items: number;
 }
 
 /**
@@ -200,6 +287,8 @@ export interface ProviderConfig {
 export interface ProvidersConfig {
   observer: ProviderConfig | null;
   embeddings: ProviderConfig | null;
+  /** The loop guard's judge: a detached call with a digest of counts and command shapes. Null: the strict rule decides. */
+  judge: ProviderConfig | null;
 }
 
 /**
@@ -373,6 +462,7 @@ export interface EklavyaConfig {
   providers: ProvidersConfig;
   notifications: NotificationsConfig;
   sync: SyncConfig;
+  economy: EconomyConfig;
 }
 
 export const DEFAULT_CONFIG: EklavyaConfig = {
@@ -403,6 +493,10 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
     batch_max_events: 40,
     retention_days: null,
     file_hold: true,
+    lookup_hint: 'mcp',
+    pinned_facts: 8,
+    stale_check: true,
+    stale_refresh_per_day: 5,
   },
   feedback: { enabled: true },
   privacy: {
@@ -415,10 +509,14 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
     max_items: 6,
     max_tokens: 1200,
     cross_project: false,
+    seam_query: false,
+    prompt_gate: 'strict',
+    timeline_items: 50,
   },
   providers: {
     observer: { kind: 'anthropic', model: 'claude-sonnet-5' },
     embeddings: null,
+    judge: null,
   },
   notifications: {
     enabled: false,
@@ -428,6 +526,22 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
     enabled: false,
     target: null,
     device_id: null,
+  },
+  economy: {
+    ledger: true,
+    loopguard: 'off',
+    loopguard_level: 'default',
+    judge_confidence: 0.7,
+    nudges: 1,
+    backstop_mult: 2.5,
+    envelope_min_samples: 5,
+    toolprune: 'propose',
+    toolprune_evidence: 10,
+    toolprune_min_sessions: 2,
+    toolprune_sessions: 5,
+    toolprune_quiet_minutes: 60,
+    toolprune_protect: [],
+    envfacts: 'free',
   },
 };
 
@@ -718,6 +832,11 @@ function coerceNamespaces(raw: Record<string, unknown>, out: EklavyaConfig): voi
       out.memory.retention_days = null;
     }
     if (typeof memory.file_hold === 'boolean') out.memory.file_hold = memory.file_hold;
+    if (memory.lookup_hint === 'mcp' || memory.lookup_hint === 'bash') out.memory.lookup_hint = memory.lookup_hint;
+    const count = (v: unknown, max: number) => (typeof v === 'number' && v >= 0 ? Math.min(max, Math.floor(v)) : undefined);
+    out.memory.pinned_facts = count(memory.pinned_facts, 20) ?? out.memory.pinned_facts;
+    if (typeof memory.stale_check === 'boolean') out.memory.stale_check = memory.stale_check;
+    out.memory.stale_refresh_per_day = count(memory.stale_refresh_per_day, 100) ?? out.memory.stale_refresh_per_day;
   }
 
   const feedback = raw.feedback as Record<string, unknown> | undefined;
@@ -750,6 +869,11 @@ function coerceNamespaces(raw: Record<string, unknown>, out: EklavyaConfig): voi
       out.retrieval.max_tokens = Math.floor(retrieval.max_tokens);
     }
     if (typeof retrieval.cross_project === 'boolean') out.retrieval.cross_project = retrieval.cross_project;
+    if (typeof retrieval.seam_query === 'boolean') out.retrieval.seam_query = retrieval.seam_query;
+    if (retrieval.prompt_gate === 'strict' || retrieval.prompt_gate === 'terms') out.retrieval.prompt_gate = retrieval.prompt_gate;
+    if (typeof retrieval.timeline_items === 'number' && retrieval.timeline_items >= 0) {
+      out.retrieval.timeline_items = Math.min(200, Math.floor(retrieval.timeline_items));
+    }
   }
 
   const notifications = raw.notifications as Record<string, unknown> | undefined;
@@ -769,7 +893,34 @@ function coerceNamespaces(raw: Record<string, unknown>, out: EklavyaConfig): voi
     out.providers = {
       observer: 'observer' in providers ? provider(providers.observer) : out.providers.observer,
       embeddings: 'embeddings' in providers ? provider(providers.embeddings) : out.providers.embeddings,
+      judge: 'judge' in providers ? provider(providers.judge) : out.providers.judge,
     };
+  }
+
+  const economy = raw.economy as Record<string, unknown> | undefined;
+  if (economy && typeof economy === 'object') {
+    const e = (out.economy = { ...out.economy });
+    const pick = <T extends string>(v: unknown, options: readonly T[]): T | undefined =>
+      options.includes(v as T) ? (v as T) : undefined;
+    const whole = (v: unknown, min: number, max: number) =>
+      typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max ? Math.floor(v) : undefined;
+    const real = (v: unknown, min: number, max: number) =>
+      typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max ? v : undefined;
+    if (typeof economy.ledger === 'boolean') e.ledger = economy.ledger;
+    e.loopguard = pick(economy.loopguard, ['off', 'nudge', 'stop'] as const) ?? e.loopguard;
+    e.loopguard_level = pick(economy.loopguard_level, ['conservative', 'default', 'aggressive'] as const) ?? e.loopguard_level;
+    e.judge_confidence = real(economy.judge_confidence, 0, 1) ?? e.judge_confidence;
+    e.nudges = whole(economy.nudges, 0, 10) ?? e.nudges;
+    e.backstop_mult = real(economy.backstop_mult, 1, 10) ?? e.backstop_mult;
+    e.envelope_min_samples = whole(economy.envelope_min_samples, 1, 100) ?? e.envelope_min_samples;
+    e.toolprune = pick(economy.toolprune, ['off', 'propose', 'on'] as const) ?? e.toolprune;
+    e.toolprune_evidence = whole(economy.toolprune_evidence, 1, 1000) ?? e.toolprune_evidence;
+    e.toolprune_min_sessions = whole(economy.toolprune_min_sessions, 1, 100) ?? e.toolprune_min_sessions;
+    e.toolprune_sessions = whole(economy.toolprune_sessions, 1, 100) ?? e.toolprune_sessions;
+    e.toolprune_quiet_minutes = whole(economy.toolprune_quiet_minutes, 0, 1440) ?? e.toolprune_quiet_minutes;
+    const protect = stringArray(economy.toolprune_protect);
+    if (protect) e.toolprune_protect = protect;
+    e.envfacts = pick(economy.envfacts, ['off', 'free', 'observer'] as const) ?? e.envfacts;
   }
 
   const sync = raw.sync as Record<string, unknown> | undefined;

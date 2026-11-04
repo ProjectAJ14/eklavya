@@ -5,6 +5,9 @@
  * exits 0 with no output — `run()` enforces it.
  */
 import { spawn } from 'node:child_process';
+import { lastSessionLine, openSession, quietPending, startFold } from '../ledger-pending.js';
+import type { EklavyaConfig } from '../config.js';
+import { economyOff, runtimeCliPath } from './economy-lib.js';
 import os from 'node:os';
 import path from 'node:path';
 import { findRepoConfig, loadGlobalConfig, mainRepoRoot, migrateLegacyRepoConfig } from '../config.js';
@@ -128,6 +131,22 @@ await run(async (input) => {
   const resolved = config(cwd);
   const { quiz, difficulty, quiet } = resolved.config;
 
+  // The cost ledger: open this session's row, and fold earlier sessions whose
+  // transcripts have gone quiet (SessionEnd is not always delivered). One
+  // insert and one bounded select; the fold itself is a detached process.
+  if (sid && resolved.config.economy.ledger && !economyOff()) {
+    try {
+      openSession(db, {
+        sessionId: sid,
+        project: repoRoot ? mainRepoRoot(repoRoot) : null,
+        transcriptPath: typeof input.transcript_path === 'string' && input.transcript_path ? input.transcript_path : null,
+      });
+      if (quietPending(db, Date.now(), sid).length) startFold(runtimeCliPath(), ['--pending'], spawn);
+    } catch {
+      /* The ledger is a measurement; it never stops a session. */
+    }
+  }
+
   // Before the `quiz.enabled` return below, so someone with questions off who
   // turned feedback on still gets it. A detached process the hook never waits
   // for: a review is a model call, and a hook may not wait on inference.
@@ -242,6 +261,7 @@ await run(async (input) => {
         dashboard: dashboardState,
         feedback: feedbackWaits,
         counts: null,
+        cost: costLine(db, resolved.config, identity.project, sid),
       });
     } else if (!quiet) {
       shown.push('Eklavya off · no questions, nothing recorded');
@@ -284,6 +304,7 @@ await run(async (input) => {
       dashboard: dashboardState,
       feedback: feedbackWaits,
       counts: details.counts ?? null,
+      cost: costLine(db, resolved.config, identity.project, sid),
     });
   }
 
@@ -387,6 +408,8 @@ interface BannerParts {
   feedback: boolean;
   /** Null with `quiz.enabled: false`, or when the counts were not ready in time: no line. */
   counts: LearningCounts | null;
+  /** The last priced session here, already worded; null without one. */
+  cost?: string | null;
 }
 
 /**
@@ -400,6 +423,16 @@ interface BannerParts {
  * Every number here is already committed to the database. Nothing waits on a
  * provider call or an index rebuild to greet somebody.
  */
+/** The banner's ledger line, or null: the ledger off, nothing priced yet, or a database that cannot say. */
+function costLine(db: DB, config: EklavyaConfig, project: string, sid: string | null): string | null {
+  if (!config.economy.ledger || economyOff()) return null;
+  try {
+    return lastSessionLine(db, project, sid);
+  } catch {
+    return null;
+  }
+}
+
 function banner(out: string[], parts: BannerParts): void {
   // Inside the function, not at module scope: the hook body above runs at the
   // top-level `await`, before any later `const` is initialised.
@@ -416,6 +449,7 @@ function banner(out: string[], parts: BannerParts): void {
     const percent = saving.kind === 'saving' ? saving.percent : 0;
     out.push(paint(recalledLine(r.entries.length, r.deliveredTokens, r.indexed, percent), 114, color));
   }
+  if (parts.cost) out.push(dim(parts.cost));
   if (parts.moved) out.push(paint(parts.moved, parts.moved.includes(' re-filed') ? 114 : AMBER, color));
   if (parts.counts) out.push(`Learning ${parts.counts.learning} · Mastered ${parts.counts.mastered} · Due ${parts.counts.due}`);
 

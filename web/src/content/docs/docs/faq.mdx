@@ -123,6 +123,19 @@ Privacy filters exclude common secret paths and redact recognized secret
 patterns; review [what memory captures](/docs/memory/) before working with
 sensitive material.
 
+## Why didn't memory bring up an old decision?
+
+By default session start sends the newest work, and a prompt recalls an
+entry only when every word of the prompt is in it. Two settings widen that:
+`retrieval.seam_query` ranks session start by your branch, changed files and
+recent commits, and `retrieval.prompt_gate terms` lets a prompt match on its
+informative words. Both are off while they are measured. You can always ask
+`/eklavya:memory` about it. See [how recall works](/docs/memory/#how-recall-works).
+
+## How much does Eklavya itself cost me?
+
+`eklavya cost` shows it, measured from your own sessions: each session's effective tokens, Eklavya's share of them (the turns that asked you questions and its subagents, such as the explainer), and its background model calls (memory summaries, prompt feedback). The dashboard's [Cost](/docs/dashboard/#cost) pages show the same rows. It reads token counts from Claude Code's transcripts and stores numbers only. Optional controls, the loop guard and tool pruning, aim to save tokens; they are off or in propose mode until measured.
+
 ## Will it slow down my work?
 
 Questions interrupt briefly; local hooks read the database directly. Change

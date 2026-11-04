@@ -1,5 +1,5 @@
 /**
- * PostToolUse (every tool): record what the agent just did.
+ * PostToolUse (every tool) and PostToolUseFailure: record what the agent just did.
  *
  * This is the memory half's main intake. It matches every tool rather than one,
  * so it is the hook that runs most often in a session — which is why it does
@@ -10,7 +10,11 @@
  * teaches is a capture path that makes every tool call slower.
  */
 import { run, openExisting, config, cwdOf, sessionId } from './lib.js';
-import type { HookInput } from './lib.js';
+import type { DB, HookInput } from './lib.js';
+import type { EklavyaConfig } from '../config.js';
+import { foldCall, type GuardOutput } from '../loop-guard.js';
+import { economyOff, runtimeCliPath } from './economy-lib.js';
+import { startDetached } from '../ledger-pending.js';
 import { batchIfFull, identityOf, record } from './capture-lib.js';
 import { policyFrom, type HostEvent } from '../memory/capture.js';
 import { clip, clipTail, type PrivacyPolicy } from '../memory/privacy.js';
@@ -97,7 +101,7 @@ function bodyFor(input: HookInput, failed: boolean, policy: PrivacyPolicy): stri
     const text = (v: unknown) => (typeof v === 'string' ? v : JSON.stringify(v));
     if (keys.length) parts.push(keys.map((k) => `${k}=${clip(text(toolInput[k]), 200, policy)}`).join(' '));
   }
-  if (failed) parts.push(clip(String(errorText(input.tool_response)), 800, policy));
+  if (failed) parts.push(clip(errorText(input), 800, policy));
   else {
     const result = excerpt(input.tool_name!, input.tool_response, policy);
     if (result) parts.push(`→ ${result}`);
@@ -105,15 +109,25 @@ function bodyFor(input: HookInput, failed: boolean, policy: PrivacyPolicy): stri
   return parts.join('\n');
 }
 
-/** Only called once `failed` has seen an object. */
-function errorText(response: unknown): string {
-  const r = response as Record<string, unknown>;
+/**
+ * The failure's message: `PostToolUseFailure` sends it as `error`; a failed
+ * `PostToolUse` response carries it in `error` or `stderr`.
+ */
+function errorText(input: HookInput): string {
+  if (input.hook_event_name === 'PostToolUseFailure') {
+    const text = typeof input.error === 'string' ? input.error : JSON.stringify(input.error ?? '');
+    return input.is_interrupt ? `(interrupted) ${text}` : text;
+  }
+  const r = input.tool_response as Record<string, unknown>;
   if (typeof r.error === 'string') return r.error;
   if (typeof r.stderr === 'string') return r.stderr;
   return '';
 }
 
-function failed(response: unknown): boolean {
+/** A `PostToolUseFailure` event, or a `PostToolUse` whose response says it failed. */
+function failed(input: HookInput): boolean {
+  if (input.hook_event_name === 'PostToolUseFailure') return true;
+  const response = input.tool_response;
   if (!response || typeof response !== 'object') return false;
   const r = response as Record<string, unknown>;
   return r.success === false || Boolean(r.error) || r.is_error === true;
@@ -126,22 +140,56 @@ function kindFor(tool: string, isError: boolean): HostEvent['kind'] {
   return 'tool_use';
 }
 
+/** The guard's view of the call: its result text, and whether the host said it failed. */
+function guardCall(db: DB, config: EklavyaConfig, input: HookInput, sid: string, tool: string): GuardOutput {
+  try {
+    const isFailure = input.hook_event_name === 'PostToolUseFailure';
+    const result = isFailure ? errorText(input) : resultText(input.tool_response);
+    const response = input.tool_response as Record<string, unknown> | undefined;
+    const hostFailed = isFailure || failed(input) ? true : response && typeof response === 'object' && 'success' in response ? false : null;
+    return foldCall(db, config, {
+      sessionId: sid,
+      agentId: input.agent_id ?? null,
+      tool,
+      args: input.tool_input ?? {},
+      result,
+      failed: hostFailed,
+      headless: process.env.CLAUDE_CODE_SESSION_ATTENDED === '0',
+      toolUseId: typeof input.tool_use_id === 'string' && input.tool_use_id ? input.tool_use_id : null,
+    });
+  } catch {
+    return {};
+  }
+}
+
 await run(async (input) => {
   const db = openExisting();
   if (!db) return 0;
 
   const cwd = cwdOf(input);
   const resolved = config(cwd);
-  // Capture is independent of `mode`: someone who turned quizzing off did not
-  // ask for their project history to stop being recorded (PRD CFG-01).
-  if (!resolved.config.memory.enabled) return 0;
-
   const tool = input.tool_name ?? '';
   if (!tool) return 0;
 
   const sid = sessionId(input, db);
+  // The loop guard folds every call, memory or not (issue #262). Whatever it
+  // has to say leaves as this hook's one output.
+  const guard = sid && resolved.config.economy.loopguard !== 'off' && !economyOff() ? guardCall(db, resolved.config, input, sid, tool) : {};
+  // The judge is a model call: a detached process, never awaited.
+  if (guard.judgeTurn) startDetached(runtimeCliPath(), ['judge', String(guard.judgeTurn)]);
+  if (guard.stop) process.stdout.write(`${JSON.stringify({ continue: false, stopReason: guard.stop })}\n`);
+  else if (guard.context) {
+    process.stdout.write(
+      `${JSON.stringify({ hookSpecificOutput: { hookEventName: input.hook_event_name ?? 'PostToolUse', additionalContext: guard.context } })}\n`,
+    );
+  }
+
   const identity = identityOf(input, cwd, sid);
-  const isError = failed(input.tool_response);
+  // Capture is independent of `mode`: someone who turned quizzing off did not
+  // ask for their project history to stop being recorded (PRD CFG-01).
+  if (!resolved.config.memory.enabled) return 0;
+
+  const isError = failed(input);
   const body = bodyFor(input, isError, policyFrom(resolved.config));
   if (!body.trim()) return 0;
 
@@ -151,6 +199,9 @@ await run(async (input) => {
     title: tool,
     body,
     files: filesFrom(input.tool_input),
+    // One failure is one event: `PostToolUse` with a failed response and
+    // `PostToolUseFailure` for the same call share this id.
+    hostId: isError && typeof input.tool_use_id === 'string' && input.tool_use_id ? `${input.tool_use_id}` : null,
   });
   batchIfFull(db, resolved, identity);
   return 0;

@@ -25,6 +25,9 @@ if you need it.
    with its defaults and keeps any settings you already saved.
    New installs use `claude-sonnet-5` for memory summaries and prompt feedback
    through your Claude Code login. [What gets sent to Claude](/docs/memory/#how-observations-are-made).
+   It also prices, in the background, any earlier Claude Code session still
+   waiting for the [cost ledger](/docs/cli/#cost); that reads only token counts
+   and tool names from its transcript.
 
 2. **Allow Eklavya's tools if you use auto mode.**
 

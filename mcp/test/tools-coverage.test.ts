@@ -352,7 +352,7 @@ describe('the read-only hint', () => {
     'memory_search', 'memory_get', 'memory_timeline', 'memory_file_history', 'memory_status', 'memory_collections',
     'code_outline', 'code_find_symbol',
   ];
-  const WRITERS = ['memory_write', 'memory_correct', 'memory_delete', 'set_config'];
+  const WRITERS = ['memory_write', 'memory_correct', 'memory_delete', 'memory_flag_stale', 'set_config'];
 
   it('is sent for the pure readers and never for a tool that writes', () => {
     const configs = new Map<string, { annotations?: { readOnlyHint?: boolean } }>();

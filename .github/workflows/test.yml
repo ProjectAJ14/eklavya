@@ -147,6 +147,18 @@ jobs:
           persist-credentials: false
       - run: .github/scripts/check-docs-sync.sh "origin/${{ github.base_ref }}"
 
+  # Code ported from microsoft/TokenEconomizer keeps its Apache-2.0 attribution.
+  economy-headers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - run: .github/scripts/check-economy-headers.sh
+
   website:
     runs-on: ubuntu-latest
     timeout-minutes: 5

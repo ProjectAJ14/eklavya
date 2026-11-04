@@ -332,7 +332,8 @@ describe('session summaries', () => {
     const vectors = db.prepare('SELECT COUNT(*) AS n FROM memory_vectors WHERE entry_id = ?').get(first) as {
       n: number;
     };
-    expect(vectors.n).toBe(1);
+    // One local vector per embedder: v1 for search, v2 for the `terms` gate.
+    expect(vectors.n).toBe(2);
   });
 
   it('is findable by search like any other entry', async () => {

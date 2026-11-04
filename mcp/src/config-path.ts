@@ -79,9 +79,10 @@ const NULLABLE: Record<string, 'string' | 'number' | 'object'> = {
   'memory.retention_days': 'number',
   'providers.observer': 'object',
   'providers.embeddings': 'object',
+  'providers.judge': 'object',
 };
 
-const PROVIDER_KEYS = new Set(['providers.observer', 'providers.embeddings']);
+const PROVIDER_KEYS = new Set(['providers.observer', 'providers.embeddings', 'providers.judge']);
 const MODEL_NAME = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,99}$/;
 
 export function parseValue(key: string, raw: string): unknown {
@@ -239,6 +240,10 @@ export const SETTING_RULES: Record<string, SettingRule> = {
   'memory.batch_max_events': whole(1, 500),
   'memory.retention_days': whole(1, 36500, true),
   'memory.file_hold': bool,
+  'memory.lookup_hint': { type: 'enum', options: ['mcp', 'bash'] },
+  'memory.pinned_facts': whole(0, 20),
+  'memory.stale_check': bool,
+  'memory.stale_refresh_per_day': whole(0, 100),
   'feedback.enabled': bool,
   'privacy.exclude_paths': lines(),
   'privacy.exclude_tools': lines({ maxLength: 200 }),
@@ -247,10 +252,27 @@ export const SETTING_RULES: Record<string, SettingRule> = {
   'retrieval.max_items': whole(1, 50),
   'retrieval.max_tokens': whole(100, 20000),
   'retrieval.cross_project': bool,
+  'retrieval.seam_query': bool,
+  'retrieval.prompt_gate': { type: 'enum', options: ['strict', 'terms'] },
+  'retrieval.timeline_items': whole(0, 200),
   'notifications.enabled': bool,
   'sync.enabled': bool,
   'sync.target': text(true, 1000),
   'sync.device_id': text(true, 200),
+  'economy.ledger': bool,
+  'economy.loopguard': { type: 'enum', options: ['off', 'nudge', 'stop'] },
+  'economy.loopguard_level': { type: 'enum', options: ['conservative', 'default', 'aggressive'] },
+  'economy.judge_confidence': share,
+  'economy.nudges': whole(0, 10),
+  'economy.backstop_mult': { type: 'number', min: 1, max: 10 },
+  'economy.envelope_min_samples': whole(1, 100),
+  'economy.toolprune': { type: 'enum', options: ['off', 'propose', 'on'] },
+  'economy.toolprune_evidence': whole(1, 1000),
+  'economy.toolprune_min_sessions': whole(1, 100),
+  'economy.toolprune_sessions': whole(1, 100),
+  'economy.toolprune_quiet_minutes': whole(0, 1440),
+  'economy.toolprune_protect': lines({ maxLength: 200 }),
+  'economy.envfacts': { type: 'enum', options: ['off', 'free', 'observer'] },
 };
 
 /** Text trimmed, list lines trimmed and blank ones dropped: typing, not meaning. */

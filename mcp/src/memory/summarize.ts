@@ -18,6 +18,8 @@ export interface EntryDraft {
   facts: string[];
   files: string[];
   tags: string[];
+  /** Other words someone would ask with (observer only, issue #258); indexed, never shown. */
+  keywords?: string[];
   confidence: number;
   eventIds: number[];
   /**
@@ -58,7 +60,13 @@ export interface Checkpoint {
 }
 
 /** A batch's observations, plus a checkpoint when the batch ended a turn. */
-export type Summary = EntryDraft[] & { checkpoint?: Checkpoint };
+/** A fact the observer proposes for pinning (issue #264): it still has to form across sessions. */
+export interface PinnedProposal {
+  kind: 'env' | 'decision' | 'convention';
+  text: string;
+}
+
+export type Summary = EntryDraft[] & { checkpoint?: Checkpoint; pinned?: PinnedProposal[] };
 
 export interface SummarizeOptions {
   /** Aborted when memory is turned off mid-call; the provider ends its child. */

@@ -65,7 +65,7 @@ describe('entries', () => {
 
   it('hard-deletes the row and its derived index', () => {
     const id = insertEntry(db, { project: P, title: 'Gone for good' });
-    expect(count('memory_vectors')).toBe(1);
+    expect(count('memory_vectors')).toBe(2);
     deleteEntry(db, id, true);
     expect(entryById(db, id)).toBeUndefined();
     expect(count('memory_vectors')).toBe(0);

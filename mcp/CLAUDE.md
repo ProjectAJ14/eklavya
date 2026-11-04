@@ -142,7 +142,7 @@ process start time; a lease clock alone cannot prevent duplicate workers.
 Honor `EKLAVYA_INTERNAL_OBSERVER` before hook input or side effects.
 
 Memory tool use is “search, choose, then get”: index tools return small results,
-`memory_get` hydrates selected entries. Describe `local-hash-v1` accurately:
+`memory_get` hydrates selected entries. Describe `local-hash-v2` (and `local-hash-v1`) accurately:
 morphology and character overlap are not general semantic understanding.
 
 The dashboard is loopback-only and read-only (GET/HEAD, security headers), except

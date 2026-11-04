@@ -38,6 +38,8 @@ import {
   type EklavyaConfig,
 } from './config.js';
 import { applySetting, knownKeys, SETTING_RULES, valueAt, type SettingRule } from './config-path.js';
+import { costReport } from './cost-report.js';
+import { applyProposal, restoreTools } from './toolprune-store.js';
 import {
   artifactsDir, dashboardPort, dbPath, DEFAULT_PORT, eklavyaHome, globalConfigPath, projectConfigPath, projectsDir,
 } from './paths.js';
@@ -1905,6 +1907,14 @@ const FIELDS: Omit<SettingField, 'type'>[] = [
     help: 'Empty keeps raw evidence until you delete it.' },
   { key: 'memory.file_hold', group: 'Memory', label: 'Hold big file reads',
     help: 'Hold the first whole read of a 32 KB+ file that has history, so Claude sees it first.' },
+  { key: 'memory.lookup_hint', group: 'Memory', label: 'How recall says to open an entry',
+    help: 'mcp names the memory_get tool; bash names the eklavya memory show command. Under evaluation.' },
+  { key: 'memory.pinned_facts', group: 'Memory', label: 'Pinned facts at session start',
+    help: 'Learned facts shown first in the session-start recall, environment facts at most 4 of them. 0 sends none.' },
+  { key: 'memory.stale_check', group: 'Memory', label: 'Flag outdated entries',
+    help: 'Rank entries lower and label them when their files changed a lot since, or they were sent often and never used.' },
+  { key: 'memory.stale_refresh_per_day', group: 'Memory', label: 'Outdated entries rewritten a day',
+    help: 'The observer rewrites this many flagged entries a day, each as a new entry that supersedes the old. 0 only flags.' },
   { key: 'retrieval.mode', group: 'Memory', label: 'Search',
     help: 'Hybrid fuses keyword and vector search.' },
   { key: 'retrieval.max_items', group: 'Memory', label: 'Recalled items',
@@ -1913,6 +1923,12 @@ const FIELDS: Omit<SettingField, 'type'>[] = [
     help: 'Estimated tokens for the whole recalled block.' },
   { key: 'retrieval.cross_project', group: 'Memory', label: 'Recall across projects',
     help: 'Let another repository\'s memory be recalled here.' },
+  { key: 'retrieval.seam_query', group: 'Memory', label: 'Rank session-start recall by current work',
+    help: 'Pick entries matching the branch, changed files, recent commits and last next steps, rather than only the newest.' },
+  { key: 'retrieval.prompt_gate', group: 'Memory', label: 'Prompt recall gate',
+    help: 'strict needs every word of the prompt in an entry. terms ignores filler words and needs two informative words, or the rarest ones.' },
+  { key: 'retrieval.timeline_items', group: 'Memory', label: 'Timeline lines at session start',
+    help: 'Recent-work lines in the session-start recall. 0 leaves the timeline out.' },
   { key: 'feedback.enabled', group: 'Feedback', label: 'Prompt feedback',
     help: 'Review one prompt from a finished session, using your later prompts to show what it left out, in the background, using your observer model. Needs memory on and an observer model.' },
   { key: 'privacy.exclude_paths', group: 'Privacy', label: 'Never capture paths',
@@ -1921,6 +1937,34 @@ const FIELDS: Omit<SettingField, 'type'>[] = [
     help: 'Tool names, one per line.' },
   { key: 'privacy.redact_patterns', group: 'Privacy', label: 'Extra redaction patterns',
     help: 'Regular expressions, one per line, on top of the built-in secret shapes.' },
+  { key: 'economy.ledger', group: 'Cost', label: 'Cost ledger',
+    help: 'Price each session from its transcript in the background, numbers and tool names only, and record Eklavya\'s own model calls.' },
+  { key: 'economy.loopguard', group: 'Cost', label: 'Loop guard',
+    help: 'nudge redirects a stuck turn once, then tells you. stop also ends a headless claude -p turn. An interactive turn is never stopped.' },
+  { key: 'economy.loopguard_level', group: 'Cost', label: 'Loop guard sensitivity',
+    help: 'conservative spares longer, churnier turns; aggressive redirects sooner.' },
+  { key: 'economy.judge_confidence', group: 'Cost', label: 'Judge confidence to redirect',
+    help: 'How sure the judge model must be that a turn is stuck (0 to 1). Only with providers.judge set.' },
+  { key: 'economy.nudges', group: 'Cost', label: 'Redirects per turn',
+    help: 'Redirects before the guard only tells you. 0 only tells you.' },
+  { key: 'economy.backstop_mult', group: 'Cost', label: 'Backstop (× usual turn length)',
+    help: 'Past this many times this repository\'s usual green-turn length and stuck by the strict rule, redirect without the judge.' },
+  { key: 'economy.envelope_min_samples', group: 'Cost', label: 'Green turns before the usual length is trusted',
+    help: 'Turns that ended green this repository needs before its usual turn length is used.' },
+  { key: 'economy.toolprune', group: 'Cost', label: 'Tool pruning',
+    help: 'propose lists tools this repository never uses; on also writes them to .claude/settings.local.json when it is quiet. Apply and restore with eklavya toolprune.' },
+  { key: 'economy.toolprune_evidence', group: 'Cost', label: 'Unused for this many prompts',
+    help: 'Prompts without using a tool before it is proposed, across the sessions below.' },
+  { key: 'economy.toolprune_min_sessions', group: 'Cost', label: '… across this many sessions',
+    help: 'Sessions those prompts must span.' },
+  { key: 'economy.toolprune_sessions', group: 'Cost', label: 'Or unused for this many sessions',
+    help: 'Sessions without using a tool before it is proposed, however few prompts.' },
+  { key: 'economy.toolprune_quiet_minutes', group: 'Cost', label: 'Quiet minutes before writing',
+    help: 'With tool pruning on, the deny list is written only after this repository\'s sessions have been idle this long.' },
+  { key: 'economy.toolprune_protect', group: 'Cost', label: 'Never prune these tools',
+    help: 'Tool names, one per line, on top of the built-in list.' },
+  { key: 'economy.envfacts', group: 'Cost', label: 'Environment facts',
+    help: 'free learns facts such as "bare pytest is missing here" from repeated failures, with no model call. observer also takes facts the observer proposes.' },
   { key: 'auto_update', group: 'This machine', label: 'Update automatically',
     help: 'Install newer releases in the background at session start.' },
   { key: 'telemetry', group: 'This machine', label: 'Anonymous usage counts',
@@ -1942,6 +1986,7 @@ export const SETTINGS: SettingField[] = FIELDS.map((f) => {
 export const CLI_ONLY: { key: string; why: string }[] = [
   { key: 'providers.observer', why: 'sends session evidence to a model' },
   { key: 'providers.embeddings', why: 'sends memory text to a model' },
+  { key: 'providers.judge', why: 'sends a digest of a stuck turn to a model' },
   { key: 'notifications.enabled', why: 'posts to a webhook or runs a command' },
   { key: 'notifications.sinks', why: 'posts to a webhook or runs a command' },
   { key: 'sync.enabled', why: 'writes memory to a shared folder' },
@@ -2201,9 +2246,15 @@ export function openedItem(db: DB, body: unknown): { status: number; body: Recor
  * project is called. `explainer:depth_N` is how far down a framed page the
  * reader has scrolled, once per view and threshold.
  */
+/** The Cost workflow's payload, under the settings of the project it names (its checkout, when one exists). */
+export function costBody(db: DB, project: string | null): string {
+  const config = project && fs.existsSync(project) ? loadConfig(project).config : loadConfig().config;
+  return JSON.stringify(costReport(db, config, project));
+}
+
 export const USAGE_EVENTS = new Set([
   'dash:opened',
-  ...['learning', 'memory', 'artifacts', 'feedback', 'settings'].map((w) => `dash:view_${w}`),
+  ...['learning', 'memory', 'artifacts', 'feedback', 'cost', 'settings'].map((w) => `dash:view_${w}`),
   'explainer:opened',
   ...[25, 50, 75, 100].map((n) => `explainer:depth_${n}`),
 ]);
@@ -2224,7 +2275,30 @@ export type WriteHandler = (db: DB, body: unknown) => { status: number; body: Re
  * one handler; `acceptWrite` gives it the same guard as the rest, and the
  * table-driven test in `dashboard.test.ts` runs every guard against it.
  */
+/**
+ * `POST /api/toolprune/apply` and `/restore`: `{ project, tools? }`. The same
+ * writes as `eklavya toolprune apply|restore` (issue #263), to a checkout the
+ * Settings pages may also write for, never a path the page names freely.
+ */
+function toolprune(action: 'apply' | 'restore'): WriteHandler {
+  return (db, body) => {
+    const b = (body && typeof body === 'object' ? body : {}) as { project?: unknown; tools?: unknown };
+    const project = typeof b.project === 'string' ? pickProject(configurableProjects(db, { fresh: true }), b.project) : null;
+    if (!project) return { status: 400, body: { error: 'Choose a project with a checkout first.' } };
+    const tools = Array.isArray(b.tools) ? b.tools.filter((t): t is string => typeof t === 'string').slice(0, 100) : undefined;
+    const result =
+      action === 'apply'
+        ? applyProposal(db, loadConfig(project.id).config, project.id, project.id, tools)
+        : restoreTools(db, project.id, project.id, tools);
+    if (!result.ok) return { status: 409, body: { error: result.reason } };
+    return { status: 200, body: { ok: true, tools: result.tools } };
+  };
+}
+
 export const WRITES: Record<string, { handler: WriteHandler; maxBytes: number }> = {
+  // `{ project, tools? }`: a hundred tool names fit easily.
+  '/api/toolprune/apply': { handler: toolprune('apply'), maxBytes: 16 * 1024 },
+  '/api/toolprune/restore': { handler: toolprune('restore'), maxBytes: 16 * 1024 },
   '/api/settings': { handler: updateSetting, maxBytes: MAX_SETTINGS_BODY },
   // An option label is at most LIMITS.option characters; 16 KiB holds one
   // JSON-escaped with room to spare.
@@ -2958,6 +3032,11 @@ export function startDashboard(
             per: Number(g('per')) || MEMORY_PER,
           }),
         )));
+      }
+      if (url.pathname === '/api/cost') {
+        // Not memoised: the ledger is written by detached folds the change
+        // cursor does not watch, and the report is a handful of indexed reads.
+        return send(res, 200, 'application/json', costBody(db, url.searchParams.get('project') || null));
       }
       if (url.pathname === '/api/feedback') {
         const out = feedbackItem(db, url.searchParams.get('id'));

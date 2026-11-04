@@ -73,7 +73,7 @@ describe('coerce, namespaced fields', () => {
     expect(out.privacy.redact_patterns).toEqual(['sk-[a-z]+']);
     expect(out.retrieval).toMatchObject({ mode: 'hybrid', max_tokens: 900 });
     expect(out.notifications.sinks).toEqual([{ kind: 'file', target: '/tmp/out.log', args: undefined, events: undefined }]);
-    expect(out.providers).toEqual({ observer: null, embeddings: null });
+    expect(out.providers).toEqual({ observer: null, embeddings: null, judge: null });
     expect(out.sync).toMatchObject({ target: null, device_id: 'laptop' });
   });
 
