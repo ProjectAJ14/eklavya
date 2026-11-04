@@ -25,7 +25,7 @@
  * are replayed newest first so the hidden set only grows.
  *
  * Arms (config only; the vectors are whatever the copy holds, reported below):
- *   today   retrieval.seam_query off, prompt_gate strict (the shipped default)
+ *   today   retrieval.seam_query off, prompt_gate strict (the default until 1.92)
  *   seam    seam_query on (the query is the last checkpoint's next steps plus
  *           the previous session's files, standing in for git state, which
  *           history does not keep)

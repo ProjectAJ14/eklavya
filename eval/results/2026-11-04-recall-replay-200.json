@@ -1,0 +1,91 @@
+{
+  "generated_at": "2026-11-04T16:00:57.510Z",
+  "source": "knowledge.db",
+  "limit": 200,
+  "arms": [
+    {
+      "arm": "today",
+      "sessions": 200,
+      "start": {
+        "n": 31,
+        "hit": 7
+      },
+      "prompt": {
+        "n": 283,
+        "hit": 18,
+        "irrelevant": 1064,
+        "opened": 633
+      },
+      "tokens": 749904,
+      "embedders": [
+        {
+          "embedder_id": "local-hash-v1",
+          "n": 27467
+        },
+        {
+          "embedder_id": "local-hash-v2",
+          "n": 3878
+        }
+      ],
+      "start_hit_at_6": 0.226,
+      "prompt_hit_at_2": 0.064,
+      "prompt_false_open": 0.595
+    },
+    {
+      "arm": "seam",
+      "sessions": 200,
+      "start": {
+        "n": 31,
+        "hit": 7
+      },
+      "prompt": {
+        "n": 283,
+        "hit": 18,
+        "irrelevant": 1064,
+        "opened": 633
+      },
+      "tokens": 751431,
+      "embedders": [
+        {
+          "embedder_id": "local-hash-v1",
+          "n": 27468
+        },
+        {
+          "embedder_id": "local-hash-v2",
+          "n": 3879
+        }
+      ],
+      "start_hit_at_6": 0.226,
+      "prompt_hit_at_2": 0.064,
+      "prompt_false_open": 0.595
+    },
+    {
+      "arm": "terms",
+      "sessions": 200,
+      "start": {
+        "n": 31,
+        "hit": 7
+      },
+      "prompt": {
+        "n": 283,
+        "hit": 23,
+        "irrelevant": 1064,
+        "opened": 725
+      },
+      "tokens": 791159,
+      "embedders": [
+        {
+          "embedder_id": "local-hash-v1",
+          "n": 27469
+        },
+        {
+          "embedder_id": "local-hash-v2",
+          "n": 3880
+        }
+      ],
+      "start_hit_at_6": 0.226,
+      "prompt_hit_at_2": 0.081,
+      "prompt_false_open": 0.681
+    }
+  ]
+}

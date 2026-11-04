@@ -209,7 +209,7 @@ describe('the terms prompt gate', () => {
       occurredAt: at(2),
     });
     const prompt = 'can you look at why the payment retry keeps hammering the provider again today';
-    const strict = recallForPrompt(db, config(), { project: PROJECT, sessionId: 's-strict', prompt });
+    const strict = recallForPrompt(db, config((c) => (c.retrieval.prompt_gate = 'strict')), { project: PROJECT, sessionId: 's-strict', prompt });
     const terms = recallForPrompt(db, config((c) => (c.retrieval.prompt_gate = 'terms')), { project: PROJECT, sessionId: 's-terms', prompt });
     expect(strict).toBeNull();
     expect(terms?.entries.map((e) => e.title)).toEqual(['Payment retry backoff with jitter']);
@@ -307,15 +307,15 @@ describe('the lookup hint', () => {
 });
 
 describe('config keys', () => {
-  it('default to today\'s behaviour and coerce only valid values', () => {
-    expect(DEFAULT_CONFIG.retrieval).toMatchObject({ seam_query: false, prompt_gate: 'strict', timeline_items: 50 });
+  it('default prompt_gate to terms, keep seam_query and lookup_hint off, and coerce only valid values', () => {
+    expect(DEFAULT_CONFIG.retrieval).toMatchObject({ seam_query: false, prompt_gate: 'terms', timeline_items: 50 });
     expect(DEFAULT_CONFIG.memory.lookup_hint).toBe('mcp');
-    const good = coerce({ retrieval: { seam_query: true, prompt_gate: 'terms', timeline_items: 12.7 }, memory: { lookup_hint: 'bash' } }, DEFAULT_CONFIG);
-    expect(good.retrieval).toMatchObject({ seam_query: true, prompt_gate: 'terms', timeline_items: 12 });
+    const good = coerce({ retrieval: { seam_query: true, prompt_gate: 'strict', timeline_items: 12.7 }, memory: { lookup_hint: 'bash' } }, DEFAULT_CONFIG);
+    expect(good.retrieval).toMatchObject({ seam_query: true, prompt_gate: 'strict', timeline_items: 12 });
     expect(good.memory.lookup_hint).toBe('bash');
     expect(coerce({ retrieval: { timeline_items: 900 } }, DEFAULT_CONFIG).retrieval.timeline_items).toBe(200);
     const bad = coerce({ retrieval: { seam_query: 'yes', prompt_gate: 'loose', timeline_items: -1 }, memory: { lookup_hint: 'web' } }, DEFAULT_CONFIG);
-    expect(bad.retrieval).toMatchObject({ seam_query: false, prompt_gate: 'strict', timeline_items: 50 });
+    expect(bad.retrieval).toMatchObject({ seam_query: false, prompt_gate: 'terms', timeline_items: 50 });
     expect(bad.memory.lookup_hint).toBe('mcp');
   });
 });
