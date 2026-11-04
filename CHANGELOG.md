@@ -1,3 +1,10 @@
+# [1.95.0](https://github.com/ProjectAJ14/eklavya/compare/v1.94.1...v1.95.0) (2026-11-04)
+
+
+### Features
+
+* **dashboard:** one session page for Learning, Memory and Cost ([#278](https://github.com/ProjectAJ14/eklavya/issues/278)) ([afff28a](https://github.com/ProjectAJ14/eklavya/commit/afff28a6061f2f7db0bc22c5b6874437dd2be6e8))
+
 ## [1.94.1](https://github.com/ProjectAJ14/eklavya/compare/v1.94.0...v1.94.1) (2026-11-04)
 
 
