@@ -80,6 +80,9 @@ jobs:
           if-no-files-found: error
           compression-level: 0 # The tarball is already compressed.
           retention-days: 1
+          # A re-run of a failed shard would otherwise add a second artifact of
+          # the same name, and the merge job could download the failed one.
+          overwrite: true
 
   # Preserve the required Test / test check. Never accept partial coverage or
   # a failed/missing shard, even when its artifact was uploaded successfully.
