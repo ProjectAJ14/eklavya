@@ -45,26 +45,32 @@ jobs:
       - name: Install dependencies
         run: npm ci
         working-directory: mcp
-      # Takes 17-30s (average 21s over 35 runs). A hung apt mirror once held a
-      # shard for 6+ minutes and blocked the next push through the concurrency
-      # group, so each attempt is cut at about twice the average and retried.
-      # The cut-off kills npx but can leave its apt-get running, and that apt-get
-      # holds the dpkg lock, so a retry started at once fails on the lock
-      # ("Could not get lock /var/lib/dpkg/lock-frontend"). Each retry first waits,
-      # for up to 90s, for the lock to be free; the orphan then usually finishes
-      # the install and the retry is quick.
+      # The browser download is plain Node, so `timeout` stops it cleanly and it
+      # is retried. OS packages are not installed by default: the runner image
+      # already has every library Chromium links against, and Playwright's
+      # `install-deps` only added nine font packages (CJK, Thai, unifont; ~22 MB)
+      # that no browser test renders. The Azure apt mirror sometimes serves them
+      # at ~60 KB/s, which alone outlasted this step. Retrying apt under `timeout`
+      # made it worse: `timeout` killed npx but not its apt-get, which kept the
+      # dpkg lock, so every retry failed on it. So apt runs only when `ldd` finds
+      # a missing library (a changed runner image), once, with apt's own retry
+      # for a connection that stalls for 20s.
       - name: Install Chromium
         timeout-minutes: 5
         run: |
           for attempt in 1 2 3; do
-            timeout -k 5 45 npx playwright-core install --with-deps chromium && exit 0
-            echo "Chromium install attempt $attempt failed or timed out"
-            for _ in $(seq 45); do
-              sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || break
-              sleep 2
-            done
+            timeout -k 5 60 npx playwright-core install chromium && break
+            echo "Chromium download attempt $attempt failed or timed out"
+            [ "$attempt" = 3 ] && exit 1
           done
-          exit 1
+          cache=~/.cache/ms-playwright
+          if ldd $cache/chromium-*/chrome-linux64/chrome \
+              $cache/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell 2>&1 \
+              | grep -E 'not found|No such file'; then
+            printf 'Acquire::http::Timeout "20";\nAcquire::Retries "5";\n' \
+              | sudo tee /etc/apt/apt.conf.d/99ci-retries >/dev/null
+            npx playwright-core install-deps chromium
+          fi
         working-directory: mcp
       - name: Build server
         run: npm run build
@@ -81,6 +87,9 @@ jobs:
           if-no-files-found: error
           compression-level: 0 # The tarball is already compressed.
           retention-days: 1
+          # A re-run of a failed shard would otherwise add a second artifact of
+          # the same name, and the merge job could download the failed one.
+          overwrite: true
 
   # Preserve the required Test / test check. Never accept partial coverage or
   # a failed/missing shard, even when its artifact was uploaded successfully.
