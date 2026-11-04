@@ -89,18 +89,60 @@ in all; their cost is in the ledger rows they produced.
   "ReportFindings"]}}` in `.claude/settings.local.json`, the next session's tool
   list no longer had those two tools, and every other tool was still there.
 
+## Second round (same day)
+
+- **Loop guard live redirect, shown.** A session on 2.1.318 told to repeat
+  "edit `calc.py`, run `python3 -m unittest`" twelve times against a test that
+  cannot pass, with the guard at the aggressive level and a seeded envelope of
+  6 calls. The guard redirected on the seventh edit (`envelope: 14 ≥ 6`) and
+  noticed on the next failing run (`backstop: 15 calls ≥ 15, stagnation
+  0.86`); the model quoted both texts verbatim and told the user in one line,
+  as the notice asks. 26 turns, $0.44. The model kept to the literal script
+  rather than changing approach, as the prompt told it to.
+- **Oldest recorded version, Claude Code 2.1.283** (the oldest version in
+  `docs/verified-schemas.md`), installed from npm: five sessions, the ledger
+  equals each envelope in 5 of 5, the failing `ls` is one `tool_error`, and 4
+  observer jobs give 4 overhead rows. Inside this cloud container the CLI
+  adopts the host session's id from `CLAUDE_CODE_SESSION_ID` and
+  `CLAUDE_CODE_REMOTE_SESSION_ID`; with those set, every child session folded
+  into one row (whose totals still equalled the sum of the five envelopes), so
+  the counted run cleared them. A developer's own sessions are not nested.
+- **memory-use harness, one trial per arm** (`relevant`, `irrelevant`,
+  `searchonly`), today's defaults against `retrieval.seam_query: true,
+  prompt_gate: terms`. Results: `/tmp` run directories, summarised here.
+
+  | arm | settings | semicolon (correct) | tests pass | memory fetched | input tokens |
+  |---|---|---|---|---|---|
+  | relevant | today | 1/1 | 1/1 | 0/1 | 109k |
+  | relevant | new | 1/1 | 1/1 | 0/1 | 110k |
+  | searchonly | today | 1/1 | 1/1 | 1/1 | 236k |
+  | searchonly | new | 1/1 | 1/1 | 1/1 | 199k |
+  | irrelevant | today | 0/1 (correct: no rule) | 1/1 | 0/1 | 109k |
+  | irrelevant | new | 0/1 (correct) | 1/1 | **1/1** | **184k** |
+
+  With the new settings the `irrelevant` session made one extra memory fetch
+  and read about 70% more input. That fails sub-issue A's condition for
+  turning them on ("`irrelevant` shows no extra tokens or tool calls"), on one
+  trial, which is a signal and not a measurement. The settings stay off.
+  About $2.70 in all (the harness's own token report). The harness gained
+  `--config` and a fallback for hosts without the `sqlite3` CLI to make this run.
+- **Replay eval on real databases.** Run on the scratch databases these live
+  sessions produced: they hold 1 to 10 sessions and a handful of entries, and
+  no session started after an entry whose files it then touched, so every
+  hit rate is undefined (n = 0). It needs a developer's own history.
+- **TokenEconomizer benchmark, not runnable here.** Its harness needs a Docker
+  daemon (none in this container) and about 200 GB for the SWE-Bench images
+  (24 GB free).
+
 ## Not checked here
 
-- A redirect from the loop guard reaching the model in a live stuck turn. One
-  attempt: an impossible test (`calc.f() == calc.f() + 1`), the guard on at the
-  aggressive level with a seeded envelope, and a prompt to keep editing until
-  it passes. The model said no honest edit could pass the test and stopped after
-  two turns ($0.17), so nothing was stuck and nothing was redirected. The
-  redirect and notice were checked through the real hooks with scripted calls
-  (`mcp/test/economy-hooks.test.ts`), not with a model in a loop.
-- Transcripts from the oldest supported Claude Code version: only 2.1.318 was
-  available here.
+- A loop the model fell into by itself: asked to fix an impossible test
+  without a script, it stopped after two turns ($0.17) instead of looping. The
+  redirect was shown with the scripted loop above.
 - The two-week team dogfood (Phase 2 and Phase 5).
 - TokenEconomizer's `experiments/` benchmark with three arms (Phase 5).
-- The `memory-use-harness.mjs` arms for `memory.lookup_hint` (sub-issue A).
-- The replay eval on a real `knowledge.db` (sub-issue A).
+- The `memory-use-harness.mjs` arm for `memory.lookup_hint: bash`, and more
+  than one trial per arm.
+- The replay eval on a developer's real `knowledge.db` (sub-issue A).
+- The two-week team dogfood (Phases 2 and 5) and a licensing review: both need
+  people and time.
