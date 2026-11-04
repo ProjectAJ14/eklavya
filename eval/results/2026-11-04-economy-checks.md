@@ -124,7 +124,7 @@ in all; their cost is in the ledger rows they produced.
   and read about 70% more input. That fails sub-issue A's condition for
   turning them on ("`irrelevant` shows no extra tokens or tool calls"), on one
   trial, which is a signal and not a measurement. The settings stay off.
-  About $2.70 in all (the harness's own token report). The harness gained
+  The scored runs cost $0.44 (today) and $0.47 (new) at list price by the harness's own token report; a first pair of runs, lost to the missing `sqlite3` CLI at scoring, cost about the same again. The harness gained
   `--config` and a fallback for hosts without the `sqlite3` CLI to make this run.
 - **Replay eval on real databases.** Run on the scratch databases these live
   sessions produced: they hold 1 to 10 sessions and a handful of entries, and
