@@ -38,6 +38,7 @@
  * per trial with its database seeded before the session starts, questions,
  * updates, telemetry and the dashboard off. All fixture memory is synthetic.
  */
+import Database from '../mcp/node_modules/better-sqlite3/lib/index.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -221,9 +222,20 @@ function inspectCode(repo) {
 
 function dbFacts(home) {
   const db = path.join(home, 'knowledge.db');
+  // The `sqlite3` CLI when there is one; otherwise the driver the runtime
+  // already ships (a cloud container may have no CLI).
   const q = (sql) => {
-    const out = spawnSync('sqlite3', ['-json', db, sql], { encoding: 'utf8' }).stdout.trim();
-    return out ? JSON.parse(out) : [];
+    const res = spawnSync('sqlite3', ['-json', db, sql], { encoding: 'utf8' });
+    if (!res.error) {
+      const out = res.stdout.trim();
+      return out ? JSON.parse(out) : [];
+    }
+    const conn = new Database(db, { readonly: true });
+    try {
+      return conn.prepare(sql).all();
+    } finally {
+      conn.close();
+    }
   };
   return {
     receipts: q('SELECT scope, delivery, item_count, delivered_tokens FROM context_receipts ORDER BY id'),
