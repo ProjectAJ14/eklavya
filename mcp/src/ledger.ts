@@ -3,7 +3,7 @@ import os from 'node:os';
 import type { DB } from './db.js';
 import type { EklavyaConfig } from './config.js';
 import { priceByModel, weightsFor, effectiveTokens } from './economy/pricing.js';
-import { findTranscript, projectsDir, readTranscript, totalTokens, type TranscriptSummary, type Usage } from './economy/transcript.js';
+import { findTranscript, isEklavyaTool, projectsDir, readTranscript, totalTokens, type TranscriptSummary, type Usage } from './economy/transcript.js';
 import { setUsageSink, type ProviderUsage } from './memory/provider.js';
 import { openSession } from './ledger-pending.js';
 
@@ -22,6 +22,18 @@ export { QUIET_MS, openSession, quietPending } from './ledger-pending.js';
 
 const nowIso = () => new Date().toISOString();
 const json = (v: unknown) => JSON.stringify(v);
+
+/** Each Eklavya MCP tool the session called, by its short name (`memory_search`), with its count; null for none. */
+export function eklavyaTools(tools: Record<string, number>): string | null {
+  const out: Record<string, number> = {};
+  for (const [name, n] of Object.entries(tools)) {
+    if (isEklavyaTool(name)) {
+      const short = name.slice(name.lastIndexOf('__') + 2);
+      out[short] = (out[short] ?? 0) + n;
+    }
+  }
+  return Object.keys(out).length ? json(out) : null;
+}
 
 /** What the settings were when a session was folded, for the memory on/off comparison. */
 export const settingsSnapshot = (config: EklavyaConfig) =>
@@ -72,7 +84,7 @@ export function foldSession(
          project = COALESCE(?, project), transcript_path = COALESCE(?, transcript_path),
          model = ?, claude_version = ?, started_at = ?, ended_at = ?, prompts = ?, requests = ?,
          tool_calls = ?, tool_errors = ?, input = ?, cache_read = ?, cache_write_5m = ?, cache_write_1h = ?,
-         output = ?, effective = ?, quiz_effective = ?, eklavya_effective = ?, unpriced = ?, settings = ?, folded_at = ?
+         output = ?, effective = ?, quiz_effective = ?, eklavya_effective = ?, eklavya_tools = ?, unpriced = ?, settings = ?, folded_at = ?
        WHERE session_id = ?`,
     ).run(
       project,
@@ -93,6 +105,7 @@ export function foldSession(
       priced.effective,
       quiz.effective,
       quiz.effective + subEffective,
+      eklavyaTools(t?.tools ?? {}),
       priced.unpriced.length ? json(priced.unpriced) : null,
       settingsSnapshot(config),
       nowIso(),

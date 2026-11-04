@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import type { DB } from './db.js';
 import type { EklavyaConfig } from './config.js';
 import { overheadBySource, sessionCosts, weeklyCosts } from './ledger.js';
@@ -5,6 +6,8 @@ import { guardCounts } from './loop-guard.js';
 import { kept, proposal, writeRecord } from './toolprune-store.js';
 import { listFacts } from './memory/pinned.js';
 import { staleCounts } from './memory/use.js';
+import { DELIVERED } from './memory/store.js';
+import { savingsFrom } from './memory/tokens.js';
 
 /**
  * The dashboard's Cost workflow (issue #259): one payload, every figure from
@@ -56,6 +59,15 @@ export function costReport(db: DB, config: EklavyaConfig, project: string | null
       )
       .get(since, project, project) as { n: number }
   ).n;
+  // Measured: recalled entries a session folded in the window went on to use.
+  const applied = (
+    db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM memory_session_applied a JOIN memory_use_sessions u ON u.session_id = a.session_id
+         JOIN memory_entries e ON e.id = a.entry_id WHERE u.folded_at >= ? AND (? IS NULL OR e.project = ?)`,
+      )
+      .get(since, project, project) as { n: number }
+  ).n;
   const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
   return {
     days: DAYS,
@@ -73,7 +85,7 @@ export function costReport(db: DB, config: EklavyaConfig, project: string | null
     failures_avoided: avoided,
     guard: guardCounts(db, project, since),
     guard_events: guardEvents,
-    memory_use: { recalls, ...reads, ...staleCounts(db, project) },
+    memory_use: { recalls, applied, ...reads, ...staleCounts(db, project) },
     experiment: { on: arms.on.length, off: arms.off.length, ran: arms.off.length > 0 },
     tools: project
       ? { mode: config.economy.toolprune, proposed: proposal(db, config, project), denied: writeRecord(db, project)?.added ?? [], kept: kept(db, project) }
@@ -84,5 +96,111 @@ export function costReport(db: DB, config: EklavyaConfig, project: string | null
           applied: f.applied, exercised: f.exercised, contradictions: f.contradictions, retired_reason: f.retired_reason,
         }))
       : [],
+  };
+}
+
+const parse = <T>(text: string | null, fallback: T): T => {
+  try {
+    return text ? (JSON.parse(text) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+/** At most this many entries are named per list on the session page; the counts stay whole. */
+export const SESSION_ENTRY_LIMIT = 50;
+
+/**
+ * One session as the shared session page reads it, from every workflow: what
+ * it cost (measured), where its transcript is, which of Eklavya's tools it
+ * called, what memory gave it and what it gave memory, and the savings
+ * estimates, each tagged with how it was obtained. Answers for any id: when
+ * nothing at all is recorded under it, `known` is false and every figure is empty.
+ */
+export function sessionReport(db: DB, id: string) {
+  const econ = db
+    .prepare(
+      `SELECT session_id, project, transcript_path, model, started_at, ended_at, prompts, requests, tool_calls, tool_errors,
+              input, cache_read, cache_write_5m, cache_write_1h, output, effective, quiz_effective, eklavya_effective,
+              eklavya_tools, unpriced, folded_at
+       FROM econ_sessions WHERE session_id = ?`,
+    )
+    .get(id) as (Record<string, unknown> & { transcript_path: string | null; eklavya_tools: string | null; unpriced: string | null }) | undefined;
+  const overhead = db
+    .prepare(
+      `SELECT source, COUNT(*) AS calls, SUM(effective) AS effective FROM econ_overhead
+       WHERE session_id = ? AND in_session = 0 GROUP BY source ORDER BY effective DESC`,
+    )
+    .all(id) as { source: string; calls: number; effective: number }[];
+  const entries = (sql: string) =>
+    db.prepare(`SELECT e.id, e.title, e.type FROM memory_entries e WHERE e.id IN (${sql}) ORDER BY e.id DESC`).all(id) as {
+      id: number;
+      title: string;
+      type: string | null;
+    }[];
+  const sent = entries(
+    `SELECT i.entry_id FROM context_receipt_items i JOIN context_receipts r ON r.id = i.receipt_id WHERE r.session_id = ? AND r.${DELIVERED}`,
+  );
+  const opened = entries(
+    `SELECT CAST(j.value AS INTEGER) FROM memory_reads m, json_each(m.entry_ids) j WHERE m.session_id = ? AND m.tool = 'memory_get'`,
+  );
+  const applied = entries('SELECT entry_id FROM memory_session_applied WHERE session_id = ?');
+  const receipts = db
+    .prepare(
+      `SELECT COUNT(*) AS recalls, COALESCE(SUM(base_tokens), 0) AS base, COALESCE(SUM(delivered_tokens), 0) AS delivered
+       FROM context_receipts WHERE session_id = ? AND ${DELIVERED}`,
+    )
+    .get(id) as { recalls: number; base: number; delivered: number };
+  const reads = db
+    .prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(outcome = 'empty'), 0) AS empty FROM memory_reads WHERE session_id = ?`)
+    .get(id) as { n: number; empty: number };
+  const captured = db
+    .prepare(
+      `SELECT COUNT(*) AS events, COALESCE(SUM(status != 'summarized'), 0) AS pending, COALESCE(SUM(redacted), 0) AS redacted
+       FROM evidence_events WHERE session_id = ?`,
+    )
+    .get(id) as { events: number; pending: number; redacted: number };
+  const remembered = (
+    db.prepare('SELECT COUNT(*) AS n FROM memory_entries WHERE session_id = ? AND deleted_at IS NULL').get(id) as { n: number }
+  ).n;
+  const facts = db
+    .prepare('SELECT COUNT(*) AS shown, COALESCE(SUM(avoided = 1), 0) AS avoided FROM pinned_fact_shown WHERE session_id = ?')
+    .get(id) as { shown: number; avoided: number };
+  const guard = Object.fromEntries(
+    (db.prepare('SELECT kind, COUNT(*) AS n FROM econ_guard_events WHERE session_id = ? GROUP BY kind').all(id) as { kind: string; n: number }[]).map(
+      (r) => [r.kind, r.n],
+    ),
+  ) as Record<string, number>;
+  const useFolded = Boolean(db.prepare('SELECT 1 FROM memory_use_sessions WHERE session_id = ?').get(id));
+  const transcript = econ?.transcript_path ?? null;
+  const cap = <T>(xs: T[]) => xs.slice(0, SESSION_ENTRY_LIMIT);
+  return {
+    session_id: id,
+    // Whether Eklavya recorded anything under this id: a session the learning half alone knows is still a session.
+    known: Boolean(econ || overhead.length || receipts.recalls || reads.n || captured.events || remembered || facts.shown || Object.keys(guard).length),
+    cost: econ ? (({ eklavya_tools: _tools, ...row }) => ({ ...row, unpriced: parse<string[]>(row.unpriced, []), folded: row.folded_at !== null }))(econ) : null,
+    transcript: transcript ? { path: transcript, on_disk: fs.existsSync(transcript) } : null,
+    // Measured: from the transcript at fold time, names and counts only.
+    tools: parse<Record<string, number>>(econ?.eklavya_tools ?? null, {}),
+    overhead,
+    memory: {
+      recalls: receipts.recalls,
+      reads: reads.n,
+      empty_reads: reads.empty,
+      sent: { count: sent.length, entries: cap(sent) },
+      opened: { count: opened.length, entries: cap(opened) },
+      applied: { count: applied.length, entries: cap(applied) },
+      folded: useFolded,
+      captured: captured.events,
+      pending: captured.pending,
+      redacted: captured.redacted,
+      remembered,
+    },
+    savings: {
+      recall: savingsFrom({ baseTokens: receipts.base, deliveredTokens: receipts.delivered, delivery: receipts.recalls ? 'emitted' : 'unknown' }),
+      failures_avoided: facts.avoided,
+      facts_shown: facts.shown,
+      guard,
+    },
   };
 }

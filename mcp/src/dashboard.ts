@@ -38,7 +38,7 @@ import {
   type EklavyaConfig,
 } from './config.js';
 import { applySetting, knownKeys, SETTING_RULES, valueAt, type SettingRule } from './config-path.js';
-import { costReport } from './cost-report.js';
+import { costReport, sessionReport } from './cost-report.js';
 import { applyProposal, restoreTools } from './toolprune-store.js';
 import {
   artifactsDir, dashboardPort, dbPath, DEFAULT_PORT, eklavyaHome, globalConfigPath, projectConfigPath, projectsDir,
@@ -3037,6 +3037,10 @@ export function startDashboard(
         // Not memoised: the ledger is written by detached folds the change
         // cursor does not watch, and the report is a handful of indexed reads.
         return send(res, 200, 'application/json', costBody(db, url.searchParams.get('project') || null));
+      }
+      if (url.pathname === '/api/session') {
+        // Not memoised, for the same reason as `/api/cost`: the ledger half is written by detached folds.
+        return send(res, 200, 'application/json', JSON.stringify(sessionReport(db, url.searchParams.get('id') ?? '')));
       }
       if (url.pathname === '/api/feedback') {
         const out = feedbackItem(db, url.searchParams.get('id'));

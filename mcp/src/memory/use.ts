@@ -101,6 +101,7 @@ export function foldEntryUse(db: DB, config: EklavyaConfig, project: string, ses
      ON CONFLICT(entry_id) DO UPDATE SET sent = sent + excluded.sent, opened = opened + excluded.opened,
        applied = applied + excluded.applied, utility = utility * ${UTILITY_DECAY} + excluded.utility, updated_at = excluded.updated_at`,
   );
+  const appliedHere = db.prepare('INSERT OR IGNORE INTO memory_session_applied (session_id, entry_id) VALUES (?, ?)');
   const flag = db.prepare(
     `UPDATE memory_entry_use SET stale_reason = ?, stale_since = ?, stale_by = 'fold' WHERE entry_id = ? AND stale_reason IS NULL`,
   );
@@ -112,6 +113,7 @@ export function foldEntryUse(db: DB, config: EklavyaConfig, project: string, ses
       if (!entry || entry.project !== project) continue;
       const applied = list(entry.files).some((f) => touched.has(path.basename(f)));
       upsert.run(id, sent.has(id) ? 1 : 0, opened.has(id) ? 1 : 0, applied ? 1 : 0, applied ? 1 : 0, at);
+      if (applied) appliedHere.run(sessionId, id);
       if (!config.memory.stale_check) continue;
       const use = db.prepare('SELECT sent, applied FROM memory_entry_use WHERE entry_id = ?').get(id) as { sent: number; applied: number };
       const reason =

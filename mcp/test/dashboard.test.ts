@@ -1365,7 +1365,7 @@ describe('the server says what a browser may do with its pages', () => {
       req.end();
     });
 
-  const ROUTES = ['/', '/tokens.css', '/vendor/driver-hints.js', '/vendor/driver-hints.css', '/manifest.webmanifest', '/icon-192.png', '/api/state', '/api/projects', '/api/memory', '/api/memory/sessions', '/api/memory/entry?id=1', '/api/settings', '/api/attempts/correction?id=1', '/nope'];
+  const ROUTES = ['/', '/tokens.css', '/vendor/driver-hints.js', '/vendor/driver-hints.css', '/manifest.webmanifest', '/icon-192.png', '/api/state', '/api/projects', '/api/memory', '/api/memory/sessions', '/api/memory/entry?id=1', '/api/settings', '/api/attempts/correction?id=1', '/api/session', '/api/session?id=s1', '/nope'];
 
   it('sends the security headers on every response, errors included', async () => {
     const { url, close } = await startBuilt(db, { port: 0 });

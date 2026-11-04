@@ -7,8 +7,9 @@ import { openDb, type DB } from '../src/db.js';
 import { DEFAULT_CONFIG, type EklavyaConfig } from '../src/config.js';
 import { afterFold, costCommand, factsCommand, foldCommand, guardLine, refreshStale, toolpruneCommand } from '../src/cli-economy.js';
 import { compact, openSession } from '../src/ledger-pending.js';
-import { foldSession } from '../src/ledger.js';
+import { foldSession, recordOverhead } from '../src/ledger.js';
 import { costBody } from '../src/dashboard.js';
+import { SESSION_ENTRY_LIMIT, costReport, sessionReport } from '../src/cost-report.js';
 import { envValues, formRepairs, render } from '../src/economy/envfacts.js';
 import { readCalls, readTranscript } from '../src/economy/transcript.js';
 import { applyDeny, restoreDeny } from '../src/economy/toolprune.js';
@@ -376,5 +377,107 @@ describe('the catalog follows the Claude Code version, and the dashboard can app
     fs.writeFileSync(path.join(repo, '.claude', 'settings.local.json'), '{ broken');
     db.prepare(`INSERT INTO econ_settings_writes (project, record, applied_at) VALUES (?, ?, 'x')`).run(repo, JSON.stringify({ file: path.join(repo, '.claude', 'settings.local.json'), original: null, added: ['Y'], excludeLine: null }));
     expect(restore(db, { project: repo })).toMatchObject({ status: 409 });
+  });
+});
+
+describe('the shared session page', () => {
+  const evidence = (session: string, files: string[]) =>
+    db
+      .prepare(
+        `INSERT INTO evidence_events (event_uid, project, session_id, kind, files, occurred_at, status, redacted)
+         VALUES (?, ?, ?, 'file_edit', ?, '2026-11-02T10:00:00Z', 'accepted', 1)`,
+      )
+      .run(`${session}-${files.join()}`, repo, session, JSON.stringify(files));
+
+  it('records which recalled entries each session used, once per session and entry', () => {
+    const used = insertEntry(db, { project: repo, title: 'Used', files: ['src/a.ts'] });
+    const idle = insertEntry(db, { project: repo, title: 'Idle', files: ['src/b.ts'] });
+    for (const s of ['u1', 'u2']) {
+      recordReceipt(db, { project: repo, sessionId: s, scope: 'prompt', method: 'x', delivery: 'emitted', items: [used, idle].map((entryId) => ({ entryId, sourceTokens: 10, sentTokens: 2 })) });
+    }
+    evidence('u1', ['src/a.ts']);
+    const off = config((c) => (c.memory.stale_check = false));
+    foldEntryUse(db, off, repo, 'u1', null);
+    foldEntryUse(db, off, repo, 'u1', null);
+    foldEntryUse(db, off, repo, 'u2', null);
+    expect(db.prepare('SELECT session_id, entry_id FROM memory_session_applied').all()).toEqual([{ session_id: 'u1', entry_id: used }]);
+    expect(costReport(db, config(), repo).memory_use.applied).toBe(1);
+    expect(costReport(db, config(), '/elsewhere').memory_use.applied).toBe(0);
+  });
+
+  it('answers for an id nothing recorded, with every figure empty', () => {
+    expect(sessionReport(db, 'nobody')).toEqual({
+      session_id: 'nobody',
+      known: false,
+      cost: null,
+      transcript: null,
+      tools: {},
+      overhead: [],
+      memory: {
+        recalls: 0, reads: 0, empty_reads: 0,
+        sent: { count: 0, entries: [] }, opened: { count: 0, entries: [] }, applied: { count: 0, entries: [] },
+        folded: false, captured: 0, pending: 0, redacted: 0, remembered: 0,
+      },
+      savings: { recall: { kind: 'none' }, failures_avoided: 0, facts_shown: 0, guard: {} },
+    });
+    // A guard event alone is enough for a session to be known.
+    db.prepare(`INSERT INTO econ_guard_events (at, session_id, project, kind) VALUES ('x', 'g1', ?, 'redirect')`).run(repo);
+    expect(sessionReport(db, 'g1')).toMatchObject({ known: true, savings: { guard: { redirect: 1 } } });
+  });
+
+  it('joins what a session cost, called, was given and gave memory, on its id', () => {
+    const file = path.join(home, 'claude', 'projects', '-r', 'p1.jsonl');
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(
+      file,
+      [
+        line({ type: 'user', sessionId: 'p1', cwd: repo, timestamp: '2026-11-02T10:00:00Z', message: { content: 'go' } }),
+        line({ type: 'assistant', timestamp: '2026-11-02T10:05:00Z', message: { id: 'a', model: 'claude-sonnet-4-5', usage: { input_tokens: 100, output_tokens: 10 }, content: [{ type: 'tool_use', id: 't', name: 'mcp__plugin_eklavya_eklavya__memory_search', input: {} }] } }),
+      ].join('\n'),
+    );
+    openSession(db, { sessionId: 'p1', project: repo, transcriptPath: file });
+    foldSession(db, config(), 'p1');
+    recordOverhead(db, { source: 'observer', model: 'claude-haiku-4-5', usage: { input: 10, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0, output: 0 }, costUsd: null, sessionId: 'p1', project: repo });
+    const sent = insertEntry(db, { project: repo, title: 'Sent', files: ['src/a.ts'] });
+    const read = insertEntry(db, { project: repo, title: 'Read' });
+    insertEntry(db, { project: repo, sessionId: 'p1', title: 'Captured' });
+    recordReceipt(db, { project: repo, sessionId: 'p1', scope: 'prompt', method: 'x', delivery: 'emitted', items: [{ entryId: sent, sourceTokens: 100, sentTokens: 20 }] });
+    recordRead(db, { tool: 'memory_get', project: repo, sessionId: 'p1', receiptId: null, entryIds: [read], outcome: 'ok', latencyMs: 1, resultTokens: 1 });
+    recordRead(db, { tool: 'memory_search', project: repo, sessionId: 'p1', receiptId: null, entryIds: [], outcome: 'empty', latencyMs: 1, resultTokens: 0 });
+    evidence('p1', ['src/a.ts']);
+    foldEntryUse(db, config((c) => (c.memory.stale_check = false)), repo, 'p1', null);
+    const fact = db
+      .prepare(`INSERT INTO pinned_facts (project, fact_key, family, kind, text, source, created_at, updated_at) VALUES (?, 'k', 'form_repair', 'env', 't', 'fold', 'x', 'x')`)
+      .run(repo).lastInsertRowid;
+    db.prepare(`INSERT INTO pinned_fact_shown (session_id, fact_id, shown_at, avoided) VALUES ('p1', ?, 'x', 1)`).run(fact);
+
+    const r = sessionReport(db, 'p1');
+    expect(r.known).toBe(true);
+    expect(r.cost).toMatchObject({ project: repo, model: 'claude-sonnet-4-5', prompts: 1, effective: 150, folded: true, unpriced: [] });
+    expect(r.cost).not.toHaveProperty('eklavya_tools');
+    expect(r.transcript).toEqual({ path: file, on_disk: true });
+    expect(r.tools).toEqual({ memory_search: 1 });
+    expect(r.overhead).toEqual([{ source: 'observer', calls: 1, effective: 10 }]);
+    expect(r.memory).toMatchObject({
+      recalls: 1, reads: 2, empty_reads: 1, folded: true, captured: 1, pending: 1, redacted: 1, remembered: 1,
+      sent: { count: 1, entries: [{ id: sent, title: 'Sent' }] },
+      opened: { count: 1, entries: [{ id: read, title: 'Read' }] },
+      applied: { count: 1, entries: [{ id: sent, title: 'Sent' }] },
+    });
+    expect(r.savings).toEqual({ recall: { kind: 'saving', percent: 80, base: 100, delivered: 20 }, failures_avoided: 1, facts_shown: 1, guard: {} });
+
+    // A deleted transcript keeps its path; unreadable tool counts read as none.
+    fs.rmSync(file);
+    db.prepare(`UPDATE econ_sessions SET eklavya_tools = 'nope' WHERE session_id = 'p1'`).run();
+    expect(sessionReport(db, 'p1')).toMatchObject({ transcript: { path: file, on_disk: false }, tools: {} });
+  });
+
+  it('names at most SESSION_ENTRY_LIMIT entries per list and keeps the whole count', () => {
+    const items = Array.from({ length: SESSION_ENTRY_LIMIT + 2 }, (_, i) => ({ entryId: insertEntry(db, { project: repo, title: `E${i}` }), sourceTokens: 1, sentTokens: 1 }));
+    recordReceipt(db, { project: repo, sessionId: 'big', scope: 'prompt', method: 'x', delivery: 'emitted', items });
+    const r = sessionReport(db, 'big');
+    expect(r.memory.sent.count).toBe(SESSION_ENTRY_LIMIT + 2);
+    expect(r.memory.sent.entries).toHaveLength(SESSION_ENTRY_LIMIT);
+    expect(r.cost).toBeNull();
   });
 });

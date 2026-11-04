@@ -1,6 +1,6 @@
 // Split by feature so Vitest's file sharding can divide the browser work.
 import { describe, expect, it } from 'vitest';
-import { OPTS, base, enc, fix, fx, open, ready } from './dashboard-browser-helpers.js';
+import { OPTS, base, db, enc, fix, fx, open, ready } from './dashboard-browser-helpers.js';
 
 describe.skipIf(!OPTS)('dashboard in a browser', () => {
   describe('every screen', () => {
@@ -91,5 +91,48 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         .toBe('&lt;a title=&#39;x&#39; href=&quot;y&quot;&gt;&amp;&lt;/a&gt;');
       await w.ctx.close();
     });
+  });
+  describe('one session page from every workflow', () => {
+    it('opens the same page from Learning, Memory and Cost, and a ledger-only session too', async () => {
+      const row = db.prepare(
+        `INSERT INTO econ_sessions (session_id, project, transcript_path, model, started_at, ended_at, prompts, effective, quiz_effective,
+           eklavya_effective, eklavya_tools, folded_at) VALUES (?, ?, ?, 'claude-opus-5-5', '2026-11-02T10:00:00Z', '2026-11-02T11:00:00Z', 3, 1000, 50, 50, ?, 'x')`,
+      );
+      row.run('s-mixed', fx.repo.mixed, '/gone/s-mixed.jsonl', '{"memory_search":2}');
+      row.run('s-ledger', fx.repo.mixed, null, null);
+      db.prepare(`INSERT INTO econ_guard_events (at, session_id, project, kind) VALUES ('x', 's-ledger', ?, 'redirect')`).run(fx.repo.mixed);
+      const w = await open('#/cost/sessions', { width: 560 });
+      const { page } = w;
+      await page.click(`tr.row[data-go*="s-mixed"]`);
+      await page.waitForSelector('.sess-talk eklavya-mascot');
+      expect(page.url()).toContain('#/cost/session/s-mixed');
+      const seen = async () => ({
+        h1: await page.textContent('h1.page__title'),
+        talk: await page.textContent('.sess-talk .say'),
+        state: await page.getAttribute('.sess-talk eklavya-mascot', 'state'),
+      });
+      const fromCost = await seen();
+      expect(fromCost.talk).toContain("I used 5% of this session's effective tokens.");
+      expect(fromCost.state).toBe('info');
+      expect(await page.textContent('#view')).toContain('Claude Code has since deleted it');
+      expect(await page.textContent('#view')).toContain('memory_search');
+      for (const wf of ['learning', 'memory']) {
+        await page.goto(`${base}/#/${wf}/session/s-mixed`); await ready(page);
+        await page.waitForSelector('.sess-talk eklavya-mascot');
+        expect(await seen(), wf).toEqual(fromCost);
+      }
+      // Known only to the ledger: its own head, and a worried face for the redirect.
+      await page.goto(`${base}/#/cost/session/s-ledger`); await ready(page);
+      await page.waitForSelector('.sess-talk eklavya-mascot');
+      expect(await page.getAttribute('.sess-talk eklavya-mascot', 'state')).toBe('warning');
+      expect(await page.textContent('#view')).toContain('No transcript was recorded');
+      // Nothing recorded at all: not found.
+      await page.goto(`${base}/#/cost/session/s-nobody`); await ready(page);
+      await page.waitForSelector('text=No session');
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+      expect(w.outbound).toEqual([]);
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    }, 60000);
   });
 });
