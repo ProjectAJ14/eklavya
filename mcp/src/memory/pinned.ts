@@ -28,7 +28,7 @@ export const MIN_APPLIED_SHARE = 0.4;
 export const ENV_FACTS_MAX = 4;
 /** About the token budget of the whole pinned part, header included. */
 export const PINNED_TOKENS = 300;
-/** A FormRepair contradiction counts only after this many exercised sessions in a row said so. */
+/** A missing-module FormRepair contradiction counts only after this many exercised sessions in a row said so. */
 export const CONTRADICT_STREAK = 2;
 
 const nowIso = () => new Date().toISOString();
@@ -135,7 +135,10 @@ export function foldSessionFacts(
       byKey.delete(f.fact_key);
       const params = JSON.parse(f.params!) as Record<string, string | number>;
       let verdict = e?.verdict ?? null;
-      if (f.family === 'form_repair' && e?.exercised) {
+      // A run that did not need the missing module can pass by luck, so a
+      // missing-module fact needs two contradicting sessions in a row. A command
+      // that was not found and now runs is a clean contradiction.
+      if (f.family === 'form_repair' && params.error === 'module_missing' && e?.exercised) {
         const streak = verdict === 'contradict' ? Number(params.contra_streak ?? 0) + 1 : 0;
         params.contra_streak = streak;
         if (verdict === 'contradict' && streak < CONTRADICT_STREAK) verdict = null;

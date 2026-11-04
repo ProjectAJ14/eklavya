@@ -55,14 +55,46 @@ second in a row (`mcp/test/economy-facts.test.ts`). Whether the next live
 session then uses `python -m pytest` first was not checked: that needs a live
 Claude Code session with this branch installed.
 
+## Live Claude Code sessions (added the same day)
+
+Headless `claude -p` sessions on Claude Code 2.1.318, `--plugin-dir` pointing
+at this checkout, `EKLAVYA_HOME` in a scratch folder. About 15 short sessions
+in all; their cost is in the ledger rows they produced.
+
+- **Phase 0 gate, passed.** `ls ./missing-dir-eklavya` run once with Bash was
+  stored once, as `tool_error`, with its error text. (A first attempt with a
+  path outside the working directory was blocked by the sandbox and never ran,
+  so no hook fired: a denied call is not a failed one.)
+- **Phase 1 gate, passed on this version.** Eight sessions whose `claude -p`
+  JSON was kept: the ledger's fresh, cached, written and output counts equal
+  the envelope's `usage` exactly in 8 of 8. Two more sessions were folded
+  without their envelope kept, and the build session's own transcript was
+  checked independently (above): ten transcripts. `SessionEnd` was delivered
+  and folded every one. The observer ran 5 jobs and the ledger holds 5
+  `observer` overhead rows.
+- **Phase 4 gate, passed.** A scratch repository with one `unittest` test and
+  `~/.local/bin` (where `pytest` lives) taken off the `PATH`. Three sessions
+  asked to "run the tests with the pytest command" each hit `pytest: command
+  not found` and then ran `python3 -m unittest`. The live run found a bug: the
+  test-run pattern, as ported, knew `python -m unittest` but not `python3 -m
+  unittest`, so no fact formed; fixed in `signals.ts` and the sessions folded
+  again. The fact then formed on the third session ("`pytest …` fails here with
+  command not found; `python3 -m unittest …` works."), was shown at the next
+  session start, and that session, asked only to "run this project's tests",
+  ran `python3 -m unittest` first and never bare `pytest`. With `pytest` back on
+  the `PATH`, one session where it passed retired the fact. (The port's
+  two-sessions-in-a-row rule now applies only to a missing module, where a run
+  can pass by luck; a command that is found is a clean contradiction.)
+- **Phase 3 check, done.** With `{"permissions": {"deny": ["ShareOnboardingGuide",
+  "ReportFindings"]}}` in `.claude/settings.local.json`, the next session's tool
+  list no longer had those two tools, and every other tool was still there.
+
 ## Not checked here
 
-- A live Claude Code session with this branch installed: the scripted failing
-  `ls` (Phase 0 gate), redirects reaching the model, `SessionEnd` delivery.
-- Ten recorded transcripts on the oldest and newest supported versions.
+- A redirect from the loop guard reaching the model in a live stuck turn.
+- Transcripts from the oldest supported Claude Code version: only 2.1.318 was
+  available here.
 - The two-week team dogfood (Phase 2 and Phase 5).
-- Whether a bare tool name in `permissions.deny` removes the tool on current
-  Claude Code (Phase 3).
 - TokenEconomizer's `experiments/` benchmark with three arms (Phase 5).
 - The `memory-use-harness.mjs` arms for `memory.lookup_hint` (sub-issue A).
 - The replay eval on a real `knowledge.db` (sub-issue A).

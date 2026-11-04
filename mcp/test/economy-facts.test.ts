@@ -35,6 +35,8 @@ describe('families', () => {
   it('reads forms, intents, prefixes and error classes', () => {
     expect(envPrefix('FOO=1 BAR="a b" cmd x')).toEqual([{ FOO: '1', BAR: 'a b' }, 'cmd x']);
     expect(intentOf('pytest -q')).toBe('run_tests');
+    // As run in a live session: python3, piped through tail.
+    expect(intentOf('python3 -m unittest -v 2>&1 | tail -10')).toBe('run_tests');
     expect(intentOf('python3 script.py')).toBe('run_interpreter');
     expect(intentOf('pip install x')).toBe('package_tool');
     expect(intentOf('ls')).toBeNull();
@@ -121,7 +123,7 @@ describe('the lifecycle', () => {
   const P = '/repo';
   const missing = [bash('pytest', 'bash: pytest: command not found', true), bash('python -m pytest', '2 passed')];
 
-  it('forms after three sessions, is shown, and a clean contradiction streak retires it (the #264 gate)', () => {
+  it('forms after three sessions, is shown, and one contradicting session retires it (the #264 gate)', () => {
     for (const s of ['s1', 's2']) foldSessionFacts(db, P, s, sessionEvidence(db, P, missing));
     expect(listFacts(db, P)[0]).toMatchObject({ state: 'forming', confirmations: 2 });
     expect(pinnedLines(db, config(), P, 'x')).toBeNull();
@@ -135,12 +137,20 @@ describe('the lifecycle', () => {
     // The next session uses the working form: applied.
     foldSessionFacts(db, P, 's4', sessionEvidence(db, P, [bash('python -m pytest', 'ok')]));
     expect(listFacts(db, P)[0]).toMatchObject({ applied: 3, exercised: 4 });
-    // Bare pytest works once: not yet a contradiction. Twice in a row: retired.
+    // Bare pytest works: the command exists now, and the fact retires at once.
     foldSessionFacts(db, P, 's5', sessionEvidence(db, P, [bash('pytest', '3 passed')]));
-    expect(listFacts(db, P)[0]!.state).toBe('active');
-    foldSessionFacts(db, P, 's6', sessionEvidence(db, P, [bash('pytest', '3 passed')]));
     expect(listFacts(db, P)).toEqual([]);
     expect(listFacts(db, P, true)[0]).toMatchObject({ state: 'retired', retired_reason: 'contradicted' });
+  });
+
+  it('needs two sessions in a row to retire a missing-module fact', () => {
+    const missingModule = [bash('python app.py', "ModuleNotFoundError: No module named 'y'", true), bash('.venv/bin/python app.py', 'ok')];
+    for (const s of ['m1', 'm2', 'm3']) foldSessionFacts(db, P, s, sessionEvidence(db, P, missingModule));
+    const lucky = [bash('python app.py', 'ok')];
+    foldSessionFacts(db, P, 'm4', sessionEvidence(db, P, lucky));
+    expect(listFacts(db, P)[0]!.state).toBe('active');
+    foldSessionFacts(db, P, 'm5', sessionEvidence(db, P, lucky));
+    expect(listFacts(db, P)).toEqual([]);
   });
 
   it('retires a high-stakes fact on one contradiction, fades an unused one, and retires by hand', () => {

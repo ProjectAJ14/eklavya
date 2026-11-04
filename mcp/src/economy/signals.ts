@@ -4,7 +4,8 @@
 // Changes: ported from Python to TypeScript; Claude Code tool names only; the
 // Go `FAIL` lines use a second, case-sensitive pattern (JavaScript has no
 // inline flag groups); a host-reported failure counts as an error output even
-// without an error marker; more test runners are recognised; a verification verdict is kept so a turn that edited
+// without an error marker; more test runners are recognised, and `python3 -m unittest` as well as
+// `python -m unittest` (found by a live run of the pinned-facts gate); a verification verdict is kept so a turn that edited
 // after its last check reads as unknown, not green; shell edits are folded in
 // `update` rather than by the caller.
 
@@ -13,7 +14,7 @@ import { basename, shellEditTargets } from './shell-edits.js';
 
 /** An output that ran code to verify behaviour: the test step of the edit→test loop. */
 export const TEST_RUN_RE =
-  /(runtests(\.py)?|\bpytest\b|py\.test|manage\.py\s+test|python\s+-m\s+unittest|\btox\b|\bnox\b|\btrial\b|python\d?\s+-c\b|\bnpm (?:run )?test\b|\bnpx (?:vitest|jest|mocha)\b|\bvitest\b|\bjest\b|\bgo test\b|\bcargo test\b|\bmvn (?:-\S+ )*test\b|\bgradlew? test\b|\brspec\b|node --test\b)/i;
+  /(runtests(\.py)?|\bpytest\b|py\.test|manage\.py\s+test|python\d?(?:\.\d+)?\s+-m\s+unittest|\btox\b|\bnox\b|\btrial\b|python\d?\s+-c\b|\bnpm (?:run )?test\b|\bnpx (?:vitest|jest|mocha)\b|\bvitest\b|\bjest\b|\bgo test\b|\bcargo test\b|\bmvn (?:-\S+ )*test\b|\bgradlew? test\b|\brspec\b|node --test\b)/i;
 const ERR_RE =
   /(Traceback \(most recent call last\)|\b\w*Error\b|\bFAILED\b|\bassert\b|Exception|errors during collection|^# fail [1-9]|^not ok \d|\b[1-9]\d* (?:failing|failures?)\b|Failures: [1-9])/im;
 /** Go's `--- FAIL: T` and `FAIL<tab>pkg`, case-sensitive so unittest's `FAIL: test_x` keeps its own line. */

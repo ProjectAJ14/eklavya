@@ -132,7 +132,7 @@ Every tool a session loads costs context on every request. `eklavya toolprune` l
 | `eklavya toolprune measure` | How many proposed tools are deferred and about how many tokens of tool listing they cost a request. Full definition sizes of non-deferred tools are not measured. |
 | `eklavya toolprune refresh-catalog` | Prices every waiting session, in any repository, so the evidence is current. Needs no checkout; `eklavya install` runs it in the background. |
 
-The catalog follows your Claude Code version: when a session in a repository ran on a different version from the last one counted, tools that version did not load at all stop being candidates. Whether a bare tool name in `permissions.deny` removes the tool from a session depends on your Claude Code version; check with `/permissions` after applying. `/eklavya:toolprune` runs the same commands from a session.
+The catalog follows your Claude Code version: when a session in a repository ran on a different version from the last one counted, tools that version did not load at all stop being candidates. A bare tool name in `permissions.deny` removes that tool from the next session (checked on Claude Code 2.1.318); on another version, check with `/permissions` after applying. `/eklavya:toolprune` runs the same commands from a session.
 
 ### `eklavya artifacts`
 

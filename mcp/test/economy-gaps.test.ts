@@ -281,12 +281,12 @@ describe('last edges', () => {
     const { informativeTerms } = await import('../src/memory/terms.js');
     expect(informativeTerms('retry..backoff')).toEqual(['retry', 'backoff']);
     const { sessionEvidence } = await import('../src/memory/pinned.js');
-    const fail = { tool: 'Bash', input: 'pytest', output: 'bash: pytest: command not found', failed: true };
-    const work = { tool: 'Bash', input: 'python -m pytest', output: 'ok', failed: false };
+    const fail = { tool: 'Bash', input: 'python app.py', output: "ModuleNotFoundError: No module named 'y'", failed: true };
+    const work = { tool: 'Bash', input: '.venv/bin/python app.py', output: 'ok', failed: false };
     foldSessionFacts(db, repo, 'f1', sessionEvidence(db, repo, [fail, work]));
     foldSessionFacts(db, repo, 'f2', sessionEvidence(db, repo, [{ tool: 'Bash', input: 'ls', output: '', failed: false }]));
     expect(db.prepare('SELECT exercised FROM pinned_facts').get()).toEqual({ exercised: 1 });
-    foldSessionFacts(db, repo, 'f3', sessionEvidence(db, repo, [{ tool: 'Bash', input: 'pytest', output: '1 passed', failed: false }]));
+    foldSessionFacts(db, repo, 'f3', sessionEvidence(db, repo, [{ tool: 'Bash', input: 'python app.py', output: 'ok', failed: false }]));
     expect(JSON.parse((db.prepare('SELECT params FROM pinned_facts').get() as { params: string }).params).contra_streak).toBe(1);
   });
 
