@@ -34,6 +34,8 @@ Project folders encode the main checkout's absolute path, such as `-Users-you-co
 
 Say **“Turn the questions off for this session”**, or run `/eklavya:skip` (the same as `/eklavya:mode off --session`). Questions, checkpoints, the banner and the status line stay silent until the session ends. Ask to turn Eklavya back on to resume sooner. No configuration file changes. Concepts logged while silent are not carried into later sessions.
 
+The cost controls have their own one-session switch: start Claude Code with `EKLAVYA_ECONOMY=off` in the environment and the ledger, the loop guard and the cost line of the banner stay off for that session, whatever the `economy` settings say.
+
 Memory keeps recording, and recall still reaches Claude: a silenced session that resumes or compacts still gets its session-start memory, without the banner. An enforced commit gate also remains active and can accumulate work while questions are silenced. Change `memory.enabled` to stop recording; change `quiz.enforced` at project or global scope to remove enforcement.
 
 ### Every key
@@ -101,13 +103,22 @@ Lists accept comma-separated strings or JSON. Other values use the key's expecte
 | `retrieval.max_items` | Whole number, 1–50 |
 | `retrieval.max_tokens` | Whole number, 100–20000 |
 | `retrieval.timeline_items` | Whole number, 0–200 |
+| `memory.pinned_facts` | Whole number, 0–20 |
+| `memory.stale_refresh_per_day` | Whole number, 0–100 |
+| `economy.judge_confidence` | Number, 0–1 |
+| `economy.backstop_mult` | Number, 1–10 |
+| `economy.nudges` | Whole number, 0–10 |
+| `economy.envelope_min_samples`, `economy.toolprune_min_sessions`, `economy.toolprune_sessions` | Whole number, 1–100 |
+| `economy.toolprune_evidence` | Whole number, 1–1000 |
+| `economy.toolprune_quiet_minutes` | Whole number, 0–1440 |
+| `economy.toolprune_protect` | Up to 100 lines of 200 characters |
 | `focus_topic`, `sync.device_id` | Text up to 200 characters, or `null` |
 | `sync.target` | Text up to 1000 characters, or `null` |
 | `privacy.exclude_paths` | Up to 100 lines of 500 characters |
 | `privacy.redact_patterns` | Up to 100 lines of 500 characters, each a valid regular expression |
 | `privacy.exclude_tools` | Up to 100 lines of 200 characters |
 | `domains_enabled` | Up to 100 lines of 100 characters |
-| `focus`, `cadence`, `difficulty`, `memory.capture`, `memory.lookup_hint`, `retrieval.mode`, `retrieval.prompt_gate` | One of the listed values |
+| `focus`, `cadence`, `difficulty`, `memory.capture`, `memory.lookup_hint`, `retrieval.mode`, `retrieval.prompt_gate`, `economy.loopguard`, `economy.loopguard_level`, `economy.toolprune`, `economy.envfacts` | One of the listed values |
 | switches such as `quiz.enabled`, `quiet` | `true` or `false` |
 
 A change that would not take effect is refused too: `focus learn` when no `focus_topic` is in force at that scope (or clearing the topic while `learn` is set), and, from the CLI and dashboard, `quiz.enforced true` while `quiz.enabled` is `false`. The `set_config` tool keeps its documented behaviour for a call that sends `quiz.enabled: false`: enforcement is switched off with it.
@@ -123,6 +134,9 @@ A change that would not take effect is refused too: `focus learn` when no `focus
 | `memory.batch_max_events` | `40` | Maximum events per observation batch. A turn end also closes batches at eight events or 20 minutes old; a session start closes leftovers, and any seam closes other projects' leftovers once they are 20 minutes old. |
 | `memory.file_hold` | `true` | Holds a whole-file Read of a code file of 32 KB or more that has memory history, every time in the session, and shows its entry titles with the `memory_get` call and the way to read less (`code_outline`, `code_find_symbol`, then a Read with offset and limit). A Read that stops short of the end or starts later is never held, nor is a Markdown, YAML, JSON or other file `code_outline` cannot outline. Settable at user and project scope. |
 | `memory.lookup_hint` | `"mcp"` | How a recall block says to open an entry: `mcp` names `memory_get` and the `ToolSearch` query that loads it; `bash` names `eklavya memory show <id>` and `eklavya memory search`, whose reads are not linked to the receipt. An evaluation setting. See [how recall works](/docs/memory/#how-recall-works). |
+| `memory.pinned_facts` | `8` | Pinned facts shown first in the session-start recall, in about 300 estimated tokens of their own (not counted against `retrieval.max_tokens`). Environment facts are at most 4 of them. `0` shows none. See [pinned facts](/docs/memory/#pinned-facts). |
+| `memory.stale_check` | `true` | Flags entries that may be outdated (their files were deleted or committed to three times since, a newer decision covers them, or they were sent five times and never used). A flagged entry ranks below the others and is labelled when it is still sent. Computed by the background fold, never by a hook. |
+| `memory.stale_refresh_per_day` | `5` | Flagged entries per project per day that the observer rewrites as a new entry superseding the old one, from the old entry and a summary of the commits since. `0` only flags. Needs `providers.observer`; each call is recorded in the cost ledger. Nothing is deleted. |
 | `memory.retention_days` | `null` | Days to keep summarised raw evidence, finished jobs, reuse receipts and the memory read log. Observations survive. Applies per project, automatically at most every six hours or through `eklavya memory prune`. `null` keeps everything. |
 
 #### `feedback`
@@ -161,6 +175,7 @@ Provider settings are global because one worker processes all projects on the ma
 | --- | --- | --- |
 | `providers.observer` | `{ "kind": "anthropic", "model": "claude-sonnet-5" }` | Writes observation summaries and reviews prompts through `claude -p`, using your Claude Code login. Captured session evidence goes to this model. Set to `null` for local summaries and no prompt feedback. Older config files without this setting keep `null`. |
 | `providers.embeddings` | `null` | Accepted configuration field, but no external embedding provider is wired into current retrieval. Search still uses the local embedder; leave this unset. |
+| `providers.judge` | `null` | The loop guard's judge: with `economy.loopguard` on, a detached `claude -p` call that reads a digest of a turn (counts, commands with numbers and quoted strings masked, edited file names and error signatures, never file content or output) and says whether it is stuck. `null`: the strict rule decides. Global only, and CLI only on the dashboard, because it sends that digest to a model. |
 
 New installs use the defaults without a settings walkthrough. Reinstalling keeps saved choices. Older user configs keep the previous defaults for these settings: no observer model and feedback off, unless explicitly set. With no observer, summaries are generated locally.
 
@@ -213,6 +228,33 @@ Conflicting edits are quarantined: your local version stays active and the incom
 Synced folders do not always deliver files in the order they were written. A pull applies every record it can read, and remembers any earlier revision that has not arrived yet or cannot be read yet; the next pull applies it when it does. `sync pull` names the devices still owed records, and `sync status` shows the count from the last pull beside each peer that still owes records, as in `laptop@41 (2 outstanding)`. When a push could never write a revision, for example because the entry changed again after an interrupted push, it lists that revision number in `void.json` beside its records so other devices stop waiting for it. The file holds the format version, the device ID and revision numbers, and no memory content.
 
 Earlier releases could step over a record that arrived late. The first pull after updating reads those older records once more and applies the ones that need no decision: an entry or deletion this device never received, or a newer version of one it holds unchanged. An entry with an open conflict is left alone. `sync pull` reports them as recovered. A record that would conflict with your copy is left as it is rather than quarantined.
+
+#### `economy` — cost controls
+
+Translated from [TokenEconomizer](https://github.com/microsoft/TokenEconomizer) (Apache-2.0; see `THIRD_PARTY_NOTICES.md`). Each part is separate. The ones that change what Claude sees ship off or in propose mode until they are measured.
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `economy.ledger` | `true` | Prices each session from its Claude Code transcript in the background (usage numbers and tool names only) and records each of Eklavya's own `claude -p` calls. Read with `eklavya cost` and the dashboard's [Cost](/docs/dashboard/#cost) pages. |
+| `economy.loopguard` | `"off"` | `nudge`: a turn that keeps repeating the same failure gets at most `economy.nudges` redirects, then one notice. `stop` also ends a headless (`claude -p`) turn after the redirects; an interactive turn is never stopped. See [the loop guard](/docs/how-it-works/#the-loop-guard). |
+| `economy.loopguard_level` | `"default"` | `conservative` spares longer, churnier turns; `aggressive` redirects sooner. |
+| `economy.judge_confidence` | `0.7` | How sure `providers.judge` must be that a turn is stuck before it redirects. |
+| `economy.nudges` | `1` | Redirects per turn before the guard only notifies. `0` only notifies. |
+| `economy.backstop_mult` | `2.5` | Past this many times the repository's usual green-turn length, and stuck by the strict rule, the guard redirects without asking the judge. |
+| `economy.envelope_min_samples` | `5` | Turns that ended green a repository needs before its usual turn length is used. |
+| `economy.toolprune` | `"propose"` | `propose`: `eklavya toolprune` lists tools this repository's sessions load and never use, and writes nothing. `on`: the list is also written to `.claude/settings.local.json` once the repository has been quiet for `economy.toolprune_quiet_minutes`. `off`: neither. See [tool pruning](/docs/cli/#tool-pruning). |
+| `economy.toolprune_evidence` | `10` | Prompts without using a tool, across `economy.toolprune_min_sessions` sessions, before it is proposed. |
+| `economy.toolprune_min_sessions` | `2` | Sessions those prompts must span. |
+| `economy.toolprune_sessions` | `5` | Or sessions without using a tool, however few prompts. |
+| `economy.toolprune_quiet_minutes` | `60` | With `on`, minutes since this repository's last session before the deny list is written. |
+| `economy.toolprune_protect` | `[]` | Tools never proposed, on top of the built-in list. |
+| `economy.envfacts` | `"free"` | `free`: learns environment facts from failures that recur, with no model call. `observer`: also accepts facts, decisions and conventions the observer proposes. `off`: learns none and shows none. |
+
+```bash
+eklavya config set economy.loopguard nudge
+eklavya config set economy.toolprune propose
+eklavya config set providers.judge claude-haiku-4-5
+```
 
 ### Nothing Eklavya configures lives in your repository
 

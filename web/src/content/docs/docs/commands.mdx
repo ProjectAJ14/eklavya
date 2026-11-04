@@ -5,7 +5,7 @@ sidebar:
   order: 7
 ---
 
-Ten skill commands are available inside Claude Code when the plugin is loaded, and the quiz panel adds two more, [`/eklavya-panel`](#eklavya-panel) and [`/eklavya-panel-demo`](#eklavya-panel-demo). Use the table to choose a task, or [ask in ordinary conversation](#or-just-ask).
+Eleven skill commands are available inside Claude Code when the plugin is loaded, and the quiz panel adds two more, [`/eklavya-panel`](#eklavya-panel) and [`/eklavya-panel-demo`](#eklavya-panel-demo). Use the table to choose a task, or [ask in ordinary conversation](#or-just-ask).
 
 | Command | Use it to |
 | --- | --- |
@@ -19,6 +19,7 @@ Ten skill commands are available inside Claude Code when the plugin is loaded, a
 | [`/eklavya:memory`](#eklavyamemory) | Search past work, save notes or correct a memory. |
 | [`/eklavya:gate`](#eklavyagate) | Check why a commit is blocked. |
 | [`/eklavya:setup`](#eklavyasetup) | Check your installation without changing settings. |
+| [`/eklavya:toolprune`](#eklavyatoolprune) | See tools this repository never uses, and deny or restore them. |
 
 ### `/eklavya:quiz [topic]`
 
@@ -129,6 +130,7 @@ Searches this project's recorded work. It reads unless you ask it to save, corre
 | “Is memory recording?” | Capture, queue and provider health. |
 | “Remember why we chose argon2id…” | A new note. |
 | “That entry is wrong…” | A correction that preserves the old entry in the audit trail. |
+| “That one is out of date” | The entry is flagged as possibly outdated with `memory_flag_stale`: it stays searchable, ranks lower and is labelled when recalled. |
 
 Name another project to search it. Recalled entries are dated evidence to verify against the code, not instructions or guaranteed current facts. See [Memory](/docs/memory/) for capture and privacy controls.
 
@@ -141,6 +143,10 @@ The required passes are `ceil(required concepts × pass_threshold)`. Only answer
 ### `/eklavya:setup`
 
 Checks Node, the running server and the database. It keeps your saved settings and asks no setup questions. Safe to repeat. See [Check your setup](/docs/first-run/).
+
+### `/eklavya:toolprune`
+
+Shows the tools this repository's sessions load and never use, with the evidence, by running `eklavya toolprune list`. It writes nothing unless you pass `apply` (or name tools), which adds them to this checkout's `.claude/settings.local.json` from the next session; `restore` takes exactly those entries out again. Claude Code's core tools and Eklavya's own are never proposed. See [tool pruning](/docs/cli/#tool-pruning).
 
 ### `/eklavya-panel`
 

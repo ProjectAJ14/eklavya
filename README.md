@@ -99,6 +99,15 @@ notes to check against the code.
 Memory is only evidence. It never marks a topic as learned. Only a real answer
 does that.
 
+## Cost
+
+`eklavya cost` shows what your recent sessions here cost, measured from Claude
+Code's own transcripts (token counts only), and how much of it was Eklavya's.
+Three optional controls ship off or in propose mode until they are measured: a
+loop guard that redirects a turn stuck repeating the same failure, tool pruning
+that proposes denying tools a repository never uses, and pinned facts learned
+from failures that recur. See [cost controls](https://eklavya-run.web.app/docs/how-it-works/#cost-controls).
+
 ## Artifacts
 
 Ask Claude to explain something "as an Eklavya artifact". You get an HTML page
@@ -123,7 +132,7 @@ and never moves what you are reading. You can also
 and open it from Spotlight, the Dock or the Start menu. On your first visits,
 [tips](https://eklavya-run.web.app/docs/dashboard/#tips) point out features;
 dismiss them one by one or switch them off under Settings, then Companion. The archer companion walks toward you with a random verb (*Pondering…*) while loading and appears beside empty states and feedback; the same tab previews its 24 expressions and its loading walk and has the daily card switch. On a wide window
-each page sits centred beside the sidebar. It has five parts:
+each page sits centred beside the sidebar. It has six parts:
 
 | Part | What you can see | Read more |
 |---|---|---|
@@ -131,6 +140,7 @@ each page sits centred beside the sidebar. It has five parts:
 | Memory | A timeline of past work, sessions, projects, savings and health. | [Memory pages](https://eklavya-run.web.app/docs/dashboard/#memory-pages) |
 | Artifacts | Every saved page as a gallery grouped by project, each card showing the page's first diagram. | [Artifacts pages](https://eklavya-run.web.app/docs/dashboard/#artifacts) |
 | Feedback | Reviews one of your prompts using what later prompts had to add, and offers a better version. On for new installs; existing installs keep their choices. Needs memory and an observer model. The next review waits until you acknowledge or delete the waiting one; the session greeting flags it in amber. It never changes your scores. | [Feedback pages](https://eklavya-run.web.app/docs/dashboard/#feedback) |
+| Cost | What each session cost, measured from Claude Code's transcripts, Eklavya's own share and calls, and the cost controls: the loop guard, tool pruning and pinned facts. | [Cost pages](https://eklavya-run.web.app/docs/dashboard/#cost) |
 | Settings | A switchboard: your settings first, each project's beside them, one tab per category, changed the same way as `eklavya config`. | [Settings pages](https://eklavya-run.web.app/docs/dashboard/#settings) |
 
 For a short summary in chat, use `/eklavya:progress`.
@@ -220,4 +230,7 @@ Eklavya is sponsored by [Nonstop](https://github.com/nonstopio).
 
 ## License
 
-MIT
+MIT. The cost controls under `mcp/src/economy/` are translated from
+[microsoft/TokenEconomizer](https://github.com/microsoft/TokenEconomizer)
+and stay under its Apache-2.0 licence; see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

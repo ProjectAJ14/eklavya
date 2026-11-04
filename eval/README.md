@@ -16,6 +16,8 @@ Build first with `cd mcp && npm run build`, then run from the repository root.
 | Whether a session reuses a concept the graph already has instead of minting a lookalike, and whether the new ones are short, described and tagged | `python3 eval/gepa/dedup/run.py evaluate --split test --repeats 3 --out <file>` | One generation call per trial, two when the tool holds a lookalike (~44k input tokens each); no judges |
 | Repeats, retention, answer-giveaway rate and option-length check send-backs in real history | `npm run eval -- history` | None; reads learner database |
 | Retrieval quality | `node eval/retrieval-harness.mjs` | None |
+| Prompt gate on full-length prompts | `node eval/retrieval-harness.mjs --prompts` | None |
+| Recall on your own sessions | `node eval/recall-replay.mjs [--db <copy>]` | None |
 | Memory performance | `node eval/memory-perf.mjs` | None |
 | Tokens memory injected and read per session and in total, recall blocks never followed by a read, the share of sessions that opened a recalled entry with `memory_get`, and the base-versus-delivered line, from a copy of your database | `node eval/memory-tokens.mjs --db <copy> [--since <iso>] [--top N] [--json]` | None; reads a copy of `knowledge.db` |
 | Whether recalled memory is on-topic and used, from your transcripts | `node eval/memory-usage.mjs [--days 3] [--pairs <file>]` | None; reads `~/.claude/projects` |
@@ -539,6 +541,25 @@ that — which is exactly why the leak count is printed next to it.
 
 
 </details>
+
+### The prompt gate and the replay (issue #258)
+
+`--prompts` scores `recallForPrompt` itself, not `search()`, on the corpus's
+`prompts`: full-length prompts as a developer types them, seven of them about
+something the project has no memory of. It reports hit@2, how often the gate
+opens on an unrelated prompt, the tokens sent, and the cosine of each
+prompt's closest relevant and closest unrelated entry per embedder, which is
+how `MIN_COSINE` is set. Three arms: today's strict gate on `local-hash-v1`,
+the strict gate on `local-hash-v2`, and the `terms` gate.
+
+`eval/recall-replay.mjs` replays real sessions, newest first, from a copy of
+`knowledge.db` it makes itself (recall writes receipts, so the original is
+never opened for writing). Before each session every entry written at or
+after its start is hidden; an entry is relevant when the session later reads
+or edits one of its files. It reports session-start hit@6 and prompt hit@2
+for `today`, `seam` (`retrieval.seam_query` on) and `terms`
+(`retrieval.prompt_gate terms`). No model call. Results:
+`results/2026-11-04-recall-gate.md`.
 
 ## The memory token report
 

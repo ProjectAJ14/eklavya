@@ -18,7 +18,7 @@ The result is what lets an observation say what was *found*, not only what ran: 
 | Event kind | Source |
 | --- | --- |
 | `prompt` | A message you send. |
-| `tool_use`, `tool_error` | Successful tool calls with a result excerpt, or failed calls with their error. A failure is recorded only when the PostToolUse hook reports it: Eklavya does not register `PostToolUseFailure`, so a failure a host sends only there is not captured, and transcript replay records tool calls without outcomes. |
+| `tool_use`, `tool_error` | Successful tool calls with a result excerpt, or failed calls with their error. A failure comes from either the PostToolUse hook (a response marked as failed) or the PostToolUseFailure hook; both carry the call's `tool_use_id`, so one failure is stored once. |
 | `file_edit` | Edit, Write, NotebookEdit and MultiEdit. |
 | `file_read` | Read, NotebookRead, Glob and Grep. |
 | `assistant`, `lifecycle` | Claude's final message at the end of each turn (from Claude Code's Stop hook), and session start/stop events. |
@@ -200,6 +200,16 @@ The vector search scans at most the newest 5,000 eligible entries; keyword searc
 
 Search defaults to the current project. `retrieval.cross_project` widens search and session-start recall; an individual search can request `all_projects`.
 
+#### Pinned facts
+
+Some facts hold for every session in a project: bare `pytest` is not installed here and `python -m pytest` works; the code needs `DATABASE_URL` set; nothing can be fetched from one host. Agents rediscover them by failing, session after session. With `economy.envfacts` on (`free`, the default), the background fold learns them from your sessions' shell and fetch calls, with no model call, in five shapes: a command form that fails with a missing-command or missing-module error followed by another form of the same task that works; a run that fails asking for an environment variable followed by one that sets it; every fetch to a host failing with a network error; a test label written `a::b` that does not load where `a.b` does; and a git remote or branch probe that finds nothing. Each fact is a fixed sentence filled with the form, variable or host it saw. With `economy.envfacts: observer`, the observer may also propose environment facts, decisions ("CSV exports use `;`") and conventions.
+
+A fact is **forming** until three sessions confirm it, then **active**. Each session its score decays by 0.8 and a contradiction counts five times a confirmation; below zero it retires. A command form that works after all counts as a contradiction only on the second session in a row, and a fact about git refs retires at the first. An active fact is shown at the top of the session-start block, under `Pinned facts`, within `memory.pinned_facts` (8, environment facts at most 4) and about 300 estimated tokens of its own. Once four sessions have exercised a fact, it is shown only while it applied in at least 40% of them. Facts are evidence like the rest of the block and never change mastery. `eklavya memory facts` lists them with their evidence; `eklavya memory facts retire <id>` stops one.
+
+#### Entries that may be outdated
+
+With `memory.stale_check` on (the default), the background fold flags an entry when one of its files was deleted or renamed, its files have had three or more commits since it was written, a newer decision or bugfix covers the same files, or it was sent five times and never used. A flagged entry is sent after the others and labelled `may be outdated (<reason>)`. Up to `memory.stale_refresh_per_day` flagged entries a day (5) are rewritten by the observer from the old entry and the commits since, as a new entry that supersedes the old one, which stays as history. The fold also records, per entry, how often it was sent, opened with `memory_get` and applied (the session later read or edited one of its files), and keeps a utility score that decays by 0.8 a session; among equally good matches, `retrieval.seam_query` puts the more useful entry first.
+
 #### Subagents
 
 Recalled blocks reach the main conversation only. A subagent Claude delegates to starts without them, so when memory is on and the project has entries, it is told in one line to search memory with `memory_search` and read matches with `memory_get` if its task depends on earlier decisions, fixes or unfinished work. That line does not depend on whether questions are on or silenced for the session, and the tutor subagent receives it too.
@@ -244,9 +254,10 @@ Claude uses these tools on your behalf. Search returns compact IDs and titles; `
 | `memory_status` | Capture, queue, provider and reuse health, plus explicit read counts (`reads`) and `host_acknowledgement: "unavailable"`. |
 | `memory_write` | `title`, `body`, optional `tags`, `files`. Saves a redacted note. |
 | `memory_correct` | `id` and a corrected `title`, `body`, or both. Creates a replacement while preserving the original audit trail. The replacement and the supersession are one write: if either fails, the original stays the only live entry. A second correction of the same entry returns `already_superseded`. |
+| `memory_flag_stale` | `id`, `reason` (3–300 characters). Marks an entry as possibly outdated: it stays searchable, ranks below current entries and is labelled `may be outdated (<reason>)` when recalled, and `memory_get` returns the reason under `stale`. Nothing is deleted. |
 | `memory_delete` | `id`, optional `hard`. Soft deletion removes an entry from retrieval and from the keyword index, and repeating it keeps the first deletion time; `hard: true` erases it permanently, including an entry already soft-deleted. |
 
-`memory_correct` and `memory_delete` change only the current project's entries. An ID from another project returns `error: "other_project"` with that project's key and changes nothing; to change it, pass a `cwd` inside that project. A worktree counts as its main checkout's project.
+`memory_correct`, `memory_flag_stale` and `memory_delete` change only the current project's entries. An ID from another project returns `error: "other_project"` with that project's key and changes nothing; to change it, pass a `cwd` inside that project. A worktree counts as its main checkout's project.
 | `memory_collections` | Saves and rebuilds named views; details below. |
 | `code_outline` | `file`, optional `line`. Lists declarations or expands around a line. |
 | `code_find_symbol` | `name`, optional `limit` (default 20, maximum 50). Finds declarations by case-insensitive partial name. |
