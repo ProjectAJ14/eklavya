@@ -50,6 +50,16 @@ export interface HookInput {
   source?: string;
   /** Stop: the turn's final assistant text (Claude Code 2.1.x). */
   last_assistant_message?: string;
+  /** PostToolUse and PostToolUseFailure: the call's id, which both events share. */
+  tool_use_id?: string;
+  /** PostToolUseFailure: what went wrong. */
+  error?: unknown;
+  /** PostToolUseFailure: the developer interrupted the call rather than it failing. */
+  is_interrupt?: boolean;
+  /** SessionEnd: why the session ended (`clear`, `logout`, `prompt_input_exit`, `other`). */
+  reason?: string;
+  /** Every hook: the session's transcript file. */
+  transcript_path?: string;
 }
 
 /**

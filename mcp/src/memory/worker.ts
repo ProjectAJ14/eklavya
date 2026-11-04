@@ -1,3 +1,4 @@
+import { meterProviderCalls } from '../ledger.js';
 import crypto from 'node:crypto';
 import type { DB } from '../db.js';
 import type { EklavyaConfig } from '../config.js';
@@ -279,6 +280,8 @@ export async function processPending(
   const maxJobs = opts.maxJobs ?? 3;
   const summarizer = summarizerFor(config);
   const result: WorkerResult = { processed: 0, entries: 0, failed: 0, skipped: 0, stopped: 'limit' };
+  // Every observer call this run makes is charged to the cost ledger.
+  meterProviderCalls(db, config);
 
   for (let i = 0; i < maxJobs; i++) {
     if (opts.signal?.aborted) {

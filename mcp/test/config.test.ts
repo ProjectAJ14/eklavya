@@ -142,7 +142,7 @@ describe('fresh defaults and existing users', () => {
     const file = path.join(home, 'config.json');
     writeConfigFile(file, { providers: { embeddings: { kind: 'anthropic', model: 'embed' } } });
     expect(loadGlobalConfig().providers).toEqual({
-      observer: DEFAULT_CONFIG.providers.observer, embeddings: { kind: 'anthropic', model: 'embed' },
+      observer: DEFAULT_CONFIG.providers.observer, embeddings: { kind: 'anthropic', model: 'embed' }, judge: null,
     });
     writeGlobal({ providers: { embeddings: { kind: 'anthropic', model: 'embed' } } });
     expect(loadGlobalConfig().providers.observer).toBeNull();

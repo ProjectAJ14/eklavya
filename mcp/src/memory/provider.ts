@@ -1,3 +1,4 @@
+import { usageOf, type Usage } from '../economy/transcript.js';
 import { spawn } from 'node:child_process';
 import os from 'node:os';
 import { z } from 'zod';
@@ -233,6 +234,54 @@ const MAX_STDOUT = 16 * 1024 * 1024;
 export interface CallSpec {
   schema: object;
   system: string;
+  /** Who is spending, for the cost ledger: `observer` (the default), `feedback`, `judge`, `stale_refresh`. */
+  source?: string;
+}
+
+/**
+ * One `claude -p` call's usage, from its JSON envelope (issue #261). Every
+ * model call Eklavya makes goes through `runClaude`, so this is the one place
+ * its own spend is seen.
+ */
+export interface ProviderUsage {
+  source: string;
+  /** The model id the envelope says served the call, else the one asked for. */
+  model: string;
+  usage: Usage;
+  /** `total_cost_usd` as `claude -p` reported it, or null. */
+  costUsd: number | null;
+}
+
+let usageSink: ((u: ProviderUsage) => void) | null = null;
+
+/**
+ * Where `runClaude` reports usage: the process that holds the database sets
+ * it once (`meterProviderCalls` in `ledger.ts`). Unset, usage is not recorded.
+ */
+export function setUsageSink(sink: ((u: ProviderUsage) => void) | null): void {
+  usageSink = sink;
+}
+
+/** The usage in a `claude -p --output-format json` envelope, or null when there is none. */
+export function usageFromEnvelope(stdout: string, model: string, source: string): ProviderUsage | null {
+  let envelope: Record<string, unknown>;
+  try {
+    envelope = JSON.parse(stdout) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  const usage = usageOf(envelope?.usage);
+  if (!usage) return null;
+  // `modelUsage` names the id that actually served the call; the one with the
+  // most output is the main one (Claude Code may add a small helper call).
+  const byModel = envelope.modelUsage && typeof envelope.modelUsage === 'object' ? (envelope.modelUsage as Record<string, { outputTokens?: number }>) : {};
+  const served = Object.entries(byModel).sort((a, b) => (b[1]?.outputTokens ?? 0) - (a[1]?.outputTokens ?? 0))[0]?.[0];
+  return {
+    source,
+    model: served ?? model,
+    usage,
+    costUsd: typeof envelope.total_cost_usd === 'number' ? envelope.total_cost_usd : null,
+  };
 }
 
 /**
@@ -499,6 +548,15 @@ export function runClaude(
         // No envelope at all is a run that failed before it could print one.
         const why = stderr.trim();
         if (!stdout.trim() && why) return reject(new ProviderError(classifyMessage(why, null), `claude -p: ${why}`));
+        // A failed run that printed its envelope was still billed: record it too.
+        const spent = usageSink ? usageFromEnvelope(stdout, model, opts.spec?.source ?? 'observer') : null;
+        if (spent) {
+          try {
+            usageSink!(spent);
+          } catch {
+            /* A ledger that cannot write must not fail the call it measured. */
+          }
+        }
         resolve(stdout);
       });
     });

@@ -5,6 +5,8 @@
  * exits 0 with no output — `run()` enforces it.
  */
 import { spawn } from 'node:child_process';
+import { openSession, quietPending, startFold } from '../ledger-pending.js';
+import { economyOff, runtimeCliPath } from './economy-lib.js';
 import os from 'node:os';
 import path from 'node:path';
 import { findRepoConfig, loadGlobalConfig, mainRepoRoot, migrateLegacyRepoConfig } from '../config.js';
@@ -127,6 +129,22 @@ await run(async (input) => {
 
   const resolved = config(cwd);
   const { quiz, difficulty, quiet } = resolved.config;
+
+  // The cost ledger: open this session's row, and fold earlier sessions whose
+  // transcripts have gone quiet (SessionEnd is not always delivered). One
+  // insert and one bounded select; the fold itself is a detached process.
+  if (sid && resolved.config.economy.ledger && !economyOff()) {
+    try {
+      openSession(db, {
+        sessionId: sid,
+        project: repoRoot ? mainRepoRoot(repoRoot) : null,
+        transcriptPath: typeof input.transcript_path === 'string' && input.transcript_path ? input.transcript_path : null,
+      });
+      if (quietPending(db, Date.now(), sid).length) startFold(runtimeCliPath(), ['--pending'], spawn);
+    } catch {
+      /* The ledger is a measurement; it never stops a session. */
+    }
+  }
 
   // Before the `quiz.enabled` return below, so someone with questions off who
   // turned feedback on still gets it. A detached process the hook never waits

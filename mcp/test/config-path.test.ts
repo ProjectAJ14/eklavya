@@ -256,7 +256,7 @@ describe('SETTING_RULES: what every interface accepts', () => {
       return k.startsWith('providers.') || !(d !== null && typeof d === 'object' && !Array.isArray(d));
     });
     const unruled = leaves.filter((k) => !SETTING_RULES[k]);
-    expect(unruled.sort()).toEqual(['notifications.sinks', 'providers.embeddings', 'providers.observer']);
+    expect(unruled.sort()).toEqual(['notifications.sinks', 'providers.embeddings', 'providers.judge', 'providers.observer']);
   });
 
   it('refuses each kind of bad value, and accepts the good ones', () => {

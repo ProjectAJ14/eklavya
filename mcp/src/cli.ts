@@ -88,6 +88,11 @@ Usage:
   eklavya artifacts list [--json]       Every artifact, newest first [--here: this project only]
   eklavya artifacts open <path|id>      Open one in your browser; a page made with --attempt opens
                                         in the dashboard's viewer, where the answer can be corrected
+  eklavya cost [--limit <n>] [--all]    What recent sessions here cost, from their transcripts: effective
+                                        tokens, the fresh/cached/written/output split, Eklavya's share and
+                                        its own background calls [--by-week] [--export csv]
+  eklavya fold <session> | --pending    Price a session from its transcript now (the hooks do this in the
+                                        background when a session ends or goes quiet)
   eklavya statusline                    Print the dials for a status bar (one line, or nothing)
   eklavya doctor                        Check the install, apply concept packs, and say what to fix
   eklavya db-path                       Print the database location
@@ -154,17 +159,24 @@ Config namespaces (nested; edit ~/.eklavya/config.json or this project's file di
              recording. (mode: ambient|enforced|off is the retired spelling,
              still read so older configs keep working)
   memory.{enabled, capture: full|minimal|off, batch_max_events, retention_days, file_hold,
-             lookup_hint: mcp|bash}
+             lookup_hint: mcp|bash, pinned_facts, stale_check, stale_refresh_per_day}
   privacy.{exclude_paths, exclude_tools, redact_patterns}
   retrieval.{mode: keyword|semantic|hybrid, max_items, max_tokens, cross_project,
              seam_query, prompt_gate: strict|terms, timeline_items}
-  providers.{observer, embeddings} — each null or {kind, model}; the model runs
-             through Claude Code on your subscription
+  providers.{observer, embeddings, judge} — each null or {kind, model}; the model
+             runs through Claude Code on your subscription. judge reads a digest
+             of a stuck turn for the loop guard (default null)
   notifications.{enabled, sinks} — sinks are {kind: webhook|command|file, target,
              args, events}; off by default, and a send cannot be recalled
   sync.{enabled, target, device_id} — target is a folder both devices can see
              (Dropbox, iCloud, Syncthing, a share); off and unset by default.
              device_id is normally left null: it is generated once per install
+  economy.{ledger, loopguard: off|nudge|stop, loopguard_level, judge_confidence,
+             nudges, backstop_mult, envelope_min_samples,
+             toolprune: off|propose|on, toolprune_evidence, toolprune_min_sessions,
+             toolprune_sessions, toolprune_quiet_minutes, toolprune_protect,
+             envfacts: off|free|observer} — cost controls; see eklavya cost,
+             eklavya toolprune and eklavya memory facts
 `;
 
 function fail(message: string): never {
@@ -1258,6 +1270,7 @@ async function forwardToNewerRuntime(): Promise<boolean> {
 
 const COUNTED = new Set([
   'install', 'update', 'export-rules', 'config', 'dashboard', 'memory', 'artifacts', 'doctor', 'db-path', 'telemetry', 'feedback',
+  'cost',
 ]);
 
 async function main(): Promise<void> {
@@ -1337,6 +1350,10 @@ async function main(): Promise<void> {
       return telemetryCommand(rest);
     case 'feedback':
       return feedbackCommand(rest);
+    case 'fold':
+      return (await import('./cli-economy.js')).foldCommand(rest);
+    case 'cost':
+      return (await import('./cli-economy.js')).costCommand(rest);
     case '--version':
     case '-v':
       process.stdout.write(`${paint.ok(JSON.parse(fs.readFileSync(path.join(moduleDir, '..', 'package.json'), 'utf8')).version)}\n`);

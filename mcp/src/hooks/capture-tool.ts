@@ -1,5 +1,5 @@
 /**
- * PostToolUse (every tool): record what the agent just did.
+ * PostToolUse (every tool) and PostToolUseFailure: record what the agent just did.
  *
  * This is the memory half's main intake. It matches every tool rather than one,
  * so it is the hook that runs most often in a session — which is why it does
@@ -97,7 +97,7 @@ function bodyFor(input: HookInput, failed: boolean, policy: PrivacyPolicy): stri
     const text = (v: unknown) => (typeof v === 'string' ? v : JSON.stringify(v));
     if (keys.length) parts.push(keys.map((k) => `${k}=${clip(text(toolInput[k]), 200, policy)}`).join(' '));
   }
-  if (failed) parts.push(clip(String(errorText(input.tool_response)), 800, policy));
+  if (failed) parts.push(clip(errorText(input), 800, policy));
   else {
     const result = excerpt(input.tool_name!, input.tool_response, policy);
     if (result) parts.push(`→ ${result}`);
@@ -105,15 +105,25 @@ function bodyFor(input: HookInput, failed: boolean, policy: PrivacyPolicy): stri
   return parts.join('\n');
 }
 
-/** Only called once `failed` has seen an object. */
-function errorText(response: unknown): string {
-  const r = response as Record<string, unknown>;
+/**
+ * The failure's message: `PostToolUseFailure` sends it as `error`; a failed
+ * `PostToolUse` response carries it in `error` or `stderr`.
+ */
+function errorText(input: HookInput): string {
+  if (input.hook_event_name === 'PostToolUseFailure') {
+    const text = typeof input.error === 'string' ? input.error : JSON.stringify(input.error ?? '');
+    return input.is_interrupt ? `(interrupted) ${text}` : text;
+  }
+  const r = input.tool_response as Record<string, unknown>;
   if (typeof r.error === 'string') return r.error;
   if (typeof r.stderr === 'string') return r.stderr;
   return '';
 }
 
-function failed(response: unknown): boolean {
+/** A `PostToolUseFailure` event, or a `PostToolUse` whose response says it failed. */
+function failed(input: HookInput): boolean {
+  if (input.hook_event_name === 'PostToolUseFailure') return true;
+  const response = input.tool_response;
   if (!response || typeof response !== 'object') return false;
   const r = response as Record<string, unknown>;
   return r.success === false || Boolean(r.error) || r.is_error === true;
@@ -141,7 +151,7 @@ await run(async (input) => {
 
   const sid = sessionId(input, db);
   const identity = identityOf(input, cwd, sid);
-  const isError = failed(input.tool_response);
+  const isError = failed(input);
   const body = bodyFor(input, isError, policyFrom(resolved.config));
   if (!body.trim()) return 0;
 
@@ -151,6 +161,9 @@ await run(async (input) => {
     title: tool,
     body,
     files: filesFrom(input.tool_input),
+    // One failure is one event: `PostToolUse` with a failed response and
+    // `PostToolUseFailure` for the same call share this id.
+    hostId: isError && typeof input.tool_use_id === 'string' && input.tool_use_id ? `${input.tool_use_id}` : null,
   });
   batchIfFull(db, resolved, identity);
   return 0;

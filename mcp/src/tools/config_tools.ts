@@ -172,6 +172,9 @@ export const setConfig: ToolDef = {
         retention_days: num('memory.retention_days'),
         file_hold: z.boolean().optional(),
         lookup_hint: z.enum(['mcp', 'bash']).optional(),
+        pinned_facts: num('memory.pinned_facts'),
+        stale_check: z.boolean().optional(),
+        stale_refresh_per_day: num('memory.stale_refresh_per_day'),
       })
       .optional()
       .describe(
@@ -245,10 +248,35 @@ export const setConfig: ToolDef = {
           .object({ kind: z.literal('anthropic'), model: z.string() })
           .nullable()
           .optional(),
+        judge: z
+          .object({ kind: z.literal('anthropic'), model: z.string() })
+          .nullable()
+          .optional(),
       })
       .optional()
       .describe(
         'Outbound model access, and the only setting that sends captured work off this machine. The model runs through Claude Code on the developer\'s subscription. Requires the developer to say yes; do not set it on their behalf.',
+      ),
+    economy: z
+      .object({
+        ledger: z.boolean().optional(),
+        loopguard: z.enum(['off', 'nudge', 'stop']).optional(),
+        loopguard_level: z.enum(['conservative', 'default', 'aggressive']).optional(),
+        judge_confidence: num('economy.judge_confidence'),
+        nudges: num('economy.nudges'),
+        backstop_mult: num('economy.backstop_mult'),
+        envelope_min_samples: num('economy.envelope_min_samples'),
+        toolprune: z.enum(['off', 'propose', 'on']).optional(),
+        toolprune_evidence: num('economy.toolprune_evidence'),
+        toolprune_min_sessions: num('economy.toolprune_min_sessions'),
+        toolprune_sessions: num('economy.toolprune_sessions'),
+        toolprune_quiet_minutes: num('economy.toolprune_quiet_minutes'),
+        toolprune_protect: z.array(z.string()).optional(),
+        envfacts: z.enum(['off', 'free', 'observer']).optional(),
+      })
+      .optional()
+      .describe(
+        'Cost controls. ledger prices sessions from their transcripts (numbers only). loopguard (default off) redirects a stuck turn once. toolprune (default propose) lists unused tools and writes nothing unless the developer applies. envfacts (default free) learns environment facts from repeated failures.',
       ),
   },
   handler: (args: Record<string, unknown>, ctx) => {

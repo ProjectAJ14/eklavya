@@ -1,3 +1,4 @@
+import { meterProviderCalls } from './ledger.js';
 import type { spawn as nodeSpawn } from 'node:child_process';
 import type { Database } from 'better-sqlite3';
 import type { EklavyaConfig } from './config.js';
@@ -183,6 +184,8 @@ export async function generateFeedback(
 ): Promise<GenerateOutcome> {
   if (!config.feedback.enabled) return { status: 'off' };
   if (!config.memory.enabled) return { status: 'needs_memory' };
+  // The review's model call is charged to the cost ledger.
+  meterProviderCalls(db, config, { project: opts.project });
   const observer = config.providers.observer;
   if (!observer) return { status: 'needs_observer' };
   if (feedbackPending(db)) return { status: 'pending' };
