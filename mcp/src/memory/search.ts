@@ -1,6 +1,7 @@
 import type { DB } from '../db.js';
-import { cosine, embedLocal, fromBlob, LOCAL_EMBEDDER } from './embed.js';
+import { cosine, embedLocal, embedLocalV2, fromBlob, LOCAL_EMBEDDER, LOCAL_EMBEDDER_V2 } from './embed.js';
 import type { EntryRow } from './store.js';
+import { informativeTerms } from './terms.js';
 import { entriesByIds } from './store.js';
 
 /**
@@ -30,6 +31,13 @@ export interface SearchFilter {
    */
   strict?: boolean;
   /**
+   * Match any term rather than every term, ranked with per-field weights: a
+   * term in the title or the files counts for more than one in the narrative.
+   * The prompt gate's `terms` mode (issue #258) searches this way and then
+   * decides for itself whether enough of the prompt matched.
+   */
+  any?: boolean;
+  /**
    * Leave out what this session wrote. Its work is already in the context the
    * host kept, so recalling it back is the model paying to read itself (issue
    * #117). In SQL rather than after the fact, so the session's own entries
@@ -42,6 +50,30 @@ export interface SearchHit {
   entry: EntryRow;
   score: number;
   via: SearchMode;
+  /** Semantic hits only: the embedder whose vectors produced `score`, which sets its scale. */
+  embedder?: string;
+}
+
+/**
+ * How rare each term is among live entries, as an inverse document frequency:
+ * `ln(1 + N / (1 + df))`. A term in every entry weighs about 0.7, one in a
+ * single entry of a thousand about 6. Read from the keyword index, one count
+ * per term, so it costs a handful of index lookups and no scan.
+ */
+export function termRarity(db: DB, terms: string[]): Map<string, number> {
+  const out = new Map<string, number>();
+  if (!terms.length) return out;
+  const total = (db.prepare('SELECT count(*) AS n FROM memory_entries WHERE deleted_at IS NULL').get() as { n: number }).n;
+  for (const term of terms) {
+    let df = 0;
+    try {
+      df = (db.prepare('SELECT count(*) AS n FROM memory_fts WHERE memory_fts MATCH ?').get(`"${term.replace(/"/g, '')}"`) as { n: number }).n;
+    } catch {
+      /* An index that cannot answer leaves the term as good as unseen. */
+    }
+    out.set(term, Math.log(1 + total / (1 + df)));
+  }
+  return out;
 }
 
 /**
@@ -99,10 +131,12 @@ export function keywordSearch(db: DB, query: string, filter: SearchFilter = {}):
   const limit = filter.limit ?? 20;
   const scope = scopeClause(filter);
 
+  // title, narrative, facts, files, keywords: names and paths over prose.
+  const rankExpr = filter.any ? 'bm25(memory_fts, 8.0, 1.0, 2.0, 6.0, 3.0)' : 'bm25(memory_fts)';
   const run = (match: string): SearchHit[] => {
     const rows = db
       .prepare(
-        `SELECT e.*, bm25(memory_fts) AS rank
+        `SELECT e.*, ${rankExpr} AS rank
          FROM memory_fts
          JOIN memory_entries e ON e.id = memory_fts.rowid
          WHERE memory_fts MATCH ? AND ${scope.sql}
@@ -116,6 +150,7 @@ export function keywordSearch(db: DB, query: string, filter: SearchFilter = {}):
 
   const andQuery = ftsQuery(query, 'AND');
   if (!andQuery) return [];
+  if (filter.any) return run(ftsQuery(query, 'OR')!);
   const exact = run(andQuery);
   if (exact.length || filter.strict) return exact;
   // Nothing matched every term. Widen rather than return nothing: a developer
@@ -125,7 +160,13 @@ export function keywordSearch(db: DB, query: string, filter: SearchFilter = {}):
   return run(ftsQuery(query, 'OR')!);
 }
 
-/** Bounded scan: cosine over the project's most recent vectors (ADR-03). */
+/**
+ * Bounded scan: cosine over the project's most recent vectors (ADR-03).
+ *
+ * Each entry is compared using its newest local vector: `local-hash-v2` when
+ * it has one, otherwise `local-hash-v1`, with the query embedded the same way.
+ * The two scales differ, so each hit says which embedder scored it.
+ */
 export function semanticSearch(
   db: DB,
   query: string,
@@ -135,24 +176,41 @@ export function semanticSearch(
   const scope = scopeClause(filter);
   const rows = db
     .prepare(
-      `SELECT e.id, v.vec FROM memory_entries e
-       JOIN memory_vectors v ON v.entry_id = e.id AND v.embedder_id = ?
-       WHERE ${scope.sql}
+      `SELECT e.id, COALESCE(v2.vec, v1.vec) AS vec,
+              CASE WHEN v2.vec IS NULL THEN 1 ELSE 2 END AS version
+       FROM memory_entries e
+       LEFT JOIN memory_vectors v2 ON v2.entry_id = e.id AND v2.embedder_id = ?
+       LEFT JOIN memory_vectors v1 ON v1.entry_id = e.id AND v1.embedder_id = ?
+       WHERE ${scope.sql} AND (v2.vec IS NOT NULL OR v1.vec IS NOT NULL)
        ORDER BY e.occurred_at DESC LIMIT ?`,
     )
-    .all(LOCAL_EMBEDDER, ...scope.args, scanLimit) as { id: number; vec: Buffer }[];
+    .all(LOCAL_EMBEDDER_V2, LOCAL_EMBEDDER, ...scope.args, scanLimit) as { id: number; vec: Buffer; version: 1 | 2 }[];
   if (!rows.length) return [];
 
-  const q = embedLocal(query);
+  let q1: Float32Array | undefined;
+  let q2: Float32Array | undefined;
+  const queryVec = (version: 1 | 2) => {
+    if (version === 1) return (q1 ??= embedLocal(query));
+    if (!q2) {
+      const rarity = termRarity(db, informativeTerms(query));
+      q2 = embedLocalV2(query, (term) => rarity.get(term)!);
+    }
+    return q2;
+  };
   const scored = rows
-    .map((r) => ({ id: r.id, score: cosine(q, fromBlob(r.vec)) }))
+    .map((r) => ({ id: r.id, version: r.version, score: cosine(queryVec(r.version), fromBlob(r.vec)) }))
     .filter((r) => r.score > 0.05)
     .sort((a, b) => b.score - a.score)
     .slice(0, filter.limit ?? 20);
 
   const entries = new Map(entriesByIds(db, scored.map((s) => s.id)).map((e) => [e.id, e]));
   return scored
-    .map((s) => ({ entry: entries.get(s.id)!, score: s.score, via: 'semantic' as const }))
+    .map((s) => ({
+      entry: entries.get(s.id)!,
+      score: s.score,
+      via: 'semantic' as const,
+      embedder: s.version === 2 ? LOCAL_EMBEDDER_V2 : LOCAL_EMBEDDER,
+    }))
     .filter((h) => h.entry);
 }
 

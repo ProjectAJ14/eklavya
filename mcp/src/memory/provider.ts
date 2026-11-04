@@ -47,6 +47,8 @@ const LIMIT = {
   file: 400,
   tags: 12,
   tag: 40,
+  keywords: 12,
+  keyword: 60,
   concepts: 8,
   checkpointField: 1200,
 } as const;
@@ -58,6 +60,7 @@ const DraftSchema = z.object({
   facts: z.array(z.string().max(LIMIT.fact)).max(LIMIT.facts),
   files: z.array(z.string().max(LIMIT.file)).max(LIMIT.files),
   tags: z.array(z.string().max(LIMIT.tag)).max(LIMIT.tags),
+  keywords: z.array(z.string().max(LIMIT.keyword)).max(LIMIT.keywords).optional(),
   concepts: z
     .array(z.object({ slug: z.string().max(80), name: z.string().max(120), domain: z.string().max(60) }))
     .max(LIMIT.concepts)
@@ -111,6 +114,7 @@ export function trimToLimits(raw: unknown): unknown {
         facts: list(d.facts, LIMIT.facts, LIMIT.fact),
         files: list(d.files, LIMIT.files, LIMIT.file),
         tags: list(d.tags, LIMIT.tags, LIMIT.tag),
+        keywords: list(d.keywords, LIMIT.keywords, LIMIT.keyword),
         concepts: Array.isArray(d.concepts) ? d.concepts.slice(0, LIMIT.concepts) : d.concepts,
       };
     }),
@@ -135,6 +139,7 @@ const OUTPUT_SCHEMA = {
           facts: { type: 'array', items: { type: 'string' } },
           files: { type: 'array', items: { type: 'string' } },
           tags: { type: 'array', items: { type: 'string' } },
+          keywords: { type: 'array', items: { type: 'string' } },
           concepts: {
             type: 'array',
             items: {
@@ -184,6 +189,7 @@ const SYSTEM = [
   'Keep durable signal: what the system now does differently, what shipped, root causes, and concrete findings from logs, query results, test output and code paths, with the names, files and values involved.',
   'Skip routine operations: status checks with nothing to report, installs without errors, file listings and searches with no follow-on finding, and anything already recorded in the session so far.',
   `Write one observation per distinct finding, decision or change, at most ${LIMIT.observations}; do not merge unrelated work into one. Each fact is one self-contained statement without pronouns, at most ${LIMIT.facts} facts of under ${LIMIT.fact} characters; the narrative is under ${LIMIT.narrative} characters.`,
+  `keywords: up to ${LIMIT.keywords} other words or short phrases a developer might use when asking about this later but that the title and facts do not already use (synonyms, the symptom for a fix, the feature area). They are indexed for search and never shown.`,
   'Tool events end with "→" and what the tool returned: record what it showed, not only that it ran. An assistant event is the agent\'s own conclusion for that turn: keep what it found and decided.',
   'Every fact must be supported by the evidence. Omit rather than guess. If the evidence shows no durable work, return an empty observations array.',
   `If the evidence contains an assistant event, the turn has ended: also return a checkpoint for the whole session so far, using <session_so_far> when given. request: what the developer asked for, in one sentence. investigated, learned, completed: short lists of specifics. next_steps: where the work is heading now, or what the developer still has to do. Each under ${LIMIT.checkpointField} characters. When neither this evidence nor the session so far holds durable work, leave request empty. Without an assistant event, omit checkpoint.`,
@@ -576,6 +582,7 @@ export class ProviderSummarizer implements Summarizer {
       facts: o.facts,
       files: o.files,
       tags: o.tags,
+      ...(o.keywords?.length ? { keywords: o.keywords } : {}),
       confidence: 0.8,
       eventIds: input.events.map((e) => e.id),
       concepts: o.concepts,

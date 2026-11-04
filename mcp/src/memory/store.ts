@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import type { DB } from '../db.js';
 import { nowIso } from '../time.js';
-import { embedLocal, LOCAL_DIM, LOCAL_EMBEDDER, toBlob } from './embed.js';
+import { embedLocalV2, LOCAL_DIM_V2, LOCAL_EMBEDDER, LOCAL_EMBEDDER_V2, toBlob } from './embed.js';
 import { entryUid, receiptUid } from './identity.js';
 import { redact } from './privacy.js';
 
@@ -364,6 +364,8 @@ export interface EntryInput {
   narrative?: string;
   facts?: string[];
   files?: string[];
+  /** Other words someone would use to ask about this entry (issue #258); indexed, never shown. */
+  keywords?: string[];
   tags?: string[];
   generator?: string;
   confidence?: number | null;
@@ -385,6 +387,8 @@ export interface EntryRow {
   narrative: string;
   facts: string | null;
   files: string | null;
+  /** JSON array or null; migration 034. */
+  keywords?: string | null;
   generator: string;
   confidence: number | null;
   occurred_at: string;
@@ -411,6 +415,7 @@ function scrubbed(input: EntryInput): EntryInput {
     title: redact(input.title).text,
     narrative: input.narrative === undefined ? undefined : redact(input.narrative).text,
     facts: input.facts?.map((f) => redact(f).text),
+    keywords: input.keywords?.map((k) => redact(k).text),
   };
 }
 
@@ -438,8 +443,8 @@ export function insertEntry(db: DB, raw: EntryInput): number {
         .prepare(
           `INSERT INTO memory_entries
              (entry_uid, project, session_id, batch_id, kind, type, title, narrative, facts, files,
-              generator, confidence, occurred_at, created_at, import_source)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              generator, confidence, occurred_at, created_at, import_source, keywords)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           uid,
@@ -457,6 +462,7 @@ export function insertEntry(db: DB, raw: EntryInput): number {
           occurredAt,
           nowIso(),
           input.importSource ?? null,
+          keywordsJson(input.keywords),
         ).lastInsertRowid,
     );
 
@@ -472,7 +478,21 @@ export function insertEntry(db: DB, raw: EntryInput): number {
 }
 
 function vectorText(input: EntryInput): string {
-  return [input.title, input.narrative ?? '', (input.facts ?? []).join(' '), (input.files ?? []).join(' ')].join('\n');
+  return [
+    input.title,
+    input.narrative ?? '',
+    (input.facts ?? []).join(' '),
+    (input.files ?? []).join(' '),
+    (input.keywords ?? []).join(' '),
+  ].join('\n');
+}
+
+/** At most 16 keywords of 60 characters, lowercased and unique; null when there are none. */
+function keywordsJson(keywords: string[] | undefined): string | null {
+  const kept = [
+    ...new Set((keywords ?? []).map((k) => String(k).trim().toLowerCase().slice(0, 60)).filter(Boolean)),
+  ].slice(0, 16);
+  return kept.length ? JSON.stringify(kept) : null;
 }
 
 /**
@@ -495,7 +515,7 @@ export function replaceEntry(db: DB, id: number, raw: EntryInput): void {
     db.prepare(
       `UPDATE memory_entries
        SET type = ?, title = ?, narrative = ?, facts = ?, files = ?, confidence = ?, occurred_at = ?,
-           generator = COALESCE(?, generator)
+           generator = COALESCE(?, generator), keywords = ?
        WHERE id = ?`,
     ).run(
       input.type ?? null,
@@ -508,6 +528,7 @@ export function replaceEntry(db: DB, id: number, raw: EntryInput): void {
       // Who wrote the row now: a session's roll-up replaced by a model
       // checkpoint must say so, or the next roll-up takes it for its own.
       input.generator ?? null,
+      keywordsJson(input.keywords),
       id,
     );
     db.prepare('DELETE FROM memory_entry_tags WHERE entry_id = ?').run(id);
@@ -517,12 +538,49 @@ export function replaceEntry(db: DB, id: number, raw: EntryInput): void {
   })();
 }
 
+/**
+ * Writes the entry's `local-hash-v2` vector and drops any `local-hash-v1` one,
+ * so an entry has one local vector and search compares it the right way.
+ */
 export function indexVector(db: DB, entryId: number, text: string): void {
-  const vec = embedLocal(text);
+  const vec = embedLocalV2(text);
   db.prepare(
     `INSERT INTO memory_vectors (entry_id, embedder_id, dim, vec) VALUES (?, ?, ?, ?)
      ON CONFLICT(entry_id, embedder_id) DO UPDATE SET vec = excluded.vec, dim = excluded.dim`,
-  ).run(entryId, LOCAL_EMBEDDER, LOCAL_DIM, toBlob(vec));
+  ).run(entryId, LOCAL_EMBEDDER_V2, LOCAL_DIM_V2, toBlob(vec));
+  db.prepare('DELETE FROM memory_vectors WHERE entry_id = ? AND embedder_id = ?').run(entryId, LOCAL_EMBEDDER);
+}
+
+/**
+ * Re-embeds up to `limit` entries that still have only a `local-hash-v1`
+ * vector, newest first, and returns how many it did. The worker calls it in
+ * the background after its batches, so a database written before the second
+ * embedder moves over a few hundred entries at a time and search keeps
+ * working throughout (each entry is compared with its own embedder's query).
+ */
+export function reembedLegacy(db: DB, limit = 200): number {
+  const rows = db
+    .prepare(
+      `SELECT e.id, e.title, e.narrative, e.facts, e.files, e.keywords FROM memory_entries e
+       WHERE EXISTS (SELECT 1 FROM memory_vectors v WHERE v.entry_id = e.id AND v.embedder_id = ?)
+         AND NOT EXISTS (SELECT 1 FROM memory_vectors v WHERE v.entry_id = e.id AND v.embedder_id = ?)
+       ORDER BY e.occurred_at DESC LIMIT ?`,
+    )
+    .all(LOCAL_EMBEDDER, LOCAL_EMBEDDER_V2, limit) as Pick<EntryRow, 'id' | 'title' | 'narrative' | 'facts' | 'files' | 'keywords'>[];
+  const list = (json: string | null | undefined): string[] => (json ? (JSON.parse(json) as string[]) : []);
+  db.transaction(() => {
+    for (const r of rows) {
+      indexVector(db, r.id, vectorText({
+        project: '',
+        title: r.title,
+        narrative: r.narrative,
+        facts: list(r.facts),
+        files: list(r.files),
+        keywords: list(r.keywords),
+      }));
+    }
+  })();
+  return rows.length;
 }
 
 export function entryById(db: DB, id: number): EntryRow | undefined {

@@ -153,9 +153,11 @@ Config namespaces (nested; edit ~/.eklavya/config.json or this project's file di
              Separate from memory: silencing questions never stops
              recording. (mode: ambient|enforced|off is the retired spelling,
              still read so older configs keep working)
-  memory.{enabled, capture: full|minimal|off, batch_max_events, retention_days, file_hold}
+  memory.{enabled, capture: full|minimal|off, batch_max_events, retention_days, file_hold,
+             lookup_hint: mcp|bash}
   privacy.{exclude_paths, exclude_tools, redact_patterns}
-  retrieval.{mode: keyword|semantic|hybrid, max_items, max_tokens, cross_project}
+  retrieval.{mode: keyword|semantic|hybrid, max_items, max_tokens, cross_project,
+             seam_query, prompt_gate: strict|terms, timeline_items}
   providers.{observer, embeddings} — each null or {kind, model}; the model runs
              through Claude Code on your subscription
   notifications.{enabled, sinks} — sinks are {kind: webhook|command|file, target,

@@ -152,6 +152,12 @@ export interface MemoryConfig {
    * history, so Claude opens the entries before the file (the retry passes).
    */
   file_hold: boolean;
+  /**
+   * How a recall note tells Claude to open an entry (issue #258): `mcp` names
+   * the `memory_get` tool and how to load it; `bash` names the
+   * `eklavya memory show` command instead. An eval arm until it is measured.
+   */
+  lookup_hint: 'mcp' | 'bash';
 }
 
 /**
@@ -182,6 +188,22 @@ export interface RetrievalConfig {
   max_tokens: number;
   /** Off by default: another repository's work is noise, not context. */
   cross_project: boolean;
+  /**
+   * Rank the session-start recall by a query built from the branch name, the
+   * changed files, the last commit subjects and the last checkpoint's next
+   * steps, with recency breaking ties (issue #258). Off: newest first, as before.
+   */
+  seam_query: boolean;
+  /**
+   * How a prompt earns a mid-session recall. `strict` (default): every word of
+   * the prompt in one entry, or a close vector. `terms`: stopwords dropped,
+   * identifiers split, any term matched, and the entry kept when two
+   * informative terms match or the matched terms carry most of the prompt's
+   * rarity.
+   */
+  prompt_gate: 'strict' | 'terms';
+  /** Lines in the session-start timeline; 0 leaves it out. */
+  timeline_items: number;
 }
 
 /**
@@ -403,6 +425,7 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
     batch_max_events: 40,
     retention_days: null,
     file_hold: true,
+    lookup_hint: 'mcp',
   },
   feedback: { enabled: true },
   privacy: {
@@ -415,6 +438,9 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
     max_items: 6,
     max_tokens: 1200,
     cross_project: false,
+    seam_query: false,
+    prompt_gate: 'strict',
+    timeline_items: 50,
   },
   providers: {
     observer: { kind: 'anthropic', model: 'claude-sonnet-5' },
@@ -718,6 +744,7 @@ function coerceNamespaces(raw: Record<string, unknown>, out: EklavyaConfig): voi
       out.memory.retention_days = null;
     }
     if (typeof memory.file_hold === 'boolean') out.memory.file_hold = memory.file_hold;
+    if (memory.lookup_hint === 'mcp' || memory.lookup_hint === 'bash') out.memory.lookup_hint = memory.lookup_hint;
   }
 
   const feedback = raw.feedback as Record<string, unknown> | undefined;
@@ -750,6 +777,11 @@ function coerceNamespaces(raw: Record<string, unknown>, out: EklavyaConfig): voi
       out.retrieval.max_tokens = Math.floor(retrieval.max_tokens);
     }
     if (typeof retrieval.cross_project === 'boolean') out.retrieval.cross_project = retrieval.cross_project;
+    if (typeof retrieval.seam_query === 'boolean') out.retrieval.seam_query = retrieval.seam_query;
+    if (retrieval.prompt_gate === 'strict' || retrieval.prompt_gate === 'terms') out.retrieval.prompt_gate = retrieval.prompt_gate;
+    if (typeof retrieval.timeline_items === 'number' && retrieval.timeline_items >= 0) {
+      out.retrieval.timeline_items = Math.min(200, Math.floor(retrieval.timeline_items));
+    }
   }
 
   const notifications = raw.notifications as Record<string, unknown> | undefined;

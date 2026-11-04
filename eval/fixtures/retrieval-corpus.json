@@ -1942,5 +1942,30 @@
       "relevant": [35],
       "why": "Describes the fix in ordinary words. The note says fraud, vendor, p99, inline, budget; the query says none of them. The first wording said `slow service`, and `slow` is in the note's title — keyword search put it first, and the query was measuring one shared adjective. That is the third time this trap has been walked into in this file."
     }
+  ],
+  "prompts_note": "Full-length prompts as a developer types them, scored through recallForPrompt (the production gate), not search(). `relevant: []` marks a prompt about something the project has no memory of: any recall on it is a false open. Added 2026-11-04 for issue #258; written before the terms gate was run against them.",
+  "prompts": [
+    {"id": "p-refresh-cookie", "project": "api", "text": "can you look at why the refresh cookie keeps getting rejected after the second use? I think the rotation logic in refresh.ts is off", "relevant": [1, 36]},
+    {"id": "p-clock-skew", "project": "api", "text": "users on one laptop get stuck in an endless token refresh loop, maybe the clock is wrong on their machine", "relevant": [2]},
+    {"id": "p-password-hash", "project": "api", "text": "we need to bump the cost parameters for how we hash passwords, what did we pick originally and why", "relevant": [3]},
+    {"id": "p-wal", "project": "api", "text": "the sqlite database file keeps growing and the wal never seems to shrink while the readers are busy", "relevant": [4]},
+    {"id": "p-n-plus-one", "project": "api", "text": "the order detail endpoint is really slow again, please profile it and check how many queries it runs", "relevant": [8]},
+    {"id": "p-ratelimit", "project": "api", "text": "what is the current login rate limit? product wants to know if we can make it stricter per account", "relevant": [22, 9]},
+    {"id": "p-webhook", "project": "api", "text": "I'm seeing duplicate charges recorded when the payment provider sends the same webhook twice, handle that", "relevant": [26]},
+    {"id": "p-money", "project": "api", "text": "add a discount field to the order total and make sure it uses the same representation as the other money amounts", "relevant": [24]},
+    {"id": "p-pool", "project": "api", "text": "the first checkout request after a quiet period takes several seconds, is the db pool warming up slowly?", "relevant": [34]},
+    {"id": "p-cart-effect", "project": "web", "text": "there's a memory leak warning in the console from useCart when navigating away from the cart page", "relevant": [11]},
+    {"id": "p-hydration", "project": "web", "text": "React complains about a hydration mismatch on the product page, the price text differs between server and client", "relevant": [13]},
+    {"id": "p-currency", "project": "web", "text": "switching the currency selector leaves the cart total showing the old amount until reload", "relevant": [37]},
+    {"id": "p-health", "project": "infra", "text": "the health endpoint reported healthy during yesterday's outage even though nothing could reach postgres, why?", "relevant": [17, 53]},
+    {"id": "p-certs", "project": "infra", "text": "set up an alert so we notice when the TLS certificate renewal fails instead of finding out weeks later", "relevant": [47]},
+    {"id": "p-rollup-tz", "project": "data", "text": "the daily ledger totals are off by a few transactions around midnight, check the rollup_daily job for timezone issues", "relevant": [60, 62]},
+    {"id": "p-none-graphql", "project": "api", "text": "please add a graphql endpoint that exposes the product catalogue with filtering by category and price", "relevant": []},
+    {"id": "p-none-readme", "project": "api", "text": "can you tidy up the README so the setup section explains how to install the dependencies on windows", "relevant": []},
+    {"id": "p-none-darkmode", "project": "web", "text": "add a dark mode toggle to the settings screen and remember the choice in local storage", "relevant": []},
+    {"id": "p-none-k8s", "project": "infra", "text": "write a helm chart for the image resizing service with two replicas and resource limits", "relevant": []},
+    {"id": "p-none-ml", "project": "data", "text": "train a simple churn prediction model on last quarter's customer activity and report accuracy", "relevant": []},
+    {"id": "p-none-generic", "project": "api", "text": "thanks, that looks good now. can you also run the tests again and tell me if anything else fails", "relevant": []},
+    {"id": "p-none-lint", "project": "web", "text": "configure eslint and prettier for the project so formatting is consistent across the team", "relevant": []}
   ]
 }

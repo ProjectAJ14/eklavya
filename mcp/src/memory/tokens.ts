@@ -85,8 +85,17 @@ export const toolSearch = (...names: string[]) => `ToolSearch select:${names.map
  * in full, and how to load the tool that opens one. The same estimator as every
  * receipt, so the number is comparable with the rest.
  */
-export const pullLine = (tokens: number) =>
-  `Full entries behind these titles: ~${sizeOf(tokens)} tokens. To open one, load the tool first (${toolSearch('memory_get', 'memory_search')}), then memory_get({ids: [<id>]}).`;
+export const pullLine = (tokens: number, style: LookupStyle = 'mcp') =>
+  style === 'bash'
+    ? `Full entries behind these titles: ~${sizeOf(tokens)} tokens. To open one, run \`eklavya memory show <id>\` in Bash; to look further back, \`eklavya memory search "<words>"\`.`
+    : `Full entries behind these titles: ~${sizeOf(tokens)} tokens. To open one, load the tool first (${toolSearch('memory_get', 'memory_search')}), then memory_get({ids: [<id>]}).`;
+
+/**
+ * How a recall note says to open an entry: the MCP tool (default) or the
+ * Bash command (`memory.lookup_hint`, an eval arm, issue #258). A Bash read is
+ * not charged to the receipt, so the receipt under-counts reads in that arm.
+ */
+export type LookupStyle = 'mcp' | 'bash';
 
 /**
  * The banner line for one session start's recall: what was delivered, which a
@@ -112,8 +121,8 @@ export function recalledLine(entries: number, tokens: number, indexed = 0, perce
  * Here rather than in `recall.ts` so the file-context hook, which runs before
  * every Read, can say it too.
  */
-export const RECEIPT_HINT = (receiptId: number, best: number[] = []) =>
+export const RECEIPT_HINT = (receiptId: number, best: number[] = [], style: LookupStyle = 'mcp') =>
   (best.length
     ? `Best match${best.length > 1 ? 'es' : ''}: ${best.map((id) => `#${id}`).join(', ')}. If the task touches ${best.length > 1 ? 'them' : 'it'}, open ${best.length > 1 ? 'them' : 'it'} before answering: `
     : 'Task needs an earlier decision, fix or unfinished work? Open a matching entry before answering: ') +
-  `memory_get({ids: [<id>], receipt_id: ${receiptId}}).`;
+  (style === 'bash' ? '`eklavya memory show <id>` in Bash.' : `memory_get({ids: [<id>], receipt_id: ${receiptId}}).`);

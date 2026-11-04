@@ -171,6 +171,7 @@ export const setConfig: ToolDef = {
         batch_max_events: num('memory.batch_max_events'),
         retention_days: num('memory.retention_days'),
         file_hold: z.boolean().optional(),
+        lookup_hint: z.enum(['mcp', 'bash']).optional(),
       })
       .optional()
       .describe(
@@ -188,6 +189,9 @@ export const setConfig: ToolDef = {
         max_items: num('retrieval.max_items'),
         max_tokens: num('retrieval.max_tokens'),
         cross_project: z.boolean().optional(),
+        seam_query: z.boolean().optional(),
+        prompt_gate: z.enum(['strict', 'terms']).optional(),
+        timeline_items: num('retrieval.timeline_items'),
       })
       .optional()
       .describe(

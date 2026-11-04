@@ -1,0 +1,369 @@
+{
+  "generated_at": "2026-11-04T08:55:44.121Z",
+  "prompts": 22,
+  "arms": {
+    "today": {
+      "hit_at_2": 0.867,
+      "false_open": 1,
+      "tokens_delivered": 4667,
+      "cosine_relevant_p10": "0.422",
+      "cosine_relevant_median": "0.512",
+      "cosine_unrelated_median": "0.408",
+      "cosine_unrelated_p90": "0.512",
+      "per_prompt": [
+        {
+          "prompt": "p-refresh-cookie",
+          "hit": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-clock-skew",
+          "hit": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-password-hash",
+          "hit": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-wal",
+          "hit": false,
+          "sent": 2
+        },
+        {
+          "prompt": "p-n-plus-one",
+          "hit": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-ratelimit",
+          "hit": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-webhook",
+          "hit": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-money",
+          "hit": false,
+          "sent": 2
+        },
+        {
+          "prompt": "p-pool",
+          "hit": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-cart-effect",
+          "hit": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-hydration",
+          "hit": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-currency",
+          "hit": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-health",
+          "hit": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-certs",
+          "hit": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-rollup-tz",
+          "hit": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-none-graphql",
+          "opened": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-none-readme",
+          "opened": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-none-darkmode",
+          "opened": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-none-k8s",
+          "opened": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-none-ml",
+          "opened": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-none-generic",
+          "opened": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-none-lint",
+          "opened": true,
+          "sent": 2
+        }
+      ]
+    },
+    "strict": {
+      "hit_at_2": 0.8,
+      "false_open": 0,
+      "tokens_delivered": 1963,
+      "cosine_relevant_p10": "0.196",
+      "cosine_relevant_median": "0.333",
+      "cosine_unrelated_median": "0.162",
+      "cosine_unrelated_p90": "0.216",
+      "per_prompt": [
+        {
+          "prompt": "p-refresh-cookie",
+          "hit": true,
+          "sent": 1
+        },
+        {
+          "prompt": "p-clock-skew",
+          "hit": true,
+          "sent": 1
+        },
+        {
+          "prompt": "p-password-hash",
+          "hit": false,
+          "sent": 0
+        },
+        {
+          "prompt": "p-wal",
+          "hit": true,
+          "sent": 1
+        },
+        {
+          "prompt": "p-n-plus-one",
+          "hit": true,
+          "sent": 1
+        },
+        {
+          "prompt": "p-ratelimit",
+          "hit": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-webhook",
+          "hit": true,
+          "sent": 1
+        },
+        {
+          "prompt": "p-money",
+          "hit": false,
+          "sent": 0
+        },
+        {
+          "prompt": "p-pool",
+          "hit": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-cart-effect",
+          "hit": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-hydration",
+          "hit": true,
+          "sent": 1
+        },
+        {
+          "prompt": "p-currency",
+          "hit": true,
+          "sent": 1
+        },
+        {
+          "prompt": "p-health",
+          "hit": false,
+          "sent": 0
+        },
+        {
+          "prompt": "p-certs",
+          "hit": true,
+          "sent": 1
+        },
+        {
+          "prompt": "p-rollup-tz",
+          "hit": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-none-graphql",
+          "opened": false,
+          "sent": 0
+        },
+        {
+          "prompt": "p-none-readme",
+          "opened": false,
+          "sent": 0
+        },
+        {
+          "prompt": "p-none-darkmode",
+          "opened": false,
+          "sent": 0
+        },
+        {
+          "prompt": "p-none-k8s",
+          "opened": false,
+          "sent": 0
+        },
+        {
+          "prompt": "p-none-ml",
+          "opened": false,
+          "sent": 0
+        },
+        {
+          "prompt": "p-none-generic",
+          "opened": false,
+          "sent": 0
+        },
+        {
+          "prompt": "p-none-lint",
+          "opened": false,
+          "sent": 0
+        }
+      ]
+    },
+    "terms": {
+      "hit_at_2": 1,
+      "false_open": 0.143,
+      "tokens_delivered": 2853,
+      "cosine_relevant_p10": "0.196",
+      "cosine_relevant_median": "0.333",
+      "cosine_unrelated_median": "0.162",
+      "cosine_unrelated_p90": "0.216",
+      "per_prompt": [
+        {
+          "prompt": "p-refresh-cookie",
+          "hit": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-clock-skew",
+          "hit": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-password-hash",
+          "hit": true,
+          "sent": 1
+        },
+        {
+          "prompt": "p-wal",
+          "hit": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-n-plus-one",
+          "hit": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-ratelimit",
+          "hit": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-webhook",
+          "hit": true,
+          "sent": 1
+        },
+        {
+          "prompt": "p-money",
+          "hit": true,
+          "sent": 1
+        },
+        {
+          "prompt": "p-pool",
+          "hit": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-cart-effect",
+          "hit": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-hydration",
+          "hit": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-currency",
+          "hit": true,
+          "sent": 1
+        },
+        {
+          "prompt": "p-health",
+          "hit": true,
+          "sent": 1
+        },
+        {
+          "prompt": "p-certs",
+          "hit": true,
+          "sent": 1
+        },
+        {
+          "prompt": "p-rollup-tz",
+          "hit": true,
+          "sent": 2
+        },
+        {
+          "prompt": "p-none-graphql",
+          "opened": true,
+          "sent": 1
+        },
+        {
+          "prompt": "p-none-readme",
+          "opened": false,
+          "sent": 0
+        },
+        {
+          "prompt": "p-none-darkmode",
+          "opened": false,
+          "sent": 0
+        },
+        {
+          "prompt": "p-none-k8s",
+          "opened": false,
+          "sent": 0
+        },
+        {
+          "prompt": "p-none-ml",
+          "opened": false,
+          "sent": 0
+        },
+        {
+          "prompt": "p-none-generic",
+          "opened": false,
+          "sent": 0
+        },
+        {
+          "prompt": "p-none-lint",
+          "opened": false,
+          "sent": 0
+        }
+      ]
+    }
+  }
+}

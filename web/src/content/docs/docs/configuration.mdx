@@ -100,13 +100,14 @@ Lists accept comma-separated strings or JSON. Other values use the key's expecte
 | `memory.retention_days` | Whole number, 1–36500, or `null` |
 | `retrieval.max_items` | Whole number, 1–50 |
 | `retrieval.max_tokens` | Whole number, 100–20000 |
+| `retrieval.timeline_items` | Whole number, 0–200 |
 | `focus_topic`, `sync.device_id` | Text up to 200 characters, or `null` |
 | `sync.target` | Text up to 1000 characters, or `null` |
 | `privacy.exclude_paths` | Up to 100 lines of 500 characters |
 | `privacy.redact_patterns` | Up to 100 lines of 500 characters, each a valid regular expression |
 | `privacy.exclude_tools` | Up to 100 lines of 200 characters |
 | `domains_enabled` | Up to 100 lines of 100 characters |
-| `focus`, `cadence`, `difficulty`, `memory.capture`, `retrieval.mode` | One of the listed values |
+| `focus`, `cadence`, `difficulty`, `memory.capture`, `memory.lookup_hint`, `retrieval.mode`, `retrieval.prompt_gate` | One of the listed values |
 | switches such as `quiz.enabled`, `quiet` | `true` or `false` |
 
 A change that would not take effect is refused too: `focus learn` when no `focus_topic` is in force at that scope (or clearing the topic while `learn` is set), and, from the CLI and dashboard, `quiz.enforced true` while `quiz.enabled` is `false`. The `set_config` tool keeps its documented behaviour for a call that sends `quiz.enabled: false`: enforcement is switched off with it.
@@ -121,6 +122,7 @@ A change that would not take effect is refused too: `focus learn` when no `focus
 | `memory.capture` | `"full"` | `full`: prompts, tool activity, edits, reads and session events. `minimal`: prompts, assistant messages, session events and notes. `off`: stop capture while keeping stored history searchable. |
 | `memory.batch_max_events` | `40` | Maximum events per observation batch. A turn end also closes batches at eight events or 20 minutes old; a session start closes leftovers, and any seam closes other projects' leftovers once they are 20 minutes old. |
 | `memory.file_hold` | `true` | Holds a whole-file Read of a code file of 32 KB or more that has memory history, every time in the session, and shows its entry titles with the `memory_get` call and the way to read less (`code_outline`, `code_find_symbol`, then a Read with offset and limit). A Read that stops short of the end or starts later is never held, nor is a Markdown, YAML, JSON or other file `code_outline` cannot outline. Settable at user and project scope. |
+| `memory.lookup_hint` | `"mcp"` | How a recall block says to open an entry: `mcp` names `memory_get` and the `ToolSearch` query that loads it; `bash` names `eklavya memory show <id>` and `eklavya memory search`, whose reads are not linked to the receipt. An evaluation setting. See [how recall works](/docs/memory/#how-recall-works). |
 | `memory.retention_days` | `null` | Days to keep summarised raw evidence, finished jobs, reuse receipts and the memory read log. Observations survive. Applies per project, automatically at most every six hours or through `eklavya memory prune`. `null` keeps everything. |
 
 #### `feedback`
@@ -147,6 +149,9 @@ These extend the [built-in privacy rules](/docs/memory/#what-is-never-captured).
 | `retrieval.max_items` | `6` | Maximum entries proposed at session recall and default search limit. Mid-session prompt recall gets a third of it (at least one). |
 | `retrieval.max_tokens` | `1200` | Estimated-token budget for the complete recalled block, including its wrapper. Mid-session prompt recall gets a third of it. |
 | `retrieval.cross_project` | `false` | Includes other projects in search and session-start recall. |
+| `retrieval.seam_query` | `false` | Ranks the full entries at session start by the branch name, changed files, last three commit subjects and the last checkpoint's next steps. Off: newest first. See [ranking session start](/docs/memory/#ranking-session-start-by-your-current-work). |
+| `retrieval.prompt_gate` | `"strict"` | How a prompt earns a mid-session recall. `strict`: every word of the prompt in the entry. `terms`: informative words only, two of them or the rarest ones. See [when you send a prompt](/docs/memory/#when-you-send-a-prompt). |
+| `retrieval.timeline_items` | `50` | Lines in the session-start timeline. `0` leaves the timeline out. |
 
 #### `providers`
 

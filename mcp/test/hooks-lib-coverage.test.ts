@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openDb, type DB } from '../src/db.js';
 import { DEFAULT_CONFIG, type EklavyaConfig, type ResolvedConfig } from '../src/config.js';
 import type { EvidenceIdentity } from '../src/memory/identity.js';
-import { appendEvent, batchSession } from '../src/memory/store.js';
+import { appendEvent, batchSession, insertEntry } from '../src/memory/store.js';
 import { clearNudgeState, framingFor, NUDGE_KEY_PREFIX, openOrDiagnose, sessionId, syntheticIdWarning } from '../src/hooks/lib.js';
 import { batchIfFull, record } from '../src/hooks/capture-lib.js';
 import { flushAtSeam, memoryHealthLine, recallBlock, wrapUpAtSeam } from '../src/hooks/memory-lib.js';
@@ -206,6 +206,17 @@ describe('hooks/memory-lib', () => {
     });
     expect(recallBlock(db, off, identity(), 'session_start')).toBeNull();
     expect(recallBlock(closedDb(), resolved(), identity(), 'session_start')).toBeNull();
+  });
+
+  it('ranks the session-start recall by the seam query when retrieval.seam_query is on', () => {
+    insertEntry(db, { project: PROJECT, sessionId: 'old', title: 'Payment retry backoff', occurredAt: '2026-01-01T00:00:00Z' });
+    insertEntry(db, { project: PROJECT, sessionId: 'old', kind: 'session_summary', title: 's', narrative: 'Next steps: payment retry backoff' });
+    const on = resolved((c) => {
+      c.retrieval.seam_query = true;
+    });
+    expect(recallBlock(db, on, identity('new'), 'session_start')?.block).toContain('Closest to the current work, in full:');
+    // A prompt-scoped recall never builds a seam query.
+    expect(recallBlock(db, on, identity('new'), 'other')?.block).not.toContain('Closest to the current work');
   });
 
   it('alerts a pause with no recorded cause as unknown', async () => {

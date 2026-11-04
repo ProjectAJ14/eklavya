@@ -397,6 +397,10 @@
       "shard": 5,
       "seconds": 1
     },
+    "test/memory-recall-v2.test.ts": {
+      "shard": 2,
+      "seconds": 15
+    },
     "test/memory-recall.test.ts": {
       "shard": 1,
       "seconds": 1

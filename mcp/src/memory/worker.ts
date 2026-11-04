@@ -20,6 +20,7 @@ import {
   releaseJob,
   pausesQueue,
   insertEntry,
+  reembedLegacy,
   replaceEntry,
   resumePaused,
   timeline,
@@ -346,6 +347,7 @@ export async function processPending(
             narrative: draft.narrative,
             facts: draft.facts,
             files: draft.files,
+            keywords: draft.keywords,
             tags: draft.tags,
             generator: summarizer.id,
             confidence: draft.confidence,
@@ -513,6 +515,14 @@ export async function superviseWorker(
   } finally {
     clearInterval(heartbeat);
     opts.signal?.removeEventListener('abort', stop);
+  }
+  // Move a few hundred entries written before `local-hash-v2` onto it, while
+  // this process holds the worker slot anyway (issue #258). Search reads both
+  // kinds, so a run that stops halfway leaves nothing broken.
+  try {
+    reembedLegacy(db);
+  } catch {
+    /* The next run picks up where this one stopped. */
   }
 
   // Descendants outlived SIGKILL: keep the slot, so no other worker starts

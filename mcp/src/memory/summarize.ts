@@ -18,6 +18,8 @@ export interface EntryDraft {
   facts: string[];
   files: string[];
   tags: string[];
+  /** Other words someone would ask with (observer only, issue #258); indexed, never shown. */
+  keywords?: string[];
   confidence: number;
   eventIds: number[];
   /**

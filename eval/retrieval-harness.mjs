@@ -17,6 +17,15 @@
  *   node eval/retrieval-harness.mjs --k 3         # at a tighter budget
  *   node eval/retrieval-harness.mjs --json        # machine-readable, for a results file
  *   node eval/retrieval-harness.mjs --split dev   # while changing the retriever
+ *   node eval/retrieval-harness.mjs --prompts     # the prompt gate, on full-length prompts
+ *
+ * `--prompts` scores `recallForPrompt` (the production gate, not `search()`)
+ * on the corpus's `prompts`: hit@2 on prompts with a relevant entry, and how
+ * often the gate opens on a prompt the project has no memory of. Three arms:
+ * `today` (strict gate on local-hash-v1 vectors), `strict` (strict gate on
+ * local-hash-v2) and `terms` (the terms gate on local-hash-v2). It also prints
+ * the cosine of each prompt's closest relevant and closest unrelated entry per
+ * embedder, which is how `MIN_COSINE` is set.
  *
  * What would disprove the claim it supports: `ADR-03` says the local embedder
  * generalises over morphology and typos but NOT over synonymy. The fixture
@@ -77,6 +86,92 @@ const { scoreQuery, summarise, compare } = await import(need('eval/retrieval-sco
 const fixture = JSON.parse(
   fs.readFileSync(path.join(evalDir, 'fixtures', 'retrieval-corpus.json'), 'utf8'),
 );
+
+if (args.includes('--prompts')) {
+  const { recallForPrompt } = await import(need('memory/recall.js'));
+  const { semanticSearch } = await import(need('memory/search.js'));
+  const { embedLocal, toBlob, LOCAL_EMBEDDER, LOCAL_DIM } = await import(need('memory/embed.js'));
+  const { DEFAULT_CONFIG } = await import(need('config.js'));
+  const prompts = fixture.prompts ?? [];
+  const build = (legacy) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-prompt-eval-'));
+    const pdb = openDb(path.join(dir, 'knowledge.db'));
+    const ids = new Map();
+    for (const e of fixture.entries) {
+      const id = insertEntry(pdb, {
+        project: fixture.projects[e.project], title: e.title, narrative: e.narrative,
+        facts: e.facts ?? [], files: e.files ?? [], tags: e.tags ?? [], type: e.type, occurredAt: e.occurredAt,
+      });
+      ids.set(e.id, id);
+      if (legacy) {
+        // Today's vectors: what every entry written before local-hash-v2 holds.
+        const text = [e.title, e.narrative ?? '', (e.facts ?? []).join(' '), (e.files ?? []).join(' ')].join('\n');
+        pdb.prepare('DELETE FROM memory_vectors WHERE entry_id = ?').run(id);
+        pdb.prepare('INSERT INTO memory_vectors (entry_id, embedder_id, dim, vec) VALUES (?, ?, ?, ?)')
+          .run(id, LOCAL_EMBEDDER, LOCAL_DIM, toBlob(embedLocal(text)));
+      }
+    }
+    for (const e of fixture.entries) if (e.supersededBy) supersedeEntry(pdb, ids.get(e.id), ids.get(e.supersededBy));
+    return { pdb, ids, dir };
+  };
+  const arms = [
+    { name: 'today', legacy: true, gate: 'strict' },
+    { name: 'strict', legacy: false, gate: 'strict' },
+    { name: 'terms', legacy: false, gate: 'terms' },
+  ];
+  const out = {};
+  for (const arm of arms) {
+    const { pdb, ids, dir } = build(arm.legacy);
+    const config = { ...DEFAULT_CONFIG, retrieval: { ...DEFAULT_CONFIG.retrieval, prompt_gate: arm.gate } };
+    let relevantN = 0, hits = 0, irrelevantN = 0, opens = 0, tokens = 0;
+    const per = [];
+    const near = { on: [], off: [] };
+    prompts.forEach((pr, i) => {
+      const project = fixture.projects[pr.project];
+      const r = recallForPrompt(pdb, config, { project, sessionId: `eval-${arm.name}-${i}`, prompt: pr.text });
+      const got = r ? r.entries.map((e) => e.id) : [];
+      const relevant = pr.relevant.map((id) => ids.get(id));
+      const sem = semanticSearch(pdb, pr.text, { project, limit: 80 });
+      if (relevant.length) {
+        relevantN++;
+        const hit = got.slice(0, 2).some((id) => relevant.includes(id));
+        if (hit) hits++;
+        const best = sem.find((h) => relevant.includes(h.entry.id));
+        if (best) near.on.push(best.score);
+        per.push({ prompt: pr.id, hit, sent: got.length });
+      } else {
+        irrelevantN++;
+        if (r) opens++;
+        if (sem[0]) near.off.push(sem[0].score);
+        per.push({ prompt: pr.id, opened: Boolean(r), sent: got.length });
+      }
+      tokens += r ? r.deliveredTokens : 0;
+    });
+    pdb.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+    const q = (xs, p) => (xs.length ? [...xs].sort((a, b) => a - b)[Math.min(xs.length - 1, Math.floor(p * xs.length))] : null);
+    out[arm.name] = {
+      hit_at_2: relevantN ? +(hits / relevantN).toFixed(3) : null,
+      false_open: irrelevantN ? +(opens / irrelevantN).toFixed(3) : null,
+      tokens_delivered: tokens,
+      cosine_relevant_p10: q(near.on, 0.1)?.toFixed(3) ?? null,
+      cosine_relevant_median: q(near.on, 0.5)?.toFixed(3) ?? null,
+      cosine_unrelated_median: q(near.off, 0.5)?.toFixed(3) ?? null,
+      cosine_unrelated_p90: q(near.off, 0.9)?.toFixed(3) ?? null,
+      per_prompt: per,
+    };
+  }
+  if (asJson) console.log(JSON.stringify({ generated_at: new Date().toISOString(), prompts: prompts.length, arms: out }, null, 2));
+  else {
+    console.log(`\nPrompt gate eval — ${prompts.length} prompts (${prompts.filter((p) => p.relevant.length).length} with a relevant entry)\n`);
+    console.log('arm     hit@2  false-open  tokens  cos(rel) p10/med  cos(unrel) med/p90');
+    for (const [name, r] of Object.entries(out)) {
+      console.log(`${name.padEnd(8)}${String(r.hit_at_2).padEnd(7)}${String(r.false_open).padEnd(12)}${String(r.tokens_delivered).padEnd(8)}${r.cosine_relevant_p10}/${r.cosine_relevant_median}       ${r.cosine_unrelated_median}/${r.cosine_unrelated_p90}`);
+    }
+    console.log('');
+  }
+  process.exit(0);
+}
 
 // A throwaway database, never the learner's. The corpus is invented; nothing
 // here reads a real memory.
