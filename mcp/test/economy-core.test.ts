@@ -210,6 +210,9 @@ describe('transcript reader', () => {
         line({ type: 'user', isMeta: true, message: { content: 'meta' } }),
         line({ type: 'user', message: { content: [{ type: 'text', text: '<local-command-stdout>x' }] } }),
         line({ type: 'user', message: { content: [{ type: 'text', text: 'second prompt' }, 'junk'] } }),
+        // Notices the host sends on its own are not prompts.
+        line({ type: 'user', message: { content: '<task-notification>\n<task-id>a1</task-id>\n</task-notification>' } }),
+        line({ type: 'user', message: { content: [{ type: 'text', text: '<agent-message from="builder">done</agent-message>' }] } }),
         // One message written as two blocks: counted once, last counts win.
         line({ type: 'assistant', message: { id: 'm1', model: 'claude-sonnet-4-5', usage: usage(5), content: [{ type: 'text', text: 'hi' }] } }),
         line({ type: 'assistant', message: { id: 'm1', model: 'claude-sonnet-4-5', usage: usage(7, { cache_creation_input_tokens: 50, cache_creation: { ephemeral_5m_input_tokens: 20, ephemeral_1h_input_tokens: 30 } }), content: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'ls' } }] } }),

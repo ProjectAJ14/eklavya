@@ -4,10 +4,12 @@
 // Changes: ported from Python to TypeScript; one pass reads usage, tool calls
 // and the deferred-tool catalog together; the 5-minute and 1-hour cache-write
 // counts are kept apart; usage is split per model, per subagent type and for
-// turns that called Eklavya's own tools; nothing but numbers and names is kept.
+// turns that called Eklavya's own tools; host-sent notices are not prompts;
+// nothing but numbers and names is kept.
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { HOST_PROMPT } from '../prompt-text.js';
 
 /**
  * Claude Code's session transcript, read for numbers and names only.
@@ -116,7 +118,11 @@ function parse(line: string): Record<string, unknown> | null {
   }
 }
 
-/** Was this entry a prompt the person gave? Not a tool result, a command's output, an interrupt, a summary or a subagent's. */
+/**
+ * Was this entry a prompt the person gave? Not a tool result, a command's output,
+ * an interrupt, a summary, a subagent's, or a notice the host sent on its own
+ * (a background agent's `<agent-message>` or `<task-notification>`).
+ */
 export function isPrompt(ev: Record<string, unknown>): boolean {
   if (ev.type !== 'user' || ev.isMeta || ev.isSidechain || ev.isCompactSummary) return false;
   let content = (ev.message as { content?: unknown } | undefined)?.content;
@@ -128,7 +134,12 @@ export function isPrompt(ev: Record<string, unknown>): boolean {
       .map((b) => (typeof b.text === 'string' ? b.text : ''))
       .join(' ');
   }
-  return typeof content === 'string' && !content.startsWith('<local-command') && !content.startsWith('[Request interrupted');
+  return (
+    typeof content === 'string' &&
+    !content.startsWith('<local-command') &&
+    !content.startsWith('[Request interrupted') &&
+    !HOST_PROMPT.test(content)
+  );
 }
 
 /** `<session>.jsonl` → `<session>/subagents/*.jsonl`, sorted. */

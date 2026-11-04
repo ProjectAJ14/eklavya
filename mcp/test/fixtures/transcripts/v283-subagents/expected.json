@@ -1,0 +1,14 @@
+{
+  "claudeCode": "2.1.283",
+  "scenario": "subagents",
+  "models": [
+    "claude-sonnet-5-5"
+  ],
+  "modelUsage": {
+    "input": 24,
+    "cacheRead": 215246,
+    "cacheWrite": 26224,
+    "output": 2202
+  },
+  "costUSD": 0.263
+}

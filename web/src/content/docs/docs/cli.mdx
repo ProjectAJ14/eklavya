@@ -105,7 +105,7 @@ Imports preserve original dates, do not duplicate rows, and never count imported
 
 ## Cost
 
-These read the cost ledger (`economy.ledger`, on by default). A session is priced from its Claude Code transcript when it ends, or by the next session start once it has been quiet for ten minutes. Effective tokens are fresh-input-token equivalents of the model that served them: cache reads weigh 0.1, 5-minute cache writes 1.25, 1-hour cache writes 2 and output 5. A model with no price row is shown as unpriced rather than guessed.
+These read the cost ledger (`economy.ledger`, on by default). A session is priced from its Claude Code transcript when it ends, or by the next session start once it has been quiet for ten minutes. Effective tokens are fresh-input-token equivalents of the model that served them: cache reads weigh 0.1, 5-minute cache writes 1.25, 1-hour cache writes 2 and output 5. A model with no price row is shown as unpriced rather than guessed. Prompt counts, here and in tool pruning, count what you typed: the notice Claude Code adds when a background agent or task finishes (`<task-notification>`, `<agent-message>`) is not a prompt.
 
 | Command | Purpose and options |
 | --- | --- |
