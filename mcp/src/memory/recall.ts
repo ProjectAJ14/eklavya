@@ -2,7 +2,7 @@ import type { DB } from '../db.js';
 import type { EklavyaConfig } from '../config.js';
 import { decayedScore, isKnown, isOwed, streakOf } from '../srs.js';
 import { GLOBAL_PROJECT, projectKey } from '../store.js';
-import { ESTIMATOR, RECEIPT_HINT, estimateTokens, pullLine } from './tokens.js';
+import { ESTIMATOR, RECEIPT_HINT, SEARCH_RULE, estimateTokens, pullLine, toolSearch, type LookupStyle } from './tokens.js';
 import { keywordSearch, search, semanticSearch, termRarity, type SearchFilter, type SearchHit } from './search.js';
 import { LOCAL_EMBEDDER, LOCAL_EMBEDDER_V2 } from './embed.js';
 import { informativeTermGroups, informativeTerms } from './terms.js';
@@ -357,7 +357,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
   // after the last one. Counting it afterwards means the block the model
   // receives is reliably larger than the budget that was supposed to bound it.
   const wrapperTokens = estimateTokens(
-    [`<eklavya-memory project="${projectAttr}" items="00" receipt="000000">`, note, RECEIPT_HINT(0, [1000000, 1000000]), footer].join('\n'),
+    [`<eklavya-memory project="${projectAttr}" items="00" receipt="000000">`, note, RECEIPT_HINT(0, [1000000, 1000000]), opts.index ? SEARCH_RULE(config.memory.lookup_hint) : '', footer].join('\n'),
   );
 
   // Fill to the token budget rather than the item count: six short notes and
@@ -451,7 +451,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     // match; a session start's are newest-first and name none.
     const hint = RECEIPT_HINT(Number(receipt), opts.scope === 'prompt' ? items.slice(0, 2).map((x) => x.e.id) : [], lookup);
     const block = opts.index
-      ? [header, note, ...(opts.pinned ?? []), hint, ...indexLines, ...(detail.length ? [DETAIL_HEADING, ...detail] : []), ...closing, footer].join('\n')
+      ? [header, note, ...(opts.pinned ?? []), hint, SEARCH_RULE(lookup), ...indexLines, ...(detail.length ? [DETAIL_HEADING, ...detail] : []), ...closing, footer].join('\n')
       : [header, note, hint, ...items.map((x) => x.text), footer].join('\n');
     return { timelineRows, indexLines, detail, block };
   };
@@ -679,6 +679,64 @@ export function ownWords(prompt: string): string {
     .trim();
 }
 
+/**
+ * Fewer words of its own than this beside a link or ticket key, and a prompt
+ * is about the thing it points at, which recall cannot read.
+ */
+const LINK_PROMPT_TERMS = 6;
+const LINK = /https?:\/\/\S+/g;
+const TICKET = /\b[A-Z][A-Z0-9]{1,9}-\d{2,}\b/g;
+// Standard names shaped like a ticket key: "use SHA-256" is not a ticket.
+const NOT_TICKET = /^(SHA|UTF|ISO|RFC|ES|HTTP|TLS|SSL|AES|RSA|MD|IPV|PEP|ECMA|IEEE|BASE)\d*-/;
+// A number or a key after an issue, pull request or ticket path: `/issues/new` names nothing.
+const LINK_ID = /\/(?:issues|pull|pulls|pullrequest|merge_requests|browse|tickets?)\/(\d+|[A-Z][A-Z0-9]+-\d+)\b/gi;
+// A slash command's name and wrapper, and the host's image placeholder: words
+// the developer did not write about the task.
+const HOST_MARKUP = /<(command-message|command-name)>[\s\S]*?<\/\1>|<\/?command-args>|\[Image #\d+\]/g;
+
+/**
+ * A direct instruction to search memory, for a prompt that is mostly a link,
+ * a ticket key or a screenshot (issue #272).
+ *
+ * Such a prompt gives recall almost nothing to match: the words that matter
+ * are behind the link or inside the image. Recall then returns nothing, or a
+ * near-miss on a similar number, and the conditional wording of the recall
+ * note lets the model skip memory for the whole task. Only this shape is
+ * nudged: a prose prompt that recall found nothing for is a real "nothing
+ * relevant", and a fallback search there was measured as pure cost
+ * (eval/results/2026-10-02-memory-use.md). No per-session limit: each such
+ * prompt names a new thing to look up.
+ */
+export function lookupNudge(prompt: string, style: LookupStyle = 'mcp'): string | null {
+  const text = ownWords(prompt).replace(HOST_MARKUP, ' ');
+  const links = text.match(LINK) ?? [];
+  const ids = new Set<string>();
+  for (const link of links) for (const m of link.matchAll(LINK_ID)) ids.add(m[1]!);
+  for (const m of text.matchAll(TICKET)) if (!NOT_TICKET.test(m[0])) ids.add(m[0]);
+  if (!links.length && !ids.size) return null;
+  const words = text
+    .replace(LINK, ' ')
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}_-]+/u)
+    .filter((w) => w.length > 2 && !FILLER.has(w));
+  if (words.length >= LINK_PROMPT_TERMS) return null;
+  const start = ids.size ? ` Start with ${[...ids].slice(0, 4).join(', ')}, then the subject once you know it.` : '';
+  return `[Eklavya] This prompt is mostly a link, ticket key or image, so automatic recall had little to match. Before reading code or querying other systems, search this project's memory for earlier work on it: ${howToSearch(style)}.${start}`;
+}
+
+const howToSearch = (style: LookupStyle) =>
+  style === 'bash'
+    ? 'run `eklavya memory search "<key terms>"` in Bash'
+    : `load the tools (${toolSearch('memory_search', 'memory_get')}), then memory_search({query: "<key terms>"})`;
+
+/**
+ * Mid-session, for a task-sized prompt automatic recall found nothing for: the
+ * session-start rule is far back by then, and a new subject is exactly where
+ * the automatic match is weakest (issue #272).
+ */
+export const searchNudge = (style: LookupStyle = 'mcp') =>
+  `[Eklavya] Automatic recall found nothing for this prompt. If it starts a task or changes the subject, search this project's memory for its key terms before reading code or querying other systems: ${howToSearch(style)}.`;
+
 /** Fewer meaningful terms than this and a prompt is matched by words alone. */
 const MIN_TERMS = 3;
 const UNSPACED = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Thai}]/u;
@@ -734,6 +792,9 @@ export function recallForPrompt(
   db: DB,
   config: EklavyaConfig,
   opts: { project: string; sessionId: string; prompt: string },
+  // Set when an entry passed the gate, even if it was already handed over and
+  // nothing new is sent: "recalled nothing" and "nothing matched" differ.
+  match?: { matched: boolean },
 ): RecallResult | null {
   const query = ownWords(opts.prompt);
   // Too short to be about anything. "yes", "carry on", "fix it" match whatever
@@ -774,6 +835,7 @@ export function recallForPrompt(
         minScore: MIN_COSINE,
       });
   if (!lexical.length && !semantic.length) return null;
+  if (match) match.matched = true;
 
   // Ranked here and handed to `recall` as candidates, rather than letting it
   // search a third and fourth time for rows this function has already found.
