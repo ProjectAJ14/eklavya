@@ -193,15 +193,13 @@ describe('the loop guard through the hooks', () => {
 });
 
 describe('where the developer sees it', () => {
-  it('the session banner names the last priced session', () => {
+  it('the session banner does not report the last session\'s cost', () => {
     openSession(db, { sessionId: 'old', project: repo, transcriptPath: null });
     db.prepare(`UPDATE econ_sessions SET folded_at = 'x', requests = 3, effective = 1500, model = 'claude-opus-4-6' WHERE session_id = 'old'`).run();
     const r = hook(SESSION_START, { session_id: 'new', cwd: repo, hook_event_name: 'SessionStart', source: 'startup' });
-    expect(r.stdout).toContain('Last session · 1.5k effective tokens on claude-opus-4-6');
-    writeConfig({ quiz: { enabled: false } });
-    expect(hook(SESSION_START, { session_id: 'new2', cwd: repo, hook_event_name: 'SessionStart', source: 'startup' }).stdout).toContain('Last session');
-    db.exec('DROP TABLE econ_guard_events');
-    expect(hook(SESSION_START, { session_id: 'new3', cwd: repo, hook_event_name: 'SessionStart', source: 'startup' }).stdout).not.toContain('Last session');
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('Eklavya active');
+    expect(r.stdout).not.toMatch(/Last session|effective tokens/);
   });
 
   it('the status line carries the guard\'s note', () => {

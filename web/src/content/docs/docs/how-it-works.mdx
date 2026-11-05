@@ -90,7 +90,7 @@ Recalled text becomes part of the Claude conversation. New installs also send ca
 
 Four parts, translated from [TokenEconomizer](https://github.com/microsoft/TokenEconomizer) (Apache-2.0). Each has its own setting under [`economy`](/docs/configuration/#economy--cost-controls).
 
-**The ledger** (on). Session start opens a row for the session; when it ends (`SessionEnd`), or once its transcript has been quiet for ten minutes, a detached `eklavya fold` reads the transcript's token usage, de-duplicated by message and with subagents folded in, and prices it per model: cache reads at 0.1 of fresh input, 5-minute cache writes at 1.25, 1-hour writes at 2, output at 5. Turns that called Eklavya's tools and Eklavya's own subagents are its share. Every `claude -p` call Eklavya makes (observer, feedback, judge, refresh) is recorded from the JSON it returns. A model with no price row is reported as unpriced. The session banner gains a line such as `Last session · 1.2M effective tokens on claude-opus-4-6 · Eklavya 3%`.
+**The ledger** (on). Session start opens a row for the session; when it ends (`SessionEnd`), or once its transcript has been quiet for ten minutes, a detached `eklavya fold` reads the transcript's token usage, de-duplicated by message and with subagents folded in, and prices it per model: cache reads at 0.1 of fresh input, 5-minute cache writes at 1.25, 1-hour writes at 2, output at 5. Turns that called Eklavya's tools and Eklavya's own subagents are its share. Every `claude -p` call Eklavya makes (observer, feedback, judge, refresh) is recorded from the JSON it returns. A model with no price row is reported as unpriced. The session banner does not show it; read it with `eklavya cost` or the dashboard's Cost page.
 
 ### The loop guard
 
@@ -100,7 +100,7 @@ On by default as `nudge` (`economy.loopguard`; `off` turns it off). Each prompt 
 
 **Pinned facts** (free). Recurring failures become one-line environment facts that lead the session-start recall once three sessions confirm them. See [pinned facts](/docs/memory/#pinned-facts).
 
-The hooks only open rows and fold counts; transcripts are read, models are called and settings files are written by detached processes or by you. `EKLAVYA_ECONOMY=off` turns the ledger, the guard and the banner's cost line off for one session.
+The hooks only open rows and fold counts; transcripts are read, models are called and settings files are written by detached processes or by you. `EKLAVYA_ECONOMY=off` turns the ledger and the guard off for one session.
 
 ## Prompt feedback
 

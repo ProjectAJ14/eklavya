@@ -34,7 +34,7 @@ Project folders encode the main checkout's absolute path, such as `-Users-you-co
 
 Say **“Turn the questions off for this session”**, or run `/eklavya:skip` (the same as `/eklavya:mode off --session`). Questions, checkpoints, the banner and the status line stay silent until the session ends. Ask to turn Eklavya back on to resume sooner. No configuration file changes. Concepts logged while silent are not carried into later sessions.
 
-The cost controls have their own one-session switch: start Claude Code with `EKLAVYA_ECONOMY=off` in the environment and the ledger, the loop guard and the cost line of the banner stay off for that session, whatever the `economy` settings say.
+The cost controls have their own one-session switch: start Claude Code with `EKLAVYA_ECONOMY=off` in the environment and the ledger and the loop guard stay off for that session, whatever the `economy` settings say.
 
 Memory keeps recording, and recall still reaches Claude: a silenced session that resumes or compacts still gets its session-start memory, without the banner. An enforced commit gate also remains active and can accumulate work while questions are silenced. Change `memory.enabled` to stop recording; change `quiz.enforced` at project or global scope to remove enforcement.
 
