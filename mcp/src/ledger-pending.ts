@@ -41,6 +41,35 @@ export function quietPending(db: DB, now: number, except: string | null = null):
 }
 
 /**
+ * Sessions whose memory use was folded but which were resumed since (a new
+ * recall or read after the fold) and have now been quiet for `QUIET_MS`, not
+ * counting `except`. The cost row is not refolded; only the memory figures are.
+ */
+export function memoryUsePending(db: DB, now: number, except: string | null = null): string[] {
+  // ponytail: resumed activity is seen through recalls and reads only; a resume with neither waits for its next recall.
+  const rows = db
+    .prepare(
+      `SELECT u.session_id, e.transcript_path FROM memory_use_sessions u JOIN econ_sessions e ON e.session_id = u.session_id
+       WHERE u.session_id IS NOT ? AND (
+         EXISTS (SELECT 1 FROM context_receipts r WHERE r.session_id = u.session_id AND r.created_at > u.folded_at)
+         OR EXISTS (SELECT 1 FROM memory_reads m WHERE m.session_id = u.session_id AND m.created_at > u.folded_at))
+       ORDER BY u.folded_at, u.session_id LIMIT 50`,
+    )
+    .all(except) as { session_id: string; transcript_path: string | null }[];
+  return rows
+    .filter((r) => {
+      try {
+        return now - fs.statSync(r.transcript_path!).mtimeMs >= QUIET_MS;
+      } catch {
+        // No transcript to watch: nothing is writing to it. The memory fold
+        // never reads one, and leaving it waiting would hold a place in the 50.
+        return true;
+      }
+    })
+    .map((r) => r.session_id);
+}
+
+/**
  * Starts `eklavya fold` in a detached process the hook never waits for. The
  * fold reads whole transcripts, which a hook must never do.
  */
