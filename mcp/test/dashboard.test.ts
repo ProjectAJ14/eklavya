@@ -4,11 +4,11 @@ import os from 'node:os';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { openDb, type DB } from '../src/db.js';
 import {
   dashboardState, memoryPage, memoryEntry, startDashboard, browserCommand, fromLoopback, projectInventory, localTokens,
-  changeCursor, SETTINGS, CLI_ONLY, WRITES, embedHtml, EMBED_SCRIPT, LOGGED_LIMIT, ATTEMPT_LIMIT,
+  changeCursor, SETTINGS, CLI_ONLY, WRITES, embedHtml, EMBED_SCRIPT, LOGGED_LIMIT, ATTEMPT_LIMIT, cleanSlate,
 } from '../src/dashboard.js';
 import { knownKeys, defaultAt, SETTING_RULES, settingProblem } from '../src/config-path.js';
 import { logSessionConcepts } from '../src/tools/log_session_concepts.js';
@@ -1637,6 +1637,77 @@ describe('/api/settings', () => {
         }
       }
     });
+  });
+
+  it('clean slate moves the database aside and serves a new, empty one', async () => {
+    work();
+    await withServer(async (port, token, url) => {
+      const h = ok(port, token);
+      const wrong = await post(port, { confirm: 'clean' }, h, '/api/clean-slate');
+      expect(wrong).toEqual({ status: 400, body: { error: 'Type "clean slate" to confirm.' } });
+      expect(((await (await fetch(`${url}/api/state`)).json()) as any).logged).toHaveLength(2);
+      const events = await fetch(`${url}/api/events`);
+      const r = await post(port, { confirm: '  Clean Slate ' }, h, '/api/clean-slate');
+      expect(r.status).toBe(200);
+      expect(r.body.backup).toMatch(/knowledge\.db\.backup-\d{4}-/);
+      // The stream on the old database ends; the page reconnects to the new one.
+      await events.body?.cancel().catch(() => {});
+      const old = openDb(r.body.backup);
+      expect(old.prepare('SELECT COUNT(*) AS n FROM session_concepts').get()).toEqual({ n: 2 });
+      old.close();
+      const fresh = (await (await fetch(`${url}/api/state`)).json()) as any;
+      expect(fresh.logged).toEqual([]);
+      expect(fresh.memory.entries).toBe(0);
+      expect(fresh.totals.catalogue).toBeGreaterThan(0);
+      expect((await fetch(`${url}/api/events`)).status).toBe(200);
+    });
+  });
+
+  it('clean slate refuses an in-memory database and a body without the phrase', () => {
+    const mem = openDb(':memory:');
+    expect(cleanSlate(mem, { confirm: 'clean slate' }).status).toBe(409);
+    expect(cleanSlate(mem, 'clean slate').status).toBe(400);
+    expect(cleanSlate(mem, null).status).toBe(400);
+    mem.close();
+  });
+
+  it('clean slate puts the database back when it cannot be moved', () => {
+    work();
+    const exists = vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+    const real = fs.renameSync;
+    let calls = 0;
+    const rename = vi.spyOn(fs, 'renameSync').mockImplementation((a, b) => {
+      if (++calls === 2) throw new Error('disk says no');
+      real(a, b);
+    });
+    let out: ReturnType<typeof cleanSlate>;
+    try {
+      out = cleanSlate(db, { confirm: 'clean slate' });
+    } finally {
+      exists.mockRestore();
+      rename.mockRestore();
+    }
+    expect(out.status).toBe(500);
+    expect(out.body.error).toMatch(/disk says no/);
+    expect(out.db!.prepare('SELECT COUNT(*) AS n FROM session_concepts').get()).toEqual({ n: 2 });
+    out.db!.close();
+  });
+
+  it('clean slate puts the database back when the new one cannot be made', () => {
+    work();
+    // The new database's migrations read their folder: the first read fails, the reopen of the old one reads it.
+    const read = vi.spyOn(fs, 'readdirSync').mockImplementationOnce(() => { throw new Error('no migrations'); });
+    let out: ReturnType<typeof cleanSlate>;
+    try {
+      out = cleanSlate(db, { confirm: 'clean slate' });
+    } finally {
+      read.mockRestore();
+    }
+    expect(out.status).toBe(500);
+    expect(out.body.error).toBe('Could not create the new database: no migrations');
+    expect(out.db!.prepare('SELECT COUNT(*) AS n FROM session_concepts').get()).toEqual({ n: 2 });
+    out.db!.close();
+    expect(fs.readdirSync(path.dirname(dbFile)).filter((f) => f.includes('.backup-'))).toEqual([]);
   });
 
   it('refuses unknown, terminal-only, global-only-for-a-project and out-of-range writes', async () => {

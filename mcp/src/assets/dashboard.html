@@ -816,6 +816,13 @@
   .dlg__f { display:flex; justify-content:flex-end; gap:var(--space-3); padding:var(--space-3) var(--space-5) var(--space-5); }
   .btn--spot { background:var(--spot); border-color:var(--spot); color:var(--spot-ink); }
   .btn--danger { background:var(--error); border-color:var(--error); color:var(--bg); }
+  .card.danger { border-color:var(--error); display:grid; gap:var(--space-4); justify-items:start; }
+  .card.danger h2 { margin:0; color:var(--error); }
+  .card.danger p { margin:0; }
+  .card.danger form:not([hidden]) { display:grid; gap:var(--space-3); justify-items:start; }
+  #slate-in { font:inherit; font-family:var(--font-mono); padding:8px 10px; width:min(320px, 100%);
+    background:var(--bg); color:var(--fg, inherit); border:1px solid var(--line); }
+  #slate-in:focus-visible { outline:none; box-shadow:var(--ring); }
   @media (max-width:760px) { .toasts { right:0; left:0; bottom:0; width:100%; padding:0 var(--space-4) var(--space-4); } }
   @media (prefers-reduced-motion:reduce) { .toast { animation:none; } .toast.is-out { transition:none; } }
 
@@ -4290,9 +4297,12 @@ $('fix').addEventListener('close', () => {
 $('view').addEventListener('click', (e) => {
   const prune = e.target.closest('[data-prune]');
   if (prune) prunePress(prune);
+  if (e.target.closest('#slate-open')) { $('slate-form').hidden = false; $('slate-in').focus(); }
   if (e.target.closest('#fix-open')) openFix();
   if (e.target.closest('#fix-retry')) loadFix(S.artifacts.find((x) => x.id === CUR.param));
 });
+
+$('view').addEventListener('submit', (e) => { if (e.target.id === 'slate-form') cleanSlateSubmit(e); });
 
 /**
  * Closing the tab with a correction still open asks first. Browsers show their
@@ -5697,14 +5707,54 @@ const WORKFLOWS = {
   },
   settings: {
     name: 'Settings',
-    groups: [],
+    groups: [{ id: 'danger', label: 'Danger', items: ['danger'] }],
     pages: {
+      danger:    { label: 'Clean slate', view: () => viewDanger() },
       dashboard: { label: 'Preferences', view: () => viewSettings('user'), inPage: true },
       user:      { parent: 'dashboard', view: () => viewSettings('user'), inPage: true, screen: 'dashboard' },
       project:   { parent: 'dashboard', view: () => viewSettings('project'), inPage: true },
     },
   },
 };
+
+/* ---------- Danger: clean slate ---------- */
+
+const CLEAN_SLATE = 'clean slate';
+
+function viewDanger() {
+  return [pageHead('Clean slate', [], `Moves the database aside to a backup file beside it and starts a new, empty one: every answer,
+    mastery score, session, memory and cost record is gone from the dashboard and from recall. Your settings, project settings
+    and artifacts are files and stay. Nothing is deleted: to undo, stop Eklavya and rename the backup back to the database's
+    name. Claude Code sessions that are already open keep writing to the backup until you restart them.`),
+  `<section class="card danger">
+    <h2>Start over with an empty database</h2>
+    <p>Your learning history and project memory leave this dashboard and stop being recalled. The old database is kept as a backup.</p>
+    <button type="button" class="btn btn--danger" id="slate-open">Clean slate…</button>
+    <form id="slate-form" hidden>
+      <label for="slate-in">Type <code>${CLEAN_SLATE}</code> and press Enter to confirm.</label>
+      <input id="slate-in" autocomplete="off" spellcheck="false">
+      <button class="btn btn--danger" id="slate-go">Erase and start over</button>
+    </form>
+  </section>`].join('');
+}
+
+function cleanSlateSubmit(e) {
+  e.preventDefault();
+  const field = $('slate-in'), go = $('slate-go');
+  if (field.value.trim().toLowerCase() !== CLEAN_SLATE) {
+    toast.alert(`Type "${CLEAN_SLATE}" exactly to confirm.`, { id: 'slate' });
+    field.focus();
+    return;
+  }
+  go.disabled = true;
+  postJson('/api/clean-slate', { confirm: field.value })
+    .then((r) => ekDialog({ state: 'success', title: 'A clean slate', single: true, ok: 'Open the dashboard',
+      text: `The old database is kept at ${r.backup}. Restart open Claude Code sessions so they use the new one.` }))
+    // The new, empty payload, then the Learning dashboard: the hash change draws it.
+    .then(() => Promise.all([json('/api/state'), json('/api/projects')]))
+    .then(([s, inv]) => { adoptState(s, inv); paintChrome(s, inv); location.hash = href('learning', 'dashboard', undefined, { project: null }); })
+    .catch((err) => { go.disabled = false; toast.alert(String(err.message || err), { id: 'slate' }); });
+}
 
 /* ---------- Cost (issue #259) ---------- */
 
