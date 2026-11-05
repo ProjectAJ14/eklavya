@@ -13,7 +13,7 @@ import { foldSessionFacts, injectable, listFacts, retireFact, sessionEvidence } 
 import { openDb } from './db.js';
 import { initializeGlobalConfig, loadConfig } from './config.js';
 import { identityFor } from './memory/identity.js';
-import { costCsv, foldSession, overheadBySource, quietPending, sessionCosts, weeklyCosts, type FoldResult, type SessionCost } from './ledger.js';
+import { costCsv, foldSession, memoryUsePending, overheadBySource, quietPending, sessionCosts, weeklyCosts, type FoldResult, type SessionCost } from './ledger.js';
 import { bold, dim, failText, heading, paint } from './theme.js';
 import { guardCounts, judgeTurn } from './loop-guard.js';
 import { meterProviderCalls } from './ledger.js';
@@ -69,6 +69,7 @@ export async function foldCommand(args: string[], run: RunClaude = defaultRun): 
         if (n) process.stdout.write(`refreshed ${n} outdated entr${n === 1 ? 'y' : 'ies'}\n`);
       }
     }
+    if (args.includes('--pending')) refoldMemoryUse(db, config, memoryUsePending(db, Date.now()));
   } finally {
     db.close();
   }
@@ -146,6 +147,16 @@ export async function refreshStale(db: DB, config: EklavyaConfig, project: strin
     }
   }
   return done;
+}
+
+/** Folds the memory figures again for sessions resumed since their fold; the cost row stays as it was. */
+export function refoldMemoryUse(db: DB, config: EklavyaConfig, ids: string[]): void {
+  for (const id of ids) {
+    const { project } = db.prepare('SELECT project FROM econ_sessions WHERE session_id = ?').get(id) as { project: string | null };
+    if (!project) continue;
+    foldEntryUse(db, config, project, id, fs.existsSync(path.join(project, '.git')) ? project : null);
+    process.stdout.write(`${id}: memory use refolded\n`);
+  }
 }
 
 /**

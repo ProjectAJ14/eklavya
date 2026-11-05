@@ -18,7 +18,7 @@ import { openSession } from './ledger-pending.js';
  * names from the transcript (`economy/transcript.ts`) and keeps nothing else.
  */
 
-export { QUIET_MS, openSession, quietPending } from './ledger-pending.js';
+export { QUIET_MS, memoryUsePending, openSession, quietPending } from './ledger-pending.js';
 
 const nowIso = () => new Date().toISOString();
 const json = (v: unknown) => JSON.stringify(v);

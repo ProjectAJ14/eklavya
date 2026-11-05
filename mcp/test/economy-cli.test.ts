@@ -14,12 +14,13 @@ import {
   foldCommand,
   guardLine,
   judgeCommand,
+  refoldMemoryUse,
   refreshStale,
   stepExperiment,
   toolpruneCommand,
 } from '../src/cli-economy.js';
 import { foldSession, recordOverhead } from '../src/ledger.js';
-import { compact, lastSessionLine, openSession } from '../src/ledger-pending.js';
+import { QUIET_MS, compact, lastSessionLine, memoryUsePending, openSession } from '../src/ledger-pending.js';
 import { costReport } from '../src/cost-report.js';
 import { entryUse, flagStale, foldEntryUse, staleCounts, staleReason } from '../src/memory/use.js';
 import { appendEvent, insertEntry, recordReceipt, recordRead } from '../src/memory/store.js';
@@ -301,6 +302,73 @@ describe('entry use and stale context', () => {
     expect(use.get(b)).toMatchObject({ utility: 0 });
     expect(db.prepare('SELECT sent, opened, applied FROM memory_entry_use WHERE entry_id = ?').get(a)).toEqual({ sent: 1, opened: 1, applied: 1 });
     expect(entryUse(db, [])).toEqual(new Map());
+  });
+
+  it('refolds a session resumed after its fold, adding only what is new', () => {
+    fs.writeFileSync(path.join(repo, 'a.ts'), 'x');
+    fs.writeFileSync(path.join(repo, 'b.ts'), 'x');
+    const a = entry('Retry backoff', ['a.ts']);
+    const b = entry('Other thing', ['b.ts']);
+    const send = (id: number) => recordReceipt(db, { project: repo, sessionId: 's1', scope: 'prompt', method: 'x', delivery: 'emitted', items: [{ entryId: id, sourceTokens: 1, sentTokens: 1 }] });
+    const r1 = send(a);
+    recordRead(db, { tool: 'memory_get', project: repo, sessionId: 's1', receiptId: r1, entryIds: [a], outcome: 'ok', latencyMs: 1, resultTokens: 1 });
+    foldEntryUse(db, config(), repo, 's1', repo);
+    // The first fold happened in the past; the session is resumed now.
+    db.exec(`UPDATE context_receipts SET created_at = '2000-01-01T00:00:00.000Z'; UPDATE memory_reads SET created_at = '2000-01-01T00:00:00.000Z';
+             UPDATE memory_use_sessions SET folded_at = '2001-01-01T00:00:00.000Z'`);
+    const r2 = send(a);
+    send(b);
+    recordRead(db, { tool: 'memory_get', project: repo, sessionId: 's1', receiptId: r2, entryIds: [a, b], outcome: 'ok', latencyMs: 1, resultTokens: 1 });
+    appendEvent(db, { eventUid: 'e2', project: repo, sessionId: 's1', kind: 'file_edit', body: 'edit', files: ['a.ts', 'b.ts'] });
+    foldEntryUse(db, config(), repo, 's1', repo);
+    foldEntryUse(db, config(), repo, 's1', repo);
+    const row = (id: number) => db.prepare('SELECT sent, opened, applied FROM memory_entry_use WHERE entry_id = ?').get(id);
+    // a: sent and opened before the first fold, applied only after the resume.
+    expect(row(a)).toEqual({ sent: 1, opened: 1, applied: 1 });
+    expect(row(b)).toEqual({ sent: 1, opened: 1, applied: 1 });
+    expect(db.prepare('SELECT entry_id FROM memory_session_applied WHERE session_id = ? ORDER BY entry_id').all('s1')).toEqual([{ entry_id: a }, { entry_id: b }]);
+    expect((db.prepare('SELECT folded_at FROM memory_use_sessions WHERE session_id = ?').get('s1') as { folded_at: string }).folded_at > '2001').toBe(true);
+    // Resumed again: an entry already sent, opened and applied here is not counted twice.
+    db.exec(`UPDATE context_receipts SET created_at = '2000-01-01T00:00:00.000Z'; UPDATE memory_reads SET created_at = '2000-01-01T00:00:00.000Z';
+             UPDATE memory_use_sessions SET folded_at = '2001-01-01T00:00:00.000Z'`);
+    send(a);
+    appendEvent(db, { eventUid: 'e3', project: repo, sessionId: 's1', kind: 'file_edit', body: 'edit', files: ['a.ts'] });
+    foldEntryUse(db, config(), repo, 's1', repo);
+    expect(row(a)).toEqual({ sent: 1, opened: 1, applied: 1 });
+  });
+
+  it('finds resumed sessions once they are quiet, and refolds them', async () => {
+    const a = entry('Retry backoff', ['a.ts']);
+    const file = path.join(home, 's1.jsonl');
+    fs.writeFileSync(file, '');
+    openSession(db, { sessionId: 's1', project: repo, transcriptPath: file });
+    openSession(db, { sessionId: 'nofile', project: repo, transcriptPath: path.join(home, 'missing.jsonl') });
+    openSession(db, { sessionId: 'noproject', project: null, transcriptPath: null });
+    for (const sid of ['s1', 'nofile', 'noproject']) foldEntryUse(db, config(), repo, sid, null);
+    expect(memoryUsePending(db, Date.now() + 2 * QUIET_MS)).toEqual([]);
+    db.exec(`UPDATE memory_use_sessions SET folded_at = '2001-01-01T00:00:00.000Z'`);
+    const r = recordReceipt(db, { project: repo, sessionId: 's1', scope: 'prompt', method: 'x', delivery: 'emitted', items: [{ entryId: a, sourceTokens: 1, sentTokens: 1 }] });
+    recordRead(db, { tool: 'memory_get', project: repo, sessionId: 'nofile', receiptId: r, entryIds: [a], outcome: 'ok', latencyMs: 1, resultTokens: 1 });
+    // Still being written to: not yet. Measured from the file's own time, which can be ahead of Date.now() by a fraction of a millisecond.
+    const written = fs.statSync(file).mtimeMs;
+    // `nofile` has no transcript to watch, so it never waits.
+    expect(memoryUsePending(db, written + QUIET_MS - 1)).toEqual(['nofile']);
+    expect(memoryUsePending(db, written + QUIET_MS)).toEqual(['nofile', 's1']);
+    expect(memoryUsePending(db, written + QUIET_MS, 's1')).toEqual(['nofile']);
+    openSession(db, { sessionId: 'plain', project: path.join(home, 'not-a-repo'), transcriptPath: null });
+    refoldMemoryUse(db, config(), ['s1', 'nofile', 'noproject', 'plain']);
+    expect(out).toContain('plain: memory use refolded');
+    expect(out).toContain('s1: memory use refolded');
+    expect(out).not.toContain('noproject');
+    expect(db.prepare('SELECT sent FROM memory_entry_use WHERE entry_id = ?').get(a)).toEqual({ sent: 1 });
+    expect(memoryUsePending(db, written + QUIET_MS)).toEqual([]);
+    // `eklavya fold --pending` runs the same refold.
+    db.exec(`UPDATE memory_use_sessions SET folded_at = '2001-01-01T00:00:00.000Z' WHERE session_id = 's1';
+             UPDATE econ_sessions SET folded_at = '2001-01-01T00:00:00.000Z'`);
+    fs.utimesSync(file, new Date(Date.now() - 2 * QUIET_MS), new Date(Date.now() - 2 * QUIET_MS));
+    out = '';
+    await foldCommand(['--pending']);
+    expect(out).toContain('s1: memory use refolded');
   });
 
   it('flags a deleted file, many commits, a newer decision and an entry never used', () => {

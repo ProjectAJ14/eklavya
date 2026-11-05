@@ -110,7 +110,7 @@ These read the cost ledger (`economy.ledger`, on by default). A session is price
 | Command | Purpose and options |
 | --- | --- |
 | `eklavya cost` | The last ten priced sessions in this repository: effective tokens and model, the fresh, cached, written and output split, Eklavya's share (turns that called its tools, and its subagents) and its background calls, then what the loop guard did and Eklavya's own `claude -p` calls in the last seven days. `--limit <n>`, `--all` for every repository, `--by-week` for weekly sums, `--export csv` for one row per session, which a team lead can collect without a central service. |
-| `eklavya fold <session> [--transcript <file>]` / `fold --pending` | Prices a session now, or every session that has gone quiet. The hooks run this for you, detached. |
+| `eklavya fold <session> [--transcript <file>]` / `fold --pending` | Prices a session now, or every session that has gone quiet. `--pending` also recounts the memory use of sessions resumed since they were last counted. The hooks run this for you, detached. |
 | `eklavya judge <turn>` | Asks `providers.judge` whether a loop-guard turn is stuck. The guard starts this for you, detached; the call is recorded in the ledger. |
 | `eklavya experiment memory --sessions <n>` | Alternates `memory.enabled` for this project at each priced session, for `n` sessions (2–200), then puts your setting back. `--report` shows the median effective tokens and prompts per arm; `--stop` ends it early. A few dozen sessions is a signal, not proof. |
 

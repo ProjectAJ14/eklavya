@@ -5,7 +5,7 @@
  * exits 0 with no output — `run()` enforces it.
  */
 import { spawn } from 'node:child_process';
-import { lastSessionLine, openSession, quietPending, startFold } from '../ledger-pending.js';
+import { lastSessionLine, memoryUsePending, openSession, quietPending, startFold } from '../ledger-pending.js';
 import type { EklavyaConfig } from '../config.js';
 import { economyOff, runtimeCliPath } from './economy-lib.js';
 import os from 'node:os';
@@ -141,7 +141,7 @@ await run(async (input) => {
         project: repoRoot ? mainRepoRoot(repoRoot) : null,
         transcriptPath: typeof input.transcript_path === 'string' && input.transcript_path ? input.transcript_path : null,
       });
-      if (quietPending(db, Date.now(), sid).length) startFold(runtimeCliPath(), ['--pending'], spawn);
+      if (quietPending(db, Date.now(), sid).length || memoryUsePending(db, Date.now(), sid).length) startFold(runtimeCliPath(), ['--pending'], spawn);
     } catch {
       /* The ledger is a measurement; it never stops a session. */
     }

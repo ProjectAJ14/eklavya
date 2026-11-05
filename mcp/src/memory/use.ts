@@ -70,32 +70,55 @@ export function staleReason(db: DB, repo: string | null, entry: { id: number; pr
 }
 
 /**
- * Folds one finished session into the per-entry figures. Once per session.
+ * Folds a quiet session into the per-entry figures. Repeatable: a session
+ * resumed after its fold (a desktop session stays open for days) is folded
+ * again, and only what is new since the last fold is added, so each entry is
+ * counted sent, opened and applied at most once per session.
  * `repo` is the checkout, for the git checks; null skips them.
  */
 export function foldEntryUse(db: DB, config: EklavyaConfig, project: string, sessionId: string, repo: string | null): void {
-  if (db.prepare('SELECT 1 FROM memory_use_sessions WHERE session_id = ?').get(sessionId)) return;
-  const sent = new Set(
-    (
-      db
-        .prepare(
-          `SELECT DISTINCT i.entry_id FROM context_receipt_items i JOIN context_receipts r ON r.id = i.receipt_id
-           WHERE r.session_id = ? AND r.delivery IN ('emitted', 'confirmed')`,
-        )
-        .all(sessionId) as { entry_id: number }[]
-    ).map((r) => r.entry_id),
-  );
-  const opened = new Set(
-    (db.prepare(`SELECT entry_ids FROM memory_reads WHERE session_id = ? AND tool = 'memory_get'`).all(sessionId) as { entry_ids: string }[]).flatMap((r) =>
-      list(r.entry_ids).map(Number),
-    ),
+  // One write lock for the read and the write: two folds of one session at
+  // once (a session start and a session end) must not both add the same use.
+  db.transaction(() => foldLocked(db, config, project, sessionId, repo)).immediate();
+}
+
+function foldLocked(db: DB, config: EklavyaConfig, project: string, sessionId: string, repo: string | null): void {
+  // Taken before the reads: a row written after them is newer than this fold.
+  // ponytail: a row stamped just before `at` but committed after this lock is never counted; key on row ids if that ever shows.
+  const at = nowIso();
+  const last = db.prepare('SELECT folded_at FROM memory_use_sessions WHERE session_id = ?').get(sessionId) as { folded_at: string } | undefined;
+  // Everything up to `until`; the previous fold's share is the same read up to its time.
+  const sentBy = (until: string | null) =>
+    new Set(
+      (
+        db
+          .prepare(
+            `SELECT DISTINCT i.entry_id FROM context_receipt_items i JOIN context_receipts r ON r.id = i.receipt_id
+             WHERE r.session_id = ? AND r.delivery IN ('emitted', 'confirmed') AND (? IS NULL OR r.created_at <= ?)`,
+          )
+          .all(sessionId, until, until) as { entry_id: number }[]
+      ).map((r) => r.entry_id),
+    );
+  const openedBy = (until: string | null) =>
+    new Set(
+      (
+        db
+          .prepare(`SELECT entry_ids FROM memory_reads WHERE session_id = ? AND tool = 'memory_get' AND (? IS NULL OR created_at <= ?)`)
+          .all(sessionId, until, until) as { entry_ids: string }[]
+      ).flatMap((r) => list(r.entry_ids).map(Number)),
+    );
+  const sent = sentBy(null);
+  const opened = openedBy(null);
+  const wasSent = last ? sentBy(last.folded_at) : new Set<number>();
+  const wasOpened = last ? openedBy(last.folded_at) : new Set<number>();
+  const wasApplied = new Set(
+    (db.prepare('SELECT entry_id FROM memory_session_applied WHERE session_id = ?').all(sessionId) as { entry_id: number }[]).map((r) => r.entry_id),
   );
   const touched = new Set(
     (db.prepare(`SELECT files FROM evidence_events WHERE session_id = ? AND kind IN ('file_read', 'file_edit') AND files IS NOT NULL`).all(sessionId) as { files: string }[]).flatMap((r) =>
       list(r.files).map((f) => path.basename(f)),
     ),
   );
-  const at = nowIso();
   const upsert = db.prepare(
     `INSERT INTO memory_entry_use (entry_id, sent, opened, applied, utility, updated_at) VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT(entry_id) DO UPDATE SET sent = sent + excluded.sent, opened = opened + excluded.opened,
@@ -105,23 +128,24 @@ export function foldEntryUse(db: DB, config: EklavyaConfig, project: string, ses
   const flag = db.prepare(
     `UPDATE memory_entry_use SET stale_reason = ?, stale_since = ?, stale_by = 'fold' WHERE entry_id = ? AND stale_reason IS NULL`,
   );
-  db.transaction(() => {
-    for (const id of new Set([...sent, ...opened])) {
-      const entry = db.prepare('SELECT id, project, files, occurred_at FROM memory_entries WHERE id = ?').get(id) as
-        | { id: number; project: string; files: string | null; occurred_at: string }
-        | undefined;
-      if (!entry || entry.project !== project) continue;
-      const applied = list(entry.files).some((f) => touched.has(path.basename(f)));
-      upsert.run(id, sent.has(id) ? 1 : 0, opened.has(id) ? 1 : 0, applied ? 1 : 0, applied ? 1 : 0, at);
-      if (applied) appliedHere.run(sessionId, id);
-      if (!config.memory.stale_check) continue;
-      const use = db.prepare('SELECT sent, applied FROM memory_entry_use WHERE entry_id = ?').get(id) as { sent: number; applied: number };
-      const reason =
-        use.sent >= NEVER_APPLIED_AFTER && use.applied === 0 ? `sent ${use.sent} times and never used` : staleReason(db, repo, entry);
-      if (reason) flag.run(reason, at, id);
-    }
-    db.prepare('INSERT INTO memory_use_sessions (session_id, folded_at) VALUES (?, ?)').run(sessionId, at);
-  })();
+  for (const id of new Set([...sent, ...opened])) {
+    const entry = db.prepare('SELECT id, project, files, occurred_at FROM memory_entries WHERE id = ?').get(id) as
+      | { id: number; project: string; files: string | null; occurred_at: string }
+      | undefined;
+    if (!entry || entry.project !== project) continue;
+    const isSent = sent.has(id) && !wasSent.has(id);
+    const isOpened = opened.has(id) && !wasOpened.has(id);
+    const applied = !wasApplied.has(id) && list(entry.files).some((f) => touched.has(path.basename(f)));
+    if (!isSent && !isOpened && !applied) continue;
+    upsert.run(id, isSent ? 1 : 0, isOpened ? 1 : 0, applied ? 1 : 0, applied ? 1 : 0, at);
+    if (applied) appliedHere.run(sessionId, id);
+    if (!config.memory.stale_check) continue;
+    const use = db.prepare('SELECT sent, applied FROM memory_entry_use WHERE entry_id = ?').get(id) as { sent: number; applied: number };
+    const reason =
+      use.sent >= NEVER_APPLIED_AFTER && use.applied === 0 ? `sent ${use.sent} times and never used` : staleReason(db, repo, entry);
+    if (reason) flag.run(reason, at, id);
+  }
+  db.prepare('INSERT INTO memory_use_sessions (session_id, folded_at) VALUES (?, ?) ON CONFLICT(session_id) DO UPDATE SET folded_at = excluded.folded_at').run(sessionId, at);
 }
 
 export interface EntryUse {
