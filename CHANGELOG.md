@@ -1,3 +1,10 @@
+# [1.97.0](https://github.com/ProjectAJ14/eklavya/compare/v1.96.0...v1.97.0) (2026-11-05)
+
+
+### Features
+
+* **memory:** keep a memory section in ~/.claude/CLAUDE.md ([#283](https://github.com/ProjectAJ14/eklavya/issues/283)) ([aa5d222](https://github.com/ProjectAJ14/eklavya/commit/aa5d222fd32b07edecd2e8c8cb3a9ad1fc8d4e19))
+
 # [1.96.0](https://github.com/ProjectAJ14/eklavya/compare/v1.95.0...v1.96.0) (2026-11-05)
 
 
