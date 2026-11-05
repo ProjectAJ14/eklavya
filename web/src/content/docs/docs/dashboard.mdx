@@ -249,6 +249,12 @@ A control saves when you change it; a text or number box saves when you leave it
 
 Choosing a tab is instant: the page draws it from the settings it already holds and makes no request. Choosing another project reads that project's settings.
 
+### Clean slate
+
+Under **Danger** in the Settings sidebar, **Clean slate** (`#/settings/danger`) starts you over with an empty database. Choose **Clean slate…**, type `clean slate` and press Enter. The dashboard moves `~/.eklavya/knowledge.db` (with its `-wal` and `-shm` files) aside to `knowledge.db.backup-<time>` in the same folder, opens a new database that holds only the concept catalogue (with your packs applied), and shows the Learning dashboard empty. No restart is needed. Every answer, mastery score, session, memory, feedback item and cost record goes with the old file; your user and project settings and your artifacts are separate files and stay.
+
+Nothing is deleted. To undo, stop Eklavya and rename the backup to `knowledge.db`. A Claude Code session that was already open keeps its database connection to the moved file, so restart open sessions to have them use the new one; hooks pick it up at once.
+
 Only projects with a git checkout on this machine can be configured. The footer's dial line shows your user settings, not any one project's, and follows a change made with `eklavya config set` within about a second.
 
 ## Opening one thing
@@ -418,8 +424,9 @@ Its read-only JSON endpoints serve summary state (`/api/state`), the change curs
 | `POST /api/feedback/opened` | Counts one opening of the Feedback page with an item waiting, as `greeting`, `badge` or `direct`. Body at most 16 KB. |
 | `POST /api/toolprune/apply` | Denies proposed tools (all, or the `tools` named) in a project's `.claude/settings.local.json`, as `eklavya toolprune apply` does. The project must be one the Settings pages may write for. Body at most 16 KB. |
 | `POST /api/toolprune/restore` | Removes Eklavya's deny entries for that project, as `eklavya toolprune restore` does. Body at most 16 KB. |
+| `POST /api/clean-slate` | With `{ "confirm": "clean slate" }`, moves the database aside to a backup and serves a new, empty one ([Clean slate](#clean-slate)). Body at most 1 KB. |
 
-Each needs a loopback `Origin`, a JSON body and a random token the server puts in the page each time it starts, so another site open in your browser cannot write. Settings never edit learning or memory data, and feedback never touches your scores; a correction adds rows, updates the concept's score and review date, and never changes the original answer.
+Each needs a loopback `Origin`, a JSON body and a random token the server puts in the page each time it starts, so another site open in your browser cannot write. Settings never edit learning or memory data (only Clean slate replaces the database, keeping the old one as a backup), and feedback never touches your scores; a correction adds rows, updates the concept's score and review date, and never changes the original answer.
 
 `/api/events` takes a `GET` only and is held to the same loopback check as every other read. It is a `text/event-stream` that sends the current cursor when it connects, then one `cursor` event each time the cursor changes, and a comment line every 25 seconds so nothing closes a quiet stream. It carries nothing else: the page reads `/api/state` and `/api/projects` to learn what changed. While at least one stream is open, the server reads the cursor every second, and it also watches the database's `-wal` file, your user config file, each project's config file and the artifacts folder, waiting 150 ms after the last file event so a burst of writes is one check. A write made through the dashboard's own routes is checked at once. With no stream open, nothing watches and no timer runs. At most 32 streams are open at once; the 33rd gets a `503`, and the page tries again after a pause that starts at 5 seconds and doubles to a minute.
 

@@ -25,7 +25,7 @@ import fs from 'node:fs';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { DB } from './db.js';
+import { openDb, type DB } from './db.js';
 import { decayedScore, isKnown, isOwed, MS_PER_DAY, streakOf } from './srs.js';
 import {
   correctionStates, correctionTarget, CorrectionError, GLOBAL_PROJECT, levelStanding, PASSING_GRADE, projectKey, promoteIfEarned, recordRetry,
@@ -2266,8 +2266,60 @@ export function usageEvent(db: DB, body: unknown): { status: number; body: Recor
   return { status: 200, body: { ok: true } };
 }
 
-/** One write: validates its own body, never trusts it, and answers with JSON. */
-export type WriteHandler = (db: DB, body: unknown) => { status: number; body: Record<string, unknown> };
+/**
+ * One write: validates its own body, never trusts it, and answers with JSON. A
+ * handler that replaced the database returns the new handle as `db`, and the
+ * server serves from it from then on.
+ */
+export type WriteHandler = (db: DB, body: unknown) => { status: number; body: Record<string, unknown>; db?: DB };
+
+/** What the reader types to confirm a clean slate. */
+export const CLEAN_SLATE_PHRASE = 'clean slate';
+
+/**
+ * `POST /api/clean-slate`: `{ confirm: "clean slate" }`. Moves the database (and
+ * its `-wal` and `-shm`) aside to `<file>.backup-<time>` and opens a new, empty
+ * one at the same path: no answers, mastery or memory, the concept catalogue
+ * seeded again. Config, project settings and artifacts are files, not the
+ * database, and stay. Nothing is deleted: restoring is renaming the backup back.
+ * A process that already had the old file open (a running MCP server) keeps
+ * writing to the backup until it restarts; hooks open the new one at once.
+ */
+export function cleanSlate(db: DB, body: unknown): ReturnType<WriteHandler> {
+  const confirm = body && typeof body === 'object' ? (body as Record<string, unknown>).confirm : undefined;
+  if (typeof confirm !== 'string' || confirm.trim().toLowerCase() !== CLEAN_SLATE_PHRASE) {
+    return { status: 400, body: { error: `Type "${CLEAN_SLATE_PHRASE}" to confirm.` } };
+  }
+  if (db.memory) return { status: 409, body: { error: 'This database is in memory; there is no file to move aside.' } };
+  const file = path.resolve(db.name);
+  const backup = `${file}.backup-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+  // Everything committed into the main file first, so the backup is whole even without its -wal.
+  db.pragma('wal_checkpoint(TRUNCATE)');
+  db.close();
+  const suffixes = ['', '-wal', '-shm'];
+  const moved: [string, string][] = [];
+  // Puts back what moved and keeps serving the old database.
+  const restore = (err: unknown, what: string): ReturnType<WriteHandler> => {
+    for (const [from, to] of moved.reverse()) fs.renameSync(to, from);
+    return { status: 500, body: { error: `${what}: ${(err as Error).message}` }, db: openDb(file) };
+  };
+  try {
+    for (const suffix of suffixes) {
+      if (!fs.existsSync(file + suffix)) continue;
+      fs.renameSync(file + suffix, backup + suffix);
+      moved.push([file + suffix, backup + suffix]);
+    }
+  } catch (err) {
+    return restore(err, 'Could not move the database aside');
+  }
+  try {
+    return { status: 200, body: { ok: true, backup }, db: openDb(file) };
+  } catch (err) {
+    // Every old file is at the backup by now, so whatever is at `file` is the half-made new database.
+    for (const suffix of suffixes) fs.rmSync(file + suffix, { force: true });
+    return restore(err, 'Could not create the new database');
+  }
+}
 
 /**
  * Every route that writes, and nothing else does. Exact paths, no parameters:
@@ -2309,6 +2361,8 @@ export const WRITES: Record<string, { handler: WriteHandler; maxBytes: number }>
   '/api/feedback/opened': { handler: openedItem, maxBytes: 16 * 1024 },
   // `{ name }` from `USAGE_EVENTS`: the page's own use, counted for the usage ping.
   '/api/usage': { handler: usageEvent, maxBytes: 1024 },
+  // `{ confirm }`: the typed phrase and nothing else.
+  '/api/clean-slate': { handler: cleanSlate, maxBytes: 1024 },
 };
 
 /**
@@ -2866,13 +2920,15 @@ function createLive(db: DB, opts: Partial<LiveOptions>): Live {
  * once the server has closed.
  */
 export function startDashboard(
-  db: DB,
+  initialDb: DB,
   opts: { port?: number; host?: string; live?: Partial<LiveOptions> } = {},
 ): Promise<{ url: string; close: () => Promise<void> }> {
   const host = opts.host ?? '127.0.0.1';
   const wanted = opts.port ?? dashboardPort();
   const assets = path.join(moduleDir, 'assets');
-  const live = createLive(db, opts.live ?? {});
+  // Replaced by a clean slate (`cleanSlate`); every route reads it at request time.
+  let db = initialDb;
+  let live = createLive(db, opts.live ?? {});
 
   // Per server start. Every write must carry it (see `acceptWrite`).
   const token = randomBytes(24).toString('hex');
@@ -2931,6 +2987,13 @@ export function startDashboard(
         return json(res, 400, { error: 'Not valid JSON.' });
       }
       const out = route.handler(db, body);
+      if (out.db) {
+        // A new database: the open streams were watching the old file, so they end
+        // and the page's EventSource reconnects to a watcher on the new one.
+        db = out.db;
+        live.shutdown();
+        live = createLive(db, opts.live ?? {});
+      }
       json(res, out.status, out.body);
       // Whatever the handler changed is told to the open streams now, not at the
       // next check; the answer above is already on its way, so the writer does not wait for it.
