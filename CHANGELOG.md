@@ -1,3 +1,15 @@
+# [1.96.0](https://github.com/ProjectAJ14/eklavya/compare/v1.95.0...v1.96.0) (2026-11-05)
+
+
+### Bug Fixes
+
+* **memory:** count memory use in sessions resumed after their fold ([#282](https://github.com/ProjectAJ14/eklavya/issues/282)) ([77eb148](https://github.com/ProjectAJ14/eklavya/commit/77eb148da85c9ec3c66b6fdf1368f60a840af333))
+
+
+### Features
+
+* **dashboard:** Clean slate under Settings, Danger ([#281](https://github.com/ProjectAJ14/eklavya/issues/281)) ([742d106](https://github.com/ProjectAJ14/eklavya/commit/742d10672c5f6bc8c6b94c4e3f615507c5756cea))
+
 # [1.95.0](https://github.com/ProjectAJ14/eklavya/compare/v1.94.1...v1.95.0) (2026-11-04)
 
 
