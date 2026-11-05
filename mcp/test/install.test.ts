@@ -606,6 +606,76 @@ describe('the user-level skill', () => {
   });
 });
 
+describe('the memory section in CLAUDE.md', () => {
+  const file = () => path.join(claudeHome, 'CLAUDE.md');
+  const sections = () => fs.readFileSync(file(), 'utf8').match(/eklavya:memory:start/g)?.length ?? 0;
+
+  it('is created, refreshed in place on update, and removed on uninstall, keeping the user\'s text', () => {
+    const theirs = '# My rules\n\nAlways ask before pushing.\n';
+    fs.writeFileSync(file(), theirs);
+
+    expect(install().stdout).toMatch(/memory section written/);
+    const text = fs.readFileSync(file(), 'utf8');
+    expect(text.startsWith(theirs)).toBe(true);
+    // Deferred tools are one reason reads did not happen (issue #280): the
+    // section has to carry the exact query that loads the tool.
+    expect(text).toContain('ToolSearch select:mcp__plugin_eklavya_eklavya__memory_get');
+    // The measured wording leaves search out: offering it made sessions search
+    // irrelevant memory (eval/results/2026-11-05-memory-claudemd.md).
+    expect(text).not.toContain('memory_search');
+    expect(fs.readFileSync(`${file()}.eklavya-bak`, 'utf8')).toBe(theirs);
+
+    // An older version's wording, with the user's text after it, is replaced, not duplicated.
+    fs.writeFileSync(file(), text.replace('## Eklavya project memory', '## Old wording') + '\n## Mine after\n');
+    expect(run(['install', '--skip-runtime', '--auto']).status).toBe(0);
+    const updated = fs.readFileSync(file(), 'utf8');
+    expect(sections()).toBe(1);
+    expect(updated).toContain('## Eklavya project memory');
+    expect(updated).not.toContain('## Old wording');
+    expect(updated).toContain('## Mine after');
+
+    expect(install().stdout).toMatch(/memory section current/);
+
+    expect(run(['uninstall']).stdout).toMatch(/memory section removed/);
+    expect(fs.readFileSync(file(), 'utf8')).toBe('# My rules\n\nAlways ask before pushing.\n\n## Mine after\n');
+  });
+
+  it('creates the file when there is none, and --skip-claude-md leaves it alone', () => {
+    install();
+    expect(fs.readFileSync(file(), 'utf8')).toMatch(/^<!-- eklavya:memory:start/);
+    expect(install().stdout).toMatch(/memory section current/);
+    run(['uninstall']);
+    expect(fs.readFileSync(file(), 'utf8')).toBe('');
+
+    fs.rmSync(file());
+    run(['install', '--skip-runtime', '--skip-claude-md']);
+    expect(fs.existsSync(file())).toBe(false);
+    // Nothing of ours to remove: uninstall says nothing about it.
+    expect(run(['uninstall']).stdout).not.toMatch(/CLAUDE\.md/);
+  });
+
+  it('keeps a Windows (CRLF) file CRLF through install, update and uninstall', () => {
+    const theirs = '# My rules\r\n\r\nAlways ask before pushing.\r\n';
+    fs.writeFileSync(file(), theirs);
+    install();
+    const text = fs.readFileSync(file(), 'utf8');
+    expect(text).toContain('## Eklavya project memory\r\n');
+    expect(text.replace(/\r\n/g, '')).not.toContain('\n');
+    expect(install().stdout).toMatch(/memory section current/);
+    run(['uninstall']);
+    expect(fs.readFileSync(file(), 'utf8')).toBe(theirs);
+  });
+
+  it('warns and finishes the install when CLAUDE.md cannot be read', () => {
+    // A directory stands in for a file a dotfile manager made unreadable.
+    fs.mkdirSync(file());
+    const res = install();
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/CLAUDE\.md.*not changed/);
+    expect(run(['uninstall']).stdout).toMatch(/CLAUDE\.md.*not changed/);
+  });
+});
+
 describe('eklavya uninstall', () => {
 
   it('removes only the status line it wrote, and leaves anyone else\'s', () => {

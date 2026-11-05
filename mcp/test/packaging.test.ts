@@ -445,6 +445,8 @@ describe('the auto-mode allow rule', () => {
       ...fs.readdirSync(path.join(repoRoot, 'mcp/src/hooks')).filter((f) => f.endsWith('.ts')).map((f) => `mcp/src/hooks/${f}`),
       'mcp/src/memory/recall.ts',
       'mcp/src/memory/tokens.ts',
+      // The standing instructions install writes into ~/.claude/CLAUDE.md.
+      'mcp/src/claude-md.ts',
       'hooks/panel/model.ts',
       'hooks/panel/register.tsx',
     ];

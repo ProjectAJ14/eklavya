@@ -14,7 +14,8 @@ npm install -g eklavya && eklavya install
 
 The installer uses the defaults without settings questions and keeps saved
 choices. It registers the plugin, installs the managed runtime and chat/artifact
-skills, and prepares local storage. New installs have the quiz side panel,
+skills, adds a short memory section to `~/.claude/CLAUDE.md` so Claude opens
+what Eklavya recalls (`--skip-claude-md` to skip it), and prepares local storage. New installs have the quiz side panel,
 memory and prompt feedback on. Memory summaries and prompt feedback use
 `claude-sonnet-5` through your Claude Code login, so captured session evidence
 goes to that model. [Memory](https://eklavya-run.web.app/docs/memory/) explains

@@ -247,6 +247,8 @@ This estimates context volume compared with raw evidence. It is not API billing,
 
 Claude uses these tools on your behalf. Search returns compact IDs and titles; `memory_get` then reads selected entries. All accept optional `cwd` to identify the project.
 
+`eklavya install`, and every automatic update, keeps a short **Eklavya project memory** section at the end of your own `~/.claude/CLAUDE.md` (or `$CLAUDE_CONFIG_DIR/CLAUDE.md`). It tells Claude, in every project, to open a recalled entry with `memory_get` before acting when its title is about the task, to call no memory tool when none is, and gives the exact `ToolSearch` query that loads `memory_get`, since Claude Code defers it. A session with no recall block, or none about its task, makes no extra calls. The section sits between `<!-- eklavya:memory:start -->` and `<!-- eklavya:memory:end -->` comments: updates replace only that part, `eklavya uninstall` removes it, and your own text around it is never changed. Each update check, automatic or `eklavya update`, also verifies the section and puts it back if it is missing or was edited, even when no new version is out; `--skip-claude-md` skips it for that one install. A file saved with Windows (CRLF) line endings keeps them.
+
 | Tool | Arguments and result |
 | --- | --- |
 | `memory_search` | `query`; optional `mode`, `type`, `tag`, `since`, `until`, `limit`, `all_projects`. Returns IDs, titles, dates and files. Defaults to `retrieval.max_items`, maximum 50. |

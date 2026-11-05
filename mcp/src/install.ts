@@ -21,6 +21,8 @@
  *   3b. The user-level skill, copied into `~/.claude/skills/eklavya/`, so
  *      "make Eklavya go easier on me" works in plain chat and keeps working
  *      where the plugin is not loaded.
+ *   3c. The memory section in `~/.claude/CLAUDE.md` (`claude-md.ts`), so
+ *      every session knows when to open what Eklavya recalls.
  *   4. Claude Code's three registry files, written directly. There is no public
  *      API for "install this plugin" from outside a session, so this reproduces
  *      what `/plugin install` does. See the comment on `register()`.
@@ -39,7 +41,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { openDb } from './db.js';
-import { dbPath, eklavyaHome, globalConfigPath } from './paths.js';
+import { claudeHome, dbPath, eklavyaHome, globalConfigPath } from './paths.js';
 import { check, dim, failText, heading, paint, plain, spin, verdict } from './theme.js';
 import { loadGlobalConfig, readConfigFile, writeConfigFile } from './config.js';
 import { ImportError, IMPORTED_TABLES } from './memory/import.js';
@@ -55,6 +57,7 @@ import {
 import { readJsonForUpdate, readJsonStrict, UnreadableFileError, writeJsonWithBackup } from './safe-write.js';
 import { claimInstall, installHolder, releaseInstall } from './install-lock.js';
 import { compareVersions, runtimeCli, runtimeVersion, writeState } from './update.js';
+import { claudeMdPath, installSection, removeSection, type SectionResult } from './claude-md.js';
 
 const MIN_NODE_MAJOR = 22;
 
@@ -75,14 +78,7 @@ function packageVersion(): string {
   return JSON.parse(fs.readFileSync(manifest, 'utf8')).version as string;
 }
 
-/**
- * Claude Code's config root. `CLAUDE_CONFIG_DIR` is the documented override and
- * people with several profiles do set it — writing to `~/.claude` regardless
- * would install into a directory their Claude Code never reads.
- */
-export function claudeHome(): string {
-  return process.env.CLAUDE_CONFIG_DIR ?? path.join(os.homedir(), '.claude');
-}
+export { claudeHome } from './paths.js';
 
 export function marketplaceDir(): string {
   return path.join(claudeHome(), 'plugins', 'marketplaces', 'eklavya');
@@ -504,6 +500,16 @@ function saveJson(file: string, data: unknown, backups: string[]): void {
 }
 
 /** A row per backup written, so nobody has to guess one exists or where. */
+/** The CLAUDE.md step's line and backup; a failure warns and the run goes on. */
+function reportSection(section: SectionResult, done: string): void {
+  if (section.state === 'failed') {
+    check('warn', 'CLAUDE.md', `not changed ${dim(`— ${section.error}`)}`);
+    return;
+  }
+  check('ok', 'CLAUDE.md', `${section.state === 'current' ? 'memory section current' : done} ${dim(claudeMdPath())}`);
+  reportBackups(section.backup ? [section.backup] : []);
+}
+
 function reportBackups(backups: string[]): void {
   for (const backup of backups) check(null, '', dim(`backup ${backup}`));
 }
@@ -1060,6 +1066,10 @@ async function installSteps(args: string[]): Promise<void> {
     }
   }
 
+  if (!args.includes('--skip-claude-md')) {
+    reportSection(installSection({ run: RUN }), 'memory section written');
+  }
+
   const backups = register(version);
   // "and the Code tab" is not padding: that tab runs the same engine against
   // the same `~/.claude`, so this one registration covers it and someone who
@@ -1165,6 +1175,8 @@ export function uninstall(args: string[]): void {
   }
 
   for (const name of USER_SKILLS) if (removeSkill(name)) check('ok', 'skill', `${name} removed`);
+  const section = removeSection({ run: RUN });
+  if (section.state !== 'absent') reportSection(section, 'memory section removed');
 
   if (!stillUsed || purge) {
     fs.rmSync(runtimeHome(), { recursive: true, force: true });

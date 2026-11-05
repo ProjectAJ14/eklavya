@@ -73,7 +73,8 @@ want to revisit the settings walk.
 
 Before changing a shared JSON file, Eklavya saves one `.eklavya-bak` copy beside
 it. This applies to Claude Code's `settings.json`, `plugins/known_marketplaces.json`,
-`plugins/installed_plugins.json`, and Eklavya's configuration files. The backup
+`plugins/installed_plugins.json`, your `CLAUDE.md` (where install keeps its
+[memory section](/docs/memory/#the-memory-tools)), and Eklavya's configuration files. The backup
 holds the contents before the last command that changed the file.
 
 For example, on macOS or Linux, restore Claude Code settings with:
@@ -88,8 +89,8 @@ also refuse to overwrite invalid JSON.
 
 ## Uninstalling
 
-Remove the Claude Code plugin and both user chat skills while keeping your
-learning history:
+Remove the Claude Code plugin, both user chat skills and the memory section in
+`~/.claude/CLAUDE.md` while keeping your learning history:
 
 ```bash
 npx eklavya uninstall

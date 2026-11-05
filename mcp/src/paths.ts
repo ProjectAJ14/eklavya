@@ -4,6 +4,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
+ * Claude Code's config root. `CLAUDE_CONFIG_DIR` is the documented override and
+ * people with several profiles do set it — writing to `~/.claude` regardless
+ * would install into a directory their Claude Code never reads. `os.homedir()`
+ * is `%USERPROFILE%` on Windows, where Claude Code keeps `.claude` too.
+ */
+export function claudeHome(): string {
+  return process.env.CLAUDE_CONFIG_DIR ?? path.join(os.homedir(), '.claude');
+}
+
+/**
  * Eklavya keeps all state in one directory so it is trivially inspectable and
  * deletable. `EKLAVYA_HOME` exists so tests never touch the real learner's data.
  */
