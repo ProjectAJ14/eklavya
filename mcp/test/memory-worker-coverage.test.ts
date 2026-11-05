@@ -16,6 +16,7 @@ import {
   superviseWorker,
 } from '../src/memory/worker.js';
 import { reserveWorker } from '../src/memory/reservation.js';
+import { setUsageSink } from '../src/memory/provider.js';
 
 /**
  * The worker's less travelled paths. Every `claude` is a shell script that
@@ -152,9 +153,16 @@ describe('processPending', () => {
         ],
         checkpoint: { request: 'Add rotation', investigated: '', learned: 'Refresh tokens are single use', completed: 'Rotation', next_steps: '' },
       },
+      usage: { input_tokens: 10, output_tokens: 1 },
     });
     queue('s1', true);
     expect(await processPending(db, OBSERVED)).toMatchObject({ processed: 1, entries: 1 });
+    // The call's ledger row names the batch it summarised, and that batch's project and session.
+    const batch = (db.prepare('SELECT id FROM memory_batches').get() as { id: number }).id;
+    expect(db.prepare('SELECT source, project, session_id, batch_id FROM econ_overhead').all()).toEqual([
+      { source: 'observer', project: PROJECT, session_id: 's1', batch_id: batch },
+    ]);
+    setUsageSink(null);
     const candidates = db.prepare('SELECT slug, status FROM learning_sources').all();
     expect(candidates).toEqual([{ slug: 'token-rotation', status: 'candidate' }]);
     const summary = db

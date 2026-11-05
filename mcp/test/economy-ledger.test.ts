@@ -171,10 +171,17 @@ describe('Eklavya\'s own calls', () => {
       meterProviderCalls(db, config(), { project: '/r', sessionId: 's9' });
       await runClaude('claude-sonnet-5', 'x', { spec: { schema: {}, system: 's', source: 'judge' } });
       await runClaude('claude-sonnet-5', 'x');
-      expect(db.prepare('SELECT source, session_id, effective FROM econ_overhead ORDER BY id').all()).toEqual([
-        { source: 'judge', session_id: 's9', effective: 1500 },
-        { source: 'observer', session_id: 's9', effective: 1500 },
+      // A call's own link wins over the process context, and gets its row id back.
+      const link = { batchId: 4, project: '/b', sessionId: 'sb' } as { batchId: number; project: string; sessionId: string; ledgerId?: number };
+      await runClaude('claude-sonnet-5', 'x', { spec: { schema: {}, system: 's', link } });
+      await runClaude('claude-sonnet-5', 'x', { spec: { schema: {}, system: 's', source: 'stale_refresh', link: { entryId: 9 } } });
+      expect(db.prepare('SELECT id, source, project, session_id, effective, batch_id, entry_id, feedback_id FROM econ_overhead ORDER BY id').all()).toEqual([
+        { id: 1, source: 'judge', project: '/r', session_id: 's9', effective: 1500, batch_id: null, entry_id: null, feedback_id: null },
+        { id: 2, source: 'observer', project: '/r', session_id: 's9', effective: 1500, batch_id: null, entry_id: null, feedback_id: null },
+        { id: 3, source: 'observer', project: '/b', session_id: 'sb', effective: 1500, batch_id: 4, entry_id: null, feedback_id: null },
+        { id: 4, source: 'stale_refresh', project: '/r', session_id: 's9', effective: 1500, batch_id: null, entry_id: 9, feedback_id: null },
       ]);
+      expect(link.ledgerId).toBe(3);
       // A ledger that cannot write does not fail the call.
       db.exec('DROP TABLE econ_overhead');
       await expect(runClaude('claude-sonnet-5', 'x')).resolves.toContain('success');

@@ -281,7 +281,8 @@ export async function processPending(
   const maxJobs = opts.maxJobs ?? 3;
   const summarizer = summarizerFor(config);
   const result: WorkerResult = { processed: 0, entries: 0, failed: 0, skipped: 0, stopped: 'limit' };
-  // Every observer call this run makes is charged to the cost ledger.
+  // Every observer call this run makes is charged to the cost ledger, under
+  // the batch it summarised and that batch's project and session.
   meterProviderCalls(db, config);
 
   for (let i = 0; i < maxJobs; i++) {
@@ -327,7 +328,7 @@ export async function processPending(
         sessionId: batch.session_id,
         events,
         prior: endsTurn ? sessionSoFar(db, batch.project, batch.session_id) : undefined,
-      }, { signal: opts.signal, onSpawn: opts.onSpawn });
+      }, { signal: opts.signal, onSpawn: opts.onSpawn, link: { batchId: batch.id, project: batch.project, sessionId: batch.session_id } });
       opts.onJob?.(null);
 
       // One transaction for the entries, the candidates and the event status:

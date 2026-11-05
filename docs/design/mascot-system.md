@@ -58,5 +58,5 @@ The mascot is decorative by default (`aria-hidden` on its SVG). Add `label` for 
   also keeps the compact `#legend` name story, its "The name" eyebrow and
   "The archer who taught himself" heading. Its decorative bow, arrow and target
   scene animates once when it enters view and stays static under reduced motion.
-- Dashboard: initial and inline loaders, empty lists, missing records, feedback empty/error states, request errors, settings save/validation feedback, retry results, delete confirmation, tip bubbles (the `tip` face, with a fitting `state` on a few tips), and the Settings Companion tab, which links to the studio.
+- Dashboard: initial and inline loaders, empty lists, missing records, feedback empty/error states, request errors, settings save/validation feedback, retry results, delete confirmation, tip bubbles (the `tip` face, with a fitting `state` on a few tips), and the Settings Companion page, which links to the studio.
 - Studio: all 24 expressions, body/face variants, state selector, size scale, walking loader, secondary bow-draw loader, ink/paper toggle, and copyable examples.

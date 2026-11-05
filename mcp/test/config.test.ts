@@ -88,11 +88,12 @@ describe('config precedence', () => {
 });
 
 describe('fresh defaults and existing users', () => {
-  it('starts a new user with memory, feedback and the Sonnet observer ready', () => {
+  it('starts a new user with memory, feedback and the Haiku observer ready', () => {
     const config = loadGlobalConfig();
     expect(config.memory.enabled).toBe(true);
     expect(config.feedback.enabled).toBe(true);
-    expect(config.providers.observer).toEqual({ kind: 'anthropic', model: 'claude-sonnet-5' });
+    expect(config.providers.observer).toEqual({ kind: 'anthropic', model: 'claude-haiku-5-5' });
+    expect(config.providers.feedback).toBeNull();
     expect(fs.existsSync(path.join(home, 'config.json'))).toBe(false);
   });
 
@@ -142,7 +143,7 @@ describe('fresh defaults and existing users', () => {
     const file = path.join(home, 'config.json');
     writeConfigFile(file, { providers: { embeddings: { kind: 'anthropic', model: 'embed' } } });
     expect(loadGlobalConfig().providers).toEqual({
-      observer: DEFAULT_CONFIG.providers.observer, embeddings: { kind: 'anthropic', model: 'embed' }, judge: null,
+      observer: DEFAULT_CONFIG.providers.observer, feedback: null, embeddings: { kind: 'anthropic', model: 'embed' }, judge: null,
     });
     writeGlobal({ providers: { embeddings: { kind: 'anthropic', model: 'embed' } } });
     expect(loadGlobalConfig().providers.observer).toBeNull();

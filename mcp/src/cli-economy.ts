@@ -17,7 +17,7 @@ import { costCsv, foldSession, memoryUsePending, overheadBySource, quietPending,
 import { bold, dim, failText, heading, paint } from './theme.js';
 import { guardCounts, judgeTurn } from './loop-guard.js';
 import { meterProviderCalls } from './ledger.js';
-import { readResult, runClaude } from './memory/provider.js';
+import { readResult, runClaude, type CallLink } from './memory/provider.js';
 
 /**
  * The cost commands (issue #257): `eklavya fold`, `eklavya cost`. Loaded only
@@ -75,7 +75,7 @@ export async function foldCommand(args: string[], run: RunClaude = defaultRun): 
   }
 }
 
-type RunClaude = (model: string, prompt: string, spec: { schema: object; system: string; source: string }) => Promise<unknown>;
+type RunClaude = (model: string, prompt: string, spec: { schema: object; system: string; source: string; link?: CallLink }) => Promise<unknown>;
 const defaultRun: RunClaude = async (model, prompt, spec) => readResult(await runClaude(model, prompt, { spec }));
 
 const REFRESH_SYSTEM = [
@@ -131,7 +131,7 @@ export async function refreshStale(db: DB, config: EklavyaConfig, project: strin
       const out = (await run(
         config.providers.observer.model,
         `<entry>\n${JSON.stringify({ title: e.title, type: e.type, narrative: e.narrative, facts: e.facts, files: e.files, written: e.occurred_at })}\n</entry>\n<changes>\n${changes}\n</changes>`,
-        { schema: REFRESH_SCHEMA, system: REFRESH_SYSTEM, source: 'stale_refresh' },
+        { schema: REFRESH_SCHEMA, system: REFRESH_SYSTEM, source: 'stale_refresh', link: { entryId: e.id } },
       )) as { title?: unknown; type?: string; narrative?: unknown; facts?: unknown; files?: unknown };
       if (typeof out?.title !== 'string' || !out.title.trim() || typeof out.narrative !== 'string') continue;
       const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').slice(0, 12) : []);

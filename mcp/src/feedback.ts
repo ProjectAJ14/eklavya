@@ -1,8 +1,8 @@
 import { meterProviderCalls } from './ledger.js';
 import type { spawn as nodeSpawn } from 'node:child_process';
 import type { Database } from 'better-sqlite3';
-import type { EklavyaConfig } from './config.js';
-import { ProviderError } from './memory/provider.js';
+import { feedbackModel, type EklavyaConfig } from './config.js';
+import { ProviderError, type CallLink } from './memory/provider.js';
 import { ownWords } from './memory/recall.js';
 import { reviewPrompts, REVIEW_LIMIT, type AreaStatus, type GapArea } from './feedback-review.js';
 import { runtimeCli } from './update.js';
@@ -186,7 +186,7 @@ export async function generateFeedback(
   if (!config.memory.enabled) return { status: 'needs_memory' };
   // The review's model call is charged to the cost ledger.
   meterProviderCalls(db, config, { project: opts.project });
-  const observer = config.providers.observer;
+  const observer = feedbackModel(config);
   if (!observer) return { status: 'needs_observer' };
   if (feedbackPending(db)) return { status: 'pending' };
 
@@ -212,8 +212,10 @@ export async function generateFeedback(
       continue;
     }
     let got;
+    // The ledger writes this call's row id back here; the item it produced is linked to it below.
+    const link: CallLink = {};
     try {
-      got = await reviewPrompts(observer.model, prompts.map((p) => p.text), { signal: opts.signal });
+      got = await reviewPrompts(observer.model, prompts.map((p) => p.text), { signal: opts.signal, link });
     } catch (err) {
       // `reviewPrompts` rejects only with a ProviderError (the call and the
       // validation both raise one), so the class is always there to read.
@@ -236,6 +238,7 @@ export async function generateFeedback(
     // Another writer got there while the model was thinking: nothing is marked,
     // so this session is reviewed once the pending item is acknowledged.
     if (id === null) return { status: 'pending' };
+    if (link.ledgerId) db.prepare('UPDATE econ_overhead SET feedback_id = ? WHERE id = ?').run(id, link.ledgerId);
     mark.run(s.session_id, 'item', null);
     return { status: 'reviewed', date: s.began.slice(0, 10) };
   }
@@ -262,7 +265,7 @@ export function startBackgroundFeedback(
   opts: { cwd: string; spawn: typeof nodeSpawn; now: number },
 ): void {
   try {
-    if (!feedbackEnabled(config) || !config.providers.observer) return;
+    if (!feedbackEnabled(config) || !feedbackModel(config)) return;
     if (process.env.CI || process.env.VITEST) return;
     if (feedbackPending(db)) return;
     const { now } = opts;
@@ -412,7 +415,7 @@ export function feedbackSummary(db: Database, config: EklavyaConfig) {
   return {
     enabled: config.feedback.enabled,
     memory: config.memory.enabled,
-    observer: config.providers.observer !== null,
+    observer: feedbackModel(config) !== null,
     pending,
     // Whether to ask for attention (the badge): a stale item left from before
     // feedback or memory was switched off waits quietly, and is still there to open.

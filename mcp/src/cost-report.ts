@@ -25,7 +25,7 @@ export function costReport(db: DB, config: EklavyaConfig, project: string | null
   const sessions = all.slice(0, 200);
   const overheadRows = db
     .prepare(
-      `SELECT occurred_at, project, session_id, source, model, input, cache_read, cache_write_5m, cache_write_1h, output,
+      `SELECT id, occurred_at, project, session_id, source, model, input, cache_read, cache_write_5m, cache_write_1h, output,
               effective, unpriced, cost_usd, in_session
        FROM econ_overhead WHERE (? IS NULL OR project = ? OR project IS NULL) ORDER BY occurred_at DESC LIMIT 200`,
     )
@@ -97,6 +97,60 @@ export function costReport(db: DB, config: EklavyaConfig, project: string | null
         }))
       : [],
   };
+}
+
+/**
+ * One of Eklavya's own model calls (the Cost workflow's call page), or null when there is no such row. It is the
+ * ledger row and what its link ids still point at: `econ_overhead` keeps numbers, names and, since migration 042,
+ * the id of the batch, entry or feedback item the call served, never the prompt sent or the reply. `produced` is
+ * read from rows Eklavya keeps anyway: the entries a batch wrote (deleted ones left out), how many of the events it
+ * read are still kept (retention prunes them), the entry a refresh rewrote and its replacement, and whether the
+ * feedback item still exists. Null when the row has no link (every row written before 042, every judge call).
+ * A refold re-inserts a session's subagent rows under new ids, so an id can stop answering.
+ */
+export function callReport(db: DB, id: number) {
+  if (!Number.isSafeInteger(id) || id <= 0) return null;
+  const row = db
+    .prepare(
+      `SELECT id, occurred_at, project, session_id, source, model, input, cache_read, cache_write_5m, cache_write_1h, output,
+              effective, unpriced, cost_usd, in_session, batch_id, entry_id, feedback_id
+       FROM econ_overhead WHERE id = ?`,
+    )
+    .get(id) as ({ project: string | null; batch_id: number | null; entry_id: number | null; feedback_id: number | null } & Record<string, unknown>) | undefined;
+  if (!row) return null;
+  const entries = (where: string, param: number) =>
+    db.prepare(`SELECT id, title, type FROM memory_entries WHERE ${where} AND deleted_at IS NULL ORDER BY id`).all(param) as {
+      id: number;
+      title: string;
+      type: string | null;
+    }[];
+  let produced: Record<string, unknown> | null = null;
+  if (row.batch_id !== null) {
+    const batch = db.prepare('SELECT event_count FROM memory_batches WHERE id = ?').get(row.batch_id) as { event_count: number } | undefined;
+    const kinds = db
+      .prepare('SELECT kind, COUNT(*) AS n FROM evidence_events WHERE batch_id = ? GROUP BY kind ORDER BY n DESC, kind')
+      .all(row.batch_id) as { kind: string; n: number }[];
+    produced = {
+      kind: 'batch',
+      entries: entries('batch_id = ?', row.batch_id),
+      // Null when the batch row itself is gone (a removed project, a helper session's sweep).
+      events: batch?.event_count ?? null,
+      kept: kinds.reduce((a, k) => a + k.n, 0),
+      kinds,
+    };
+  } else if (row.entry_id !== null) {
+    produced = {
+      kind: 'refresh',
+      refreshed: entries('id = ?', row.entry_id)[0] ?? null,
+      entries: entries('id = (SELECT superseded_by FROM memory_entries WHERE id = ?)', row.entry_id),
+    };
+  } else if (row.feedback_id !== null) {
+    produced = {
+      kind: 'feedback',
+      exists: Boolean(db.prepare('SELECT 1 FROM feedback_items WHERE id = ?').get(row.feedback_id)),
+    };
+  }
+  return { ...row, produced };
 }
 
 const parse = <T>(text: string | null, fallback: T): T => {

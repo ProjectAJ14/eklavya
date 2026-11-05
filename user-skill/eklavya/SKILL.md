@@ -11,7 +11,7 @@ searchable observations it can hand back to the agent weeks later.
 **Learning** logs the concepts each task touches, quizzes the developer on them,
 and tracks mastery with spaced repetition.
 
-Stored history and search stay local. New installs use `claude-sonnet-5` for
+Stored history and search stay local. New installs use `claude-haiku-5-5` for
 memory summaries and prompt feedback through `claude -p`, using the developer's
 Claude Code login. Captured session evidence goes to that model. Existing
 installs keep their choices. Older configs keep the previous defaults for these
@@ -468,7 +468,7 @@ their own prompts. It is not this, and it files nothing on GitHub.
   entry and its vectors are gone. Confirm before the hard one, and never offer
   it as a tidying-up suggestion.
 - Change `providers.observer` only when the developer asks for that change.
-  New installs already use `claude-sonnet-5`; do not add or reset it during a
+  New installs already use `claude-haiku-5-5`; do not add or reset it during a
   setup check. This model receives captured evidence through their Claude Code
   login. The setting is global only. `null` uses local summaries and stops
   prompt feedback.

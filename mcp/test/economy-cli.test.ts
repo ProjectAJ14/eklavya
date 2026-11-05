@@ -430,6 +430,8 @@ describe('entry use and stale context', () => {
     const n = await refreshStale(db, withObserver, repo, async (_m, prompt, spec) => {
       calls++;
       expect(spec.source).toBe('stale_refresh');
+      // The ledger row links to the entry being rewritten, by id.
+      expect(spec.link).toEqual({ entryId: calls === 1 ? a : b });
       expect(prompt).toContain('<changes>');
       return calls === 1 ? { title: 'New', type: 'change', narrative: 'Now true.', facts: ['f', 3], files: [] } : { title: '' };
     });

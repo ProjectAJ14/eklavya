@@ -190,7 +190,7 @@ describe('providers.observer from the command line', () => {
     for (const bad of ['two words', '', '-x', 'a'.repeat(101), 'x;rm -rf', 'anthropic']) {
       const v = parseValue('providers.observer', bad);
       expect(typeof v, JSON.stringify(bad)).toBe('string');
-      expect(() => applySetting('providers.observer', v, null), JSON.stringify(bad)).toThrow(/not a valid value/);
+      expect(() => applySetting('providers.observer', v, null), JSON.stringify(bad)).toThrow(/not a valid value|needs some text|at most 100/);
     }
   });
 });
@@ -256,7 +256,7 @@ describe('SETTING_RULES: what every interface accepts', () => {
       return k.startsWith('providers.') || !(d !== null && typeof d === 'object' && !Array.isArray(d));
     });
     const unruled = leaves.filter((k) => !SETTING_RULES[k]);
-    expect(unruled.sort()).toEqual(['notifications.sinks', 'providers.embeddings', 'providers.judge', 'providers.observer']);
+    expect(unruled.sort()).toEqual(['notifications.sinks', 'providers.embeddings']);
   });
 
   it('refuses each kind of bad value, and accepts the good ones', () => {

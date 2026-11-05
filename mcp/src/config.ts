@@ -228,8 +228,8 @@ export interface EconomyConfig {
  * Prompt feedback. On for new installs; older global files keep their previous
  * off default unless enabled explicitly. It uses the developer's subscription
  * for a model call over their prompts. It needs
- * `memory.enabled` (it reads the prompts memory kept) and `providers.observer`
- * (the machine-wide provider used for sending evidence to a model). Turning this on sends
+ * `memory.enabled` (it reads the prompts memory kept) and a model:
+ * `providers.feedback`, or `providers.observer` when that is null (`feedbackModel`). Turning this on sends
  * nothing by itself, which is why a project may set it.
  */
 export interface FeedbackConfig {
@@ -277,6 +277,11 @@ export interface RetrievalConfig {
  * (PRD CFG-02) -- the local summariser and the local embedder handle both jobs
  * until someone configures otherwise.
  */
+/** The model Eklavya's own calls use until one is chosen. */
+export const DEFAULT_MODEL = 'claude-haiku-5-5';
+/** The models the installer and the dashboard offer; any other name can still be typed. */
+export const MODEL_CHOICES = [DEFAULT_MODEL, 'claude-sonnet-5', 'claude-opus-5-5'] as const;
+
 export interface ProviderConfig {
   kind: 'anthropic';
   /** Run through Claude Code on the developer's subscription, never an API key. */
@@ -284,7 +289,10 @@ export interface ProviderConfig {
 }
 
 export interface ProvidersConfig {
+  /** Writes the memories: the session summariser and the outdated-entry rewrites. */
   observer: ProviderConfig | null;
+  /** Reviews a prompt for prompt feedback. Null: the observer's model (`feedbackModel`). */
+  feedback: ProviderConfig | null;
   embeddings: ProviderConfig | null;
   /** The loop guard's judge: a detached call with a digest of counts and command shapes. Null: the strict rule decides. */
   judge: ProviderConfig | null;
@@ -513,7 +521,8 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
     timeline_items: 50,
   },
   providers: {
-    observer: { kind: 'anthropic', model: 'claude-sonnet-5' },
+    observer: { kind: 'anthropic', model: DEFAULT_MODEL },
+    feedback: null,
     embeddings: null,
     judge: null,
   },
@@ -777,6 +786,9 @@ function sinkOf(value: unknown): NotificationSink | null {
   };
 }
 
+/** The model prompt feedback runs on: its own, else the one that writes the memories. */
+export const feedbackModel = (c: EklavyaConfig): ProviderConfig | null => c.providers.feedback ?? c.providers.observer;
+
 function provider(value: unknown): ProviderConfig | null {
   if (!value || typeof value !== 'object') return null;
   const v = value as Record<string, unknown>;
@@ -891,6 +903,7 @@ function coerceNamespaces(raw: Record<string, unknown>, out: EklavyaConfig): voi
   if (providers && typeof providers === 'object') {
     out.providers = {
       observer: 'observer' in providers ? provider(providers.observer) : out.providers.observer,
+      feedback: 'feedback' in providers ? provider(providers.feedback) : out.providers.feedback,
       embeddings: 'embeddings' in providers ? provider(providers.embeddings) : out.providers.embeddings,
       judge: 'judge' in providers ? provider(providers.judge) : out.providers.judge,
     };

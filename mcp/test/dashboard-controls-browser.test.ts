@@ -103,7 +103,8 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
 
     it('keeps the companion gallery out of the sidebar and in Settings', async () => {
       const w = await open('#/settings/dashboard/companion');
-      await w.page.waitForSelector('#settings .sw__tab[aria-current="page"]');
+      await w.page.waitForSelector('#settings .sw__pane h1');
+      expect(await w.page.getAttribute('#nav a[data-nav="companion"]', 'aria-current')).toBe('page');
       expect(await w.page.locator('a[href="/mascot.html"]').count()).toBe(1);
       expect(await w.page.locator('#side a[href="/mascot.html"]').count()).toBe(0);
       expect(w.errors).toEqual([]);

@@ -250,6 +250,21 @@ export interface CallSpec {
   system: string;
   /** Who is spending, for the cost ledger: `observer` (the default), `feedback`, `judge`, `stale_refresh`. */
   source?: string;
+  /** What the call is for, by id, for the cost ledger's call page. Ids only, never text. */
+  link?: CallLink;
+}
+
+/**
+ * The rows a call served (migration 042). `ledgerId` is written back by the
+ * ledger once the call is recorded, so a caller that learns its own id only
+ * after the call (a feedback item) can attach it to the right row.
+ */
+export interface CallLink {
+  batchId?: number;
+  entryId?: number;
+  project?: string;
+  sessionId?: string;
+  ledgerId?: number;
 }
 
 /**
@@ -264,6 +279,8 @@ export interface ProviderUsage {
   usage: Usage;
   /** `total_cost_usd` as `claude -p` reported it, or null. */
   costUsd: number | null;
+  /** The caller's `CallSpec.link`, the same object, so the ledger can write `ledgerId` back. */
+  link?: CallLink;
 }
 
 let usageSink: ((u: ProviderUsage) => void) | null = null;
@@ -565,6 +582,7 @@ export function runClaude(
         // A failed run that printed its envelope was still billed: record it too.
         const spent = usageSink ? usageFromEnvelope(stdout, model, opts.spec?.source ?? 'observer') : null;
         if (spent) {
+          spent.link = opts.spec?.link;
           try {
             usageSink!(spent);
           } catch {
@@ -637,7 +655,7 @@ export class ProviderSummarizer implements Summarizer {
     const stdout = await runClaude(
       this.config.model,
       `${prior}<evidence project="${input.project}" session="${input.sessionId}">\n${renderEvidence(input)}\n</evidence>`,
-      { ...opts, spec: { schema: endsTurn ? TURN_SCHEMA : OUTPUT_SCHEMA, system: this.system } },
+      { ...opts, spec: { schema: endsTurn ? TURN_SCHEMA : OUTPUT_SCHEMA, system: this.system, link: opts.link } },
     );
     const raw = trimToLimits(readResult(stdout));
     const result = ResultSchema.safeParse(raw);

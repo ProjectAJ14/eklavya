@@ -1365,7 +1365,7 @@ describe('the server says what a browser may do with its pages', () => {
       req.end();
     });
 
-  const ROUTES = ['/', '/tokens.css', '/vendor/driver-hints.js', '/vendor/driver-hints.css', '/manifest.webmanifest', '/icon-192.png', '/api/state', '/api/projects', '/api/memory', '/api/memory/sessions', '/api/memory/entry?id=1', '/api/settings', '/api/attempts/correction?id=1', '/api/session', '/api/session?id=s1', '/nope'];
+  const ROUTES = ['/', '/tokens.css', '/vendor/driver-hints.js', '/vendor/driver-hints.css', '/manifest.webmanifest', '/icon-192.png', '/api/state', '/api/projects', '/api/memory', '/api/memory/sessions', '/api/memory/entry?id=1', '/api/settings', '/api/attempts/correction?id=1', '/api/session', '/api/session?id=s1', '/api/cost/call?id=1', '/nope'];
 
   it('sends the security headers on every response, errors included', async () => {
     const { url, close } = await startBuilt(db, { port: 0 });
@@ -1381,6 +1381,47 @@ describe('the server says what a browser may do with its pages', () => {
         expect(csp, route).toContain("frame-ancestors 'none'");
         expect(csp, route).toContain("connect-src 'self'");
         expect(csp, route).toContain("img-src 'self' data:");
+      }
+    } finally {
+      close();
+    }
+  });
+
+  it('serves one of Eklavya\'s own calls by id: the ledger row, numbers and names only', async () => {
+    db.prepare(
+      `INSERT INTO econ_overhead (id, occurred_at, project, session_id, source, model, input, cache_read, output, effective, cost_usd)
+       VALUES (7, '2026-11-05T10:00:00.000Z', '/r', 's1', 'judge', 'claude-sonnet-5', 100, 50, 20, 205, 0.002)`,
+    ).run();
+    const { url, close } = await startBuilt(db, { port: 0 });
+    const port = Number(new URL(url).port);
+    try {
+      const ok = await request(port, 'GET', '/api/cost/call?id=7');
+      expect(ok.status).toBe(200);
+      expect(JSON.parse(ok.body)).toEqual({
+        id: 7, occurred_at: '2026-11-05T10:00:00.000Z', project: '/r', session_id: 's1', source: 'judge', model: 'claude-sonnet-5',
+        input: 100, cache_read: 50, cache_write_5m: 0, cache_write_1h: 0, output: 20, effective: 205, unpriced: 0, cost_usd: 0.002, in_session: 0,
+        batch_id: null, entry_id: null, feedback_id: null, produced: null, retention_days: null,
+      });
+      // The list the page links from carries the same id.
+      const cost = JSON.parse((await request(port, 'GET', '/api/cost')).body);
+      expect(cost.overhead_rows.map((o: { id: number }) => o.id)).toEqual([7]);
+      // An observer call links to the batch it summarised: its entries and the evidence still kept.
+      const batch = Number(db.prepare("INSERT INTO memory_batches (project, session_id, reason, event_count) VALUES ('/r', 's1', 'time', 2)").run().lastInsertRowid);
+      db.prepare("INSERT INTO evidence_events (event_uid, project, session_id, kind, occurred_at, batch_id) VALUES ('u1', '/r', 's1', 'prompt', 't', ?)").run(batch);
+      const entry = Number(db.prepare("INSERT INTO memory_entries (entry_uid, project, batch_id, title, occurred_at) VALUES ('x', '/r', ?, 'Rotated tokens', 't')").run(batch).lastInsertRowid);
+      db.prepare("INSERT INTO econ_overhead (id, occurred_at, project, session_id, source, batch_id) VALUES (9, 't', '/r', 's1', 'observer', ?)").run(batch);
+      const linked = JSON.parse((await request(port, 'GET', '/api/cost/call?id=9')).body);
+      expect(linked).toMatchObject({
+        batch_id: batch,
+        produced: { kind: 'batch', events: 2, kept: 1, kinds: [{ kind: 'prompt', n: 1 }], entries: [{ id: entry, title: 'Rotated tokens', type: null }] },
+        retention_days: null,
+      });
+
+      // No such row, and ids that are not one: a 404 the page's fill reports.
+      for (const q of ['?id=8', '?id=0', '?id=-7', '?id=1.5', '?id=x', '']) {
+        const r = await request(port, 'GET', '/api/cost/call' + q);
+        expect(r.status, q).toBe(404);
+        expect(JSON.parse(r.body), q).toEqual({ error: 'not_found' });
       }
     } finally {
       close();
@@ -1471,6 +1512,15 @@ describe('every config key has a home in the dashboard or the terminal', () => {
     expect([...placed].sort()).toEqual([...leaves].sort());
     expect(new Set(placed).size).toBe(placed.length);
   });
+
+  it('gives every SETTINGS group an entry in the Settings sidebar, in order', () => {
+    // The sidebar lists the categories from SETTINGS_TABS in the page; a new group in SETTINGS fails here until it has one.
+    const page = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'assets', 'dashboard.html'), 'utf8');
+    const block = page.match(/const SETTINGS_TABS = \{([\s\S]*?)\n\};/)![1]!;
+    const ids = [...block.matchAll(/^\s*'?([\w-]+)'?:\s*\{ label:/gm)].map((m) => m[1]);
+    const groups = [...new Set(SETTINGS.map((f) => f.group))].map((g) => g.toLowerCase().replace(/\W+/g, '-'));
+    expect(ids).toEqual([...groups, 'terminal', 'companion', 'changed']);
+  });
 });
 
 describe('/api/settings', () => {
@@ -1519,6 +1569,38 @@ describe('/api/settings', () => {
   }
   const ok = (port: number, token: string) => ({
     host: `127.0.0.1:${port}`, origin: `http://127.0.0.1:${port}`, 'content-type': 'application/json', 'x-eklavya-token': token,
+  });
+
+  it('changes a model by name on the Models tab, but turning one on from none stays a typed command', async () => {
+    const file = path.join(home, 'config.json');
+    fs.writeFileSync(file, JSON.stringify({ defaults_version: 1 }));
+    const send = (port: number, token: string, body: Record<string, unknown>) => post(port, { scope: 'user', ...body }, ok(port, token));
+    await withServer(async (port, token, url) => {
+      const d = await (await fetch(`${url}/api/settings`)).json();
+      expect(d.fields.filter((f: any) => f.group === 'Models').map((f: any) => f.key))
+        .toEqual(['providers.observer', 'providers.feedback', 'providers.judge']);
+      expect(d.fields.find((f: any) => f.key === 'providers.observer').options).toContain('claude-haiku-5-5');
+      expect(d.user.effective['providers.observer']).toBe('claude-haiku-5-5');
+      expect(d.user.effective['providers.feedback']).toBeNull();
+
+      // Feedback inherits a model that is on, so a name of its own is a change, not a switch-on.
+      expect((await send(port, token, { key: 'providers.feedback', value: 'claude-sonnet-5' })).status).toBe(200);
+      expect(JSON.parse(fs.readFileSync(file, 'utf8')).providers.feedback).toEqual({ kind: 'anthropic', model: 'claude-sonnet-5' });
+      expect((await (await fetch(`${url}/api/settings`)).json()).user.set['providers.feedback']).toBe('claude-sonnet-5');
+      expect((await send(port, token, { key: 'providers.feedback', value: 'two words' })).body.error).toMatch(/not a valid value/);
+
+      const judge = await send(port, token, { key: 'providers.judge', value: 'claude-haiku-5-5' });
+      expect(judge.status).toBe(400);
+      expect(judge.body.error).toMatch(/typed command: eklavya config set providers.judge <model>/);
+
+      // Off is allowed; back on, by a value or by resetting to the default, is not.
+      expect((await send(port, token, { key: 'providers.feedback', value: null })).status).toBe(200);
+      expect((await send(port, token, { key: 'providers.observer', value: null })).status).toBe(200);
+      expect((await send(port, token, { key: 'providers.observer', unset: true })).status).toBe(400);
+      expect((await send(port, token, { key: 'providers.feedback', value: 'claude-sonnet-5' })).status).toBe(400);
+      expect((await send(port, token, { key: 'providers.feedback', unset: true })).status).toBe(200);
+      expect(JSON.parse(fs.readFileSync(file, 'utf8')).providers).toEqual({ observer: null });
+    });
   });
 
   it('reads both scopes and offers only projects with a checkout', async () => {

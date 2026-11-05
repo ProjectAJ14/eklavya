@@ -7,6 +7,7 @@ import type { Database } from 'better-sqlite3';
 import { openDb } from '../src/db.js';
 import { DEFAULT_CONFIG, type EklavyaConfig } from '../src/config.js';
 import { feedbackPending, generateFeedback, insertFeedback, MAX_SESSIONS_PER_RUN } from '../src/feedback.js';
+import { setUsageSink } from '../src/memory/provider.js';
 import { cleanup, tempDbPath } from './helpers.js';
 
 const posix = process.platform !== 'win32';
@@ -124,6 +125,14 @@ describe.skipIf(!posix)('generateFeedback: which session', () => {
     expect(reviewed()).toEqual([{ session_id: 'older', outcome: 'item' }]);
   });
 
+  it('uses providers.feedback when it is set, with no memory model at all', async () => {
+    stand(success(goodOutput()));
+    session(db, 'one', 3 * DAY);
+    const own = config({ providers: { observer: null, feedback: { kind: 'anthropic', model: 'haiku' }, embeddings: null, judge: null } });
+    expect((await run(own)).status).toBe('reviewed');
+    expect(feedbackPending(db)!.model).toBe('haiku');
+  });
+
   it('skips the current, fresh, stale, reviewed, helper and other-project sessions', async () => {
     stand(success(goodOutput()));
     session(db, 'current', 3 * DAY);
@@ -190,6 +199,20 @@ describe.skipIf(!posix)('generateFeedback: which session', () => {
     const row = feedbackPending(db)!;
     expect(row.prompt).toBe(PROMPT_B);
     expect(row.event_id).toBe(ids[1]);
+  });
+
+  it('links the review call\'s ledger row to the item it wrote, by id', async () => {
+    stand(JSON.stringify({ subtype: 'success', is_error: false, structured_output: goodOutput(), usage: { input_tokens: 10, output_tokens: 1 } }));
+    session(db, 's', 3 * DAY);
+    try {
+      await run(config({ economy: { ...DEFAULT_CONFIG.economy, ledger: true } }));
+      const item = feedbackPending(db)!;
+      expect(db.prepare('SELECT source, project, session_id, feedback_id FROM econ_overhead').all()).toEqual([
+        { source: 'feedback', project: PROJECT, session_id: null, feedback_id: item.id },
+      ]);
+    } finally {
+      setUsageSink(null);
+    }
   });
 
   it('sends the review call through the same flags as the summariser, with the review rules', async () => {

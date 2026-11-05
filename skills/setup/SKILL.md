@@ -51,7 +51,7 @@ With questions on, ask the developer to start a task. Point to
 If questions are off, keep them off. When memory is on, mention
 `/eklavya:memory` for past work.
 
-For a new install, memory summaries and prompt feedback use `claude-sonnet-5`
+For a new install, memory summaries and prompt feedback use `claude-haiku-5-5`
 through the developer's Claude Code login. Captured session evidence goes to
 that model; search and stored history stay local. Existing settings may use a
 different model or local summaries. If they ask about capture or privacy, link

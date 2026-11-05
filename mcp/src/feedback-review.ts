@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defangFence } from './memory/privacy.js';
-import { ProviderError, readResult, runClaude, type CallSpec } from './memory/provider.js';
+import { ProviderError, readResult, runClaude, type CallLink, type CallSpec } from './memory/provider.js';
 import type { FeedbackReview } from './feedback.js';
 
 /**
@@ -217,8 +217,9 @@ export function parseReview(raw: unknown, prompts: string[]): ParsedReview {
 export async function reviewPrompts(
   model: string,
   prompts: string[],
-  opts: { signal?: AbortSignal; timeoutMs?: number; graceMs?: number } = {},
+  opts: { signal?: AbortSignal; timeoutMs?: number; graceMs?: number; link?: CallLink } = {},
 ): Promise<ParsedReview> {
-  const stdout = await runClaude(model, renderPrompts(prompts), { ...opts, spec: REVIEW_CALL });
+  const { link, ...run } = opts;
+  const stdout = await runClaude(model, renderPrompts(prompts), { ...run, spec: { ...REVIEW_CALL, link } });
   return parseReview(readResult(stdout), prompts);
 }

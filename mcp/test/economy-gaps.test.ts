@@ -9,7 +9,7 @@ import { afterFold, costCommand, factsCommand, foldCommand, guardLine, refreshSt
 import { compact, openSession } from '../src/ledger-pending.js';
 import { foldSession, recordOverhead } from '../src/ledger.js';
 import { costBody } from '../src/dashboard.js';
-import { SESSION_ENTRY_LIMIT, costReport, sessionReport } from '../src/cost-report.js';
+import { SESSION_ENTRY_LIMIT, callReport, costReport, sessionReport } from '../src/cost-report.js';
 import { envValues, formRepairs, render } from '../src/economy/envfacts.js';
 import { readCalls, readTranscript } from '../src/economy/transcript.js';
 import { applyDeny, restoreDeny } from '../src/economy/toolprune.js';
@@ -113,6 +113,45 @@ describe('small edges', () => {
     expect(JSON.parse(costBody(db, repo)).tools).toMatchObject({ mode: 'propose' });
     expect(JSON.parse(costBody(db, null)).tools).toBeNull();
     expect(JSON.parse(costBody(db, '/not/here')).tools).toMatchObject({ mode: 'propose' });
+  });
+});
+
+describe('what a call produced', () => {
+  const usage = { input: 1, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0, output: 0 };
+  const call = (link: { batchId?: number; entryId?: number }) => recordOverhead(db, { source: 'observer', model: 'claude-haiku-4-5', usage, costUsd: null, ...link });
+
+  it('reads the entries and the kept evidence of a batch, and says when the batch is gone', () => {
+    const batch = Number(db.prepare("INSERT INTO memory_batches (project, session_id, reason, event_count) VALUES (?, 's', 'time', 3)").run(repo).lastInsertRowid);
+    const ev = db.prepare("INSERT INTO evidence_events (event_uid, project, session_id, kind, occurred_at, batch_id) VALUES (?, ?, 's', ?, 't', ?)");
+    ev.run('e1', repo, 'prompt', batch);
+    ev.run('e2', repo, 'file_edit', batch);
+    ev.run('e3', repo, 'file_edit', batch);
+    const kept = insertEntry(db, { project: repo, batchId: batch, title: 'Kept' });
+    const gone = insertEntry(db, { project: repo, batchId: batch, title: 'Gone' });
+    db.prepare("UPDATE memory_entries SET deleted_at = 't' WHERE id = ?").run(gone);
+    const id = call({ batchId: batch });
+    expect(callReport(db, id)).toMatchObject({
+      batch_id: batch, entry_id: null, feedback_id: null,
+      produced: { kind: 'batch', events: 3, kept: 3, entries: [{ id: kept, title: 'Kept' }], kinds: [{ kind: 'file_edit', n: 2 }, { kind: 'prompt', n: 1 }] },
+    });
+    db.prepare("DELETE FROM evidence_events WHERE kind = 'file_edit'").run();
+    expect(callReport(db, id)!.produced).toMatchObject({ events: 3, kept: 1 });
+    expect(callReport(db, call({ batchId: 999 }))!.produced).toEqual({ kind: 'batch', entries: [], events: null, kept: 0, kinds: [] });
+  });
+
+  it('reads the entry a refresh rewrote and its replacement, and a feedback item that may be gone', () => {
+    const old = insertEntry(db, { project: repo, title: 'Old' });
+    const next = insertEntry(db, { project: repo, title: 'New' });
+    db.prepare('UPDATE memory_entries SET superseded_by = ? WHERE id = ?').run(next, old);
+    expect(callReport(db, call({ entryId: old }))!.produced).toMatchObject({ kind: 'refresh', refreshed: { id: old }, entries: [{ id: next }] });
+    expect(callReport(db, call({ entryId: 999 }))!.produced).toEqual({ kind: 'refresh', refreshed: null, entries: [] });
+    const fb = call({});
+    db.prepare('UPDATE econ_overhead SET feedback_id = 5 WHERE id = ?').run(fb);
+    expect(callReport(db, fb)!.produced).toEqual({ kind: 'feedback', exists: false });
+    db.prepare("INSERT INTO feedback_items (id, session_id, project, prompt, review, better, tips, rubric, model) VALUES (5, 's', ?, 'p', '{}', 'b', '[]', 2, 'm')").run(repo);
+    expect(callReport(db, fb)!.produced).toEqual({ kind: 'feedback', exists: true });
+    // A call with no link (a judge, or any row from before migration 042) produced nothing the ledger can name.
+    expect(callReport(db, call({}))!.produced).toBeNull();
   });
 });
 

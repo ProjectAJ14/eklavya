@@ -62,7 +62,7 @@ With [`delegate_work`](/docs/configuration/#every-key) on (the default), Claude 
 
 ### `feedback` — coaching on your own prompts
 
-New installs have prompt feedback on and use `claude-sonnet-5` through your
+New installs have prompt feedback on and use `claude-haiku-5-5` through your
 Claude Code login. Existing installs keep their choices. Older configs keep the
 previous defaults for these settings: feedback off and no observer model,
 unless explicitly set.
@@ -70,15 +70,17 @@ unless explicitly set.
 Eklavya reviews one prompt from a finished session in the background and shows
 it on the dashboard's [Feedback page](/docs/dashboard/#feedback). The next
 review waits until you acknowledge or delete the waiting item. Feedback needs
-`memory.enabled` and an observer model (`providers.observer`); with either off,
-nothing is generated. It is independent of `quiz.enabled` and never changes
+`memory.enabled` and a model: `providers.feedback`, or the memory model
+(`providers.observer`) when that is `null`; with either missing, nothing is
+generated. Choose both models on the dashboard's Settings → Models tab or with
+`eklavya config set`. It is independent of `quiz.enabled` and never changes
 your mastery or levels.
 
 ### `memory`: keep project history
 
 Memory is on by default. It records eligible prompts and tool activity, saves
 observations and recalls relevant history in later sessions. New installs use
-`claude-sonnet-5` to write observations; search and storage run locally.
+`claude-haiku-5-5` to write observations; search and storage run locally.
 Turn memory off independently of questions with `memory.enabled`.
 
 You can [search and edit notes](/docs/commands/#eklavyamemory),

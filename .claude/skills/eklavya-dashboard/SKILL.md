@@ -277,7 +277,8 @@ Two things that have bitten this file already:
 (`{ id, label, items }`), and `pages` — `{ label, view, query }` for a page with a
 sidebar entry, `{ parent, view }` for a detail page, which keeps its parent
 highlighted. The sidebar, the picker, the resolver and `render()` all read it, so
-they cannot disagree. `ICONS` holds the Lucide-style paths.
+they cannot disagree. `ICONS` holds the Lucide-style paths. Settings is the one
+workflow whose entries are not all pages (its categories, `tabs`; see *Settings*).
 
 Canonical routes are `#/<workflow>/<page>/<param>?<query>`. `resolve(hash)` is
 pure: it returns the screen, or a `redirect` for a legacy or partial form, or
@@ -555,14 +556,20 @@ two interfaces, `eklavya config` and this page, and they change together.**
   `render()`), restoring focus to the control used. Errors come back as `{ error }`
   and show in that row's `data-msg`. `saveSetting` still says "saved" when a redraw
   for new data lands while the save is out.
-- A tab draws from `SETS`, the last `/api/settings` response, when `settingsFresh()`
+- The categories (Questions … Changed) are not a tab strip but the Settings sidebar's
+  **Preferences** group: `SETTINGS_TABS` in the page, held to `SETTINGS`' groups by
+  `dashboard.test.ts`, so a new group needs a row there. They are not pages: the
+  workflow has `home: false` (no Dashboard entry) and `tabs`, `navHref` links each to
+  `#/settings/<dashboard|project>/<id>` in the scope on show (the first one bare), and
+  `navCurrent` marks the category in the URL current. Keep Danger the last group.
+- A category draws from `SETS`, the last `/api/settings` response, when `settingsFresh()`
   says it was read under the page's cursor and project: no request. One response
-  holds both scopes, so it serves any tab of either. `invalidateSettings()` runs on a
+  holds both scopes, so it serves any category of either. `invalidateSettings()` runs on a
   project change and `invalidateData()` on a save and on new data; the next draw then
-  reads once more. The pane is the regions `sw-head`, `sw-tabs`, `sw-body` and
-  `sw-rail`, so a tab redraws what it changes and the scope rail stays. Arriving by
+  reads once more. The pane is the regions `sw-head`, `sw-body` and
+  `sw-rail`, so a category redraws what it changes and the scope rail stays. Arriving by
   `#/settings/user` or `#/settings/dashboard` is the same screen.
-- New data never redraws `sw-body` under a control being used: the tab strip, its
+- New data never redraws `sw-body` under a control being used: the heading, its
   counts and the rail still update, the rows wait, and `catchUp` draws them when focus
   leaves.
 

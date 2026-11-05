@@ -139,15 +139,18 @@ export interface OverheadRow {
   project?: string | null;
   occurredAt?: string;
   inSession?: boolean;
+  /** What the call served (migration 042): the memory batch it summarised, the entry it refreshed. */
+  batchId?: number | null;
+  entryId?: number | null;
 }
 
-/** One row of Eklavya's own spend. A model with no price row is kept, marked unpriced. */
-export function recordOverhead(db: DB, row: OverheadRow): void {
+/** One row of Eklavya's own spend, and its id. A model with no price row is kept, marked unpriced. */
+export function recordOverhead(db: DB, row: OverheadRow): number {
   const w = weightsFor(row.model);
-  db.prepare(
+  const done = db.prepare(
     `INSERT INTO econ_overhead (occurred_at, project, session_id, source, model, input, cache_read, cache_write_5m,
-       cache_write_1h, output, effective, unpriced, cost_usd, in_session)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       cache_write_1h, output, effective, unpriced, cost_usd, in_session, batch_id, entry_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     row.occurredAt ?? nowIso(),
     row.project ?? null,
@@ -163,19 +166,25 @@ export function recordOverhead(db: DB, row: OverheadRow): void {
     w ? 0 : 1,
     row.costUsd,
     row.inSession ? 1 : 0,
+    row.batchId ?? null,
+    row.entryId ?? null,
   );
+  return Number(done.lastInsertRowid);
 }
 
 /**
  * Records every `claude -p` call this process makes from here on. Called by
  * the processes that make them (the memory worker, feedback review, the
  * judge) when `economy.ledger` is on; `runClaude` reports, this writes.
+ * A call's own `CallSpec.link` (its batch, entry, project, session) wins over
+ * the process-wide `context`, and gets the new row's id back as `ledgerId`.
  */
 export function meterProviderCalls(db: DB, config: EklavyaConfig, context: { project?: string | null; sessionId?: string | null } = {}): void {
   if (!config.economy.ledger) return setUsageSink(null);
-  setUsageSink((u: ProviderUsage) =>
-    recordOverhead(db, { ...u, ...context }),
-  );
+  setUsageSink((u: ProviderUsage) => {
+    const id = recordOverhead(db, { ...u, ...context, ...u.link });
+    if (u.link) u.link.ledgerId = id;
+  });
 }
 
 export interface SessionCost {

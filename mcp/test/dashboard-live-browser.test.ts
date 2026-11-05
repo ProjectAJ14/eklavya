@@ -234,13 +234,13 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
           .toEqual({ value: '7', focus: true, same: true });
         expect(await source(), 'the row says what it said until the save').toBe('default');
 
-        // A change from the terminal to another setting lands around the field: that tab's count moves, this row does not.
-        const tab = page.locator('.sw__tab', { hasText: 'Questions' });
-        expect(await tab.locator('i').count()).toBe(0);
+        // A change from the terminal to another setting lands around the field: the heading's count moves, this row does not.
+        const setHere = () => page.evaluate(() => Number(/(\d+) set here/.exec(document.querySelector('.sw__pane .counts')?.textContent ?? '')?.[1]));
+        const before = await setHere();
         const then = await cursor(page);
         configure({ cadence: 'end' });
         await adopted(page, then);
-        await page.waitForFunction(() => /1/.test(document.querySelector('.sw__tab[data-focus="tab:questions"] i')?.textContent ?? ''), null, { timeout: 3000 });
+        await page.waitForFunction((n) => new RegExp(`\\b${n} set here`).test(document.querySelector('.sw__pane .counts')?.textContent ?? ''), before + 1, { timeout: 3000 });
         expect(await page.evaluate((f) => ({ value: (document.querySelector(f) as HTMLInputElement).value, focus: document.activeElement === document.querySelector(f), same: (window as any).__field === document.querySelector(f) }), field))
           .toEqual({ value: '7', focus: true, same: true });
         expect(await source(), 'still unsaved').toBe('default');
@@ -268,14 +268,14 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         const w = await open('#/settings/dashboard', { height: HEIGHT });
         const { page } = w;
         // A tab is drawn from what the page already holds: no request, and nothing is read for the screen afterwards.
-        await page.click('.sw__tab[data-focus="tab:pacing"]');
+        await page.click('#nav a[data-nav="pacing"]');
         await page.waitForSelector('#set-max_questions_per_task');
         const was = await cursor(page);
         configure({ max_questions_per_task: 5 });
         await adopted(page, was);
         await page.waitForFunction(() => /set by you/.test(document.querySelector('.set:has(#set-max_questions_per_task) .set__src')?.textContent ?? ''), null, { timeout: 3000 });
-        expect(await page.getAttribute('.sw__tab[data-focus="tab:pacing"]', 'aria-current')).toBe('page');
-        expect(await page.getAttribute('.sw__tab[data-focus="tab:questions"]', 'aria-current')).toBeNull();
+        expect(await page.getAttribute('#nav a[data-nav="pacing"]', 'aria-current')).toBe('page');
+        expect(await page.getAttribute('#nav a[data-nav="questions"]', 'aria-current')).toBeNull();
         expect(await page.inputValue('#set-max_questions_per_task')).toBe('5');
         expect(await page.evaluate(() => location.hash)).toBe('#/settings/dashboard/pacing');
         expect(w.errors).toEqual([]);
@@ -337,7 +337,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         await w.ctx.close();
       }, 60000);
 
-      it('puts off the rows of the tab the reader is using, brings up the strip and the heading, and catches up when they let go', async () => {
+      it('puts off the rows of the category the reader is using, brings up the heading, and catches up when they let go', async () => {
         const w = await open('#/settings/dashboard/pacing', { height: HEIGHT });
         const { page } = w;
         const field = '#set-max_questions_per_task';
@@ -348,9 +348,8 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         // `eklavya config set min_minutes_between_quizzes 45`, from a terminal, while the reader has a field.
         configure({ min_minutes_between_quizzes: 45 });
         await adopted(page, was);
-        // The tab's count and the heading's count are brought up around the field; the rows wait.
+        // The heading's count is brought up around the field; the rows wait.
         await page.waitForFunction(() => /1 set here/.test(document.querySelector('.sw__pane .counts')?.textContent ?? ''), null, { timeout: 3000 });
-        expect(await page.locator('.sw__tab[data-focus="tab:pacing"] i').textContent()).toBe('1');
         expect(await source(other), 'the row is drawn when the reader lets go of the field').toBe('default');
         expect(await page.evaluate((f) => document.activeElement === document.querySelector(f), field)).toBe(true);
         // They let go (a click on the heading, say; a Tab would land on the next field, and that is in use too): what

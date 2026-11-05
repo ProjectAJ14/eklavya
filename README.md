@@ -28,7 +28,7 @@ Eklavya is a plugin for Claude Code. It does two jobs:
 Your learning history and memory are stored on your computer. There is no
 Eklavya account. Eklavya sends anonymous daily usage counts (including which dashboard
 sections and explainers are used), never code, paths, names or text. [Every field is listed](https://eklavya-run.web.app/docs/usage-analytics/),
-and `eklavya telemetry off` stops them. New installs use `claude-sonnet-5`
+and `eklavya telemetry off` stops them. New installs use `claude-haiku-5-5`
 through your Claude Code login for memory summaries and prompt feedback, so
 captured session evidence goes to that model. [Memory and data](https://eklavya-run.web.app/docs/memory/)
 explains the controls.
@@ -89,7 +89,7 @@ notes to check against the code.
 |---|---|---|
 | Captures your work | Saves prompts, file edits and tool calls as you work; unattended `claude -p` runs keep only tool and file activity. | [What gets captured](https://eklavya-run.web.app/docs/memory/#what-gets-captured) |
 | Hides secrets | Skips files like `.env` and keys, even when a read or edit of one fails. Removes tokens and passwords before saving or trimming. | [What is never captured](https://eklavya-run.web.app/docs/memory/#what-is-never-captured) |
-| Writes summaries | Groups work into observations and session summaries, using `claude-sonnet-5` on a new install or your saved observer choice. | [How observations are made](https://eklavya-run.web.app/docs/memory/#how-observations-are-made) |
+| Writes summaries | Groups work into observations and session summaries, using `claude-haiku-5-5` on a new install or your saved observer choice. | [How observations are made](https://eklavya-run.web.app/docs/memory/#how-observations-are-made) |
 | Recalls history | Gives Claude past work and where the last session left off at session start, on related prompts (not on short ones with fewer than three meaningful words, unless an entry names them), and before it reads a file with history. Session start tells Claude to search memory before each task and to correct entries the code contradicts; a prompt recall found nothing for, or one that is mostly a link, ticket key or screenshot, repeats that. On prompts and on a resume it skips entries the current session wrote, which Claude already has. Optional settings rank session start by your branch and changed files and let a prompt recall on its informative words. The session banner shows the estimated context saved. | [How recall works](https://eklavya-run.web.app/docs/memory/#how-recall-works) |
 | Search and notes | Ask `/eklavya:memory` about a past change, save a note or fix a wrong entry. | [Commands](https://eklavya-run.web.app/docs/commands/#eklavyamemory) |
 | Shows the savings | Estimates how much smaller recall is than the raw history, counting recall a hook sent. Calls to the memory search and read tools are logged locally. | [Savings](https://eklavya-run.web.app/docs/memory/#what-the-savings-percentage-measures) |
@@ -132,7 +132,7 @@ and never moves what you are reading. You can also
 [install it as an app](https://eklavya-run.web.app/docs/dashboard/#open-it-as-an-app)
 and open it from Spotlight, the Dock or the Start menu. On your first visits,
 [tips](https://eklavya-run.web.app/docs/dashboard/#tips) point out features;
-dismiss them one by one or switch them off under Settings, then Companion. To start over, Settings, Danger, [Clean slate](https://eklavya-run.web.app/docs/dashboard/#clean-slate) moves your database aside to a backup and starts an empty one. The archer companion walks toward you with a random verb (*Pondering…*) while loading and appears beside empty states and feedback; the same tab previews its 24 expressions and its loading walk and has the daily card switch. On a wide window
+dismiss them one by one or switch them off under Settings, then Companion in its sidebar. To start over, [Clean slate](https://eklavya-run.web.app/docs/dashboard/#clean-slate), the last entry in the Settings sidebar, moves your database aside to a backup and starts an empty one. The archer companion walks toward you with a random verb (*Pondering…*) while loading and appears beside empty states and feedback; the same page previews its 24 expressions and its loading walk and has the daily card switch. On a wide window
 each page sits centred beside the sidebar. It has six parts:
 
 | Part | What you can see | Read more |
@@ -141,7 +141,7 @@ each page sits centred beside the sidebar. It has six parts:
 | Memory | A timeline of past work, sessions, projects, savings and health. | [Memory pages](https://eklavya-run.web.app/docs/dashboard/#memory-pages) |
 | Artifacts | Every saved page as a gallery grouped by project, each card showing the page's first diagram. | [Artifacts pages](https://eklavya-run.web.app/docs/dashboard/#artifacts) |
 | Feedback | Reviews one of your prompts using what later prompts had to add, and offers a better version. On for new installs; existing installs keep their choices. Needs memory and an observer model. The next review waits until you acknowledge or delete the waiting one; the session greeting flags it in amber. It never changes your scores. | [Feedback pages](https://eklavya-run.web.app/docs/dashboard/#feedback) |
-| Cost | What each session cost, measured from Claude Code's transcripts, Eklavya's own share and calls, and the cost controls: the loop guard, tool pruning and pinned facts. Every session, from Learning, Memory or Cost, opens one page with its transcript path, cost, estimated savings and what it gave and took from memory. | [Cost pages](https://eklavya-run.web.app/docs/dashboard/#cost) |
+| Cost | What each session cost, measured from Claude Code's transcripts, Eklavya's own share and calls, and the cost controls: the loop guard, tool pruning and pinned facts. Every session, from Learning, Memory or Cost, opens one page with its transcript path, cost, estimated savings and what it gave and took from memory. Each of Eklavya's own calls opens to its tokens, cost, session and what it produced; their text is not kept. | [Cost pages](https://eklavya-run.web.app/docs/dashboard/#cost) |
 | Settings | A switchboard: your settings first, each project's beside them, one tab per category, changed the same way as `eklavya config`. | [Settings pages](https://eklavya-run.web.app/docs/dashboard/#settings) |
 
 For a short summary in chat, use `/eklavya:progress`.

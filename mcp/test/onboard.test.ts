@@ -123,17 +123,20 @@ describe('the settings walk', () => {
     expect(await done).toBeNull();
     expect(saved()).toEqual({ defaults_version: 1 });
     expect(loadGlobalConfig()).toMatchObject({
-      feedback: { enabled: true }, providers: { observer: { kind: 'anthropic', model: 'claude-sonnet-5' } },
+      feedback: { enabled: true }, providers: { observer: { kind: 'anthropic', model: 'claude-haiku-5-5' } },
     });
     expect(out).toContain('coach one of your prompts');
     expect(out).toContain('leaves this machine');
-    expect(out).toContain('claude-sonnet-5');
+    expect(out).toContain('claude-haiku-5-5');
+    // Memory, then feedback, then the model that serves them.
+    expect(out.indexOf('record sessions')).toBeLessThan(out.indexOf('coach one of your prompts'));
+    expect(out.indexOf('coach one of your prompts')).toBeLessThan(out.indexOf('which model writes the memories'));
   });
 
   it('keeps the model a first install chose when feedback is turned on', async () => {
     terminal();
     const done = onboard(opts);
-    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, '4', KEY.enter);
+    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, '4');
     await done;
     expect(saved()).toEqual({
       defaults_version: 1,
@@ -141,15 +144,13 @@ describe('the settings walk', () => {
     });
   });
 
-  it('uses the cheaper model when a user explicitly chooses local summaries with feedback on', async () => {
+  it('uses the recommended model when a user explicitly chooses local summaries with feedback on', async () => {
+    fs.writeFileSync(configFile(), JSON.stringify({ feedback: { enabled: true }, providers: { observer: { kind: 'anthropic', model: 'claude-sonnet-5' } } }));
     terminal();
     const done = onboard(opts);
-    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, '1', KEY.enter);
+    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, '1');
     await done;
-    expect(saved()).toEqual({
-      defaults_version: 1,
-      providers: { observer: { kind: 'anthropic', model: 'claude-haiku-4-5' } },
-    });
+    expect(saved().providers).toEqual({ observer: { kind: 'anthropic', model: 'claude-haiku-5-5' } });
   });
 
   it('starts the step on off for an existing install, and turns it on without touching the model', async () => {
@@ -159,7 +160,7 @@ describe('the settings walk', () => {
     );
     terminal();
     const done = onboard(opts);
-    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, '1');
+    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, '1', KEY.enter);
     await done;
     expect(saved()).toEqual({
       providers: { observer: { kind: 'anthropic', model: 'claude-sonnet-5' } },
@@ -171,7 +172,7 @@ describe('the settings walk', () => {
     fs.writeFileSync(configFile(), JSON.stringify({ feedback: { enabled: true } }));
     terminal();
     const done = onboard(opts);
-    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, '2');
+    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, '2', KEY.enter);
     await done;
     expect(saved().feedback).toEqual({ enabled: false });
   });
@@ -214,7 +215,7 @@ describe('the settings walk', () => {
     expect(await done).toBeNull();
     expect(saved()).toMatchObject({
       memory: { enabled: true, keep: 1 },
-      providers: { observer: { kind: 'anthropic', model: 'claude-haiku-4-5' } },
+      providers: { observer: { kind: 'anthropic', model: 'claude-haiku-5-5' } },
     });
     expect(out).toContain('which model writes the memories');
   });
@@ -226,7 +227,7 @@ describe('the settings walk', () => {
     );
     terminal();
     const done = onboard(opts);
-    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, '1', '2');
+    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, '2', '1');
     await done;
     expect(saved().providers).toEqual({ observer: null });
   });
@@ -234,7 +235,7 @@ describe('the settings walk', () => {
   it('asks Claude Mem users who records, and returns their answer', async () => {
     terminal();
     const done = onboard({ ...opts, claudeMem: true });
-    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, '1', KEY.enter, '2');
+    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, '1', '2', KEY.enter);
     expect(await done).toBe('eklavya');
     expect(out).toContain('Claude Mem is installed too — only one should record');
   });
@@ -289,7 +290,7 @@ describe('without a terminal', () => {
     await onboard(opts);
     expect(saved()).toEqual({ defaults_version: 1 });
     expect(loadGlobalConfig()).toMatchObject({
-      feedback: { enabled: true }, providers: { observer: { kind: 'anthropic', model: 'claude-sonnet-5' } },
+      feedback: { enabled: true }, providers: { observer: { kind: 'anthropic', model: 'claude-haiku-5-5' } },
     });
     expect(out).not.toContain('coach one of your prompts');
   });
