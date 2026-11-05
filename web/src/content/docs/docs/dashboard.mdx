@@ -21,7 +21,7 @@ The mascot smiles while pages load and appears beside empty lists, missing recor
 
 While something loads, the companion walks toward you with a playful verb beside it, such as *Pondering…* or *Moseying…*, picked at random for each wait, like Claude Code's spinner. Screen readers hear the same verb.
 
-Open **Settings**, then the **Companion** tab, and choose **Open the companion gallery** to open the local mascot studio. Preview its 24 expressions, switch between face and full-body views, and pause the loading animation, where it walks toward you with its bow and arrow. The studio and mascot assets load from the dashboard itself. The same tab holds the **Tips** and **Daily card** switches ([tips](#tips), [daily card](#the-daily-card)); they change this browser only, so they are the same on the User page and on every project page.
+Open **Settings**, then **Companion** in the sidebar, and choose **Open the companion gallery** to open the local mascot studio. Preview its 24 expressions, switch between face and full-body views, and pause the loading animation, where it walks toward you with its bow and arrow. The studio and mascot assets load from the dashboard itself. The same page holds the **Tips** and **Daily card** switches ([tips](#tips), [daily card](#the-daily-card)); they change this browser only, so they are the same on the User page and on every project page.
 
 ## Keeping it running
 
@@ -247,7 +247,7 @@ The **Changed** tab lists the keys the scope's own file sets and, for a project,
 
 A control saves when you change it; a text or number box saves when you leave it or press Enter. The row reports **saved** or **inherited**. Each field states what it accepts, and a value outside that is refused under the field before anything is sent, keeping what you typed; the server checks again with the [same rules](/docs/configuration/#what-each-setting-accepts) and reports a refusal, such as `focus: learn` with no topic, in the same place. `auto_update`, `telemetry` and `dashboard_autostart` apply to the whole machine, so a project shows them read-only with a link to User. The dashboard counts which workflows you open, whether an explainer was scrolled to the end, and which setting you changed (never the value) in the anonymous [usage counts](/docs/usage-analytics/). Providers, notifications and sync send work off the machine or run a command, so they stay a typed command.
 
-Choosing a tab is instant: the page draws it from the settings it already holds and makes no request. Choosing another project reads that project's settings.
+Choosing a category is instant: the page draws it from the settings it already holds and makes no request. Choosing another project reads that project's settings.
 
 ### Clean slate
 
@@ -320,7 +320,7 @@ On your first visits, a dot marks each feature the current page has a tip for (i
 
 Only one bubble is open at a time, and moving to another page closes it. No dot or bubble shows while the menu drawer, a dropdown or the correction dialog is open, and at 900 px or narrower, where the sidebar becomes the drawer, its features get no tips. A dot hides while its feature is scrolled out of view, and a tip does not open by itself until its feature is on screen. A tip that has opened once does not open by itself again; its dot stays until you dismiss it.
 
-The **Tips** switch on the Settings page's **Companion** tab sets it: **off** hides every dot and bubble, and **on** shows every tip again from the start. Which tips you have seen is remembered in this browser only, so another browser, or a dashboard on a different `--port`, shows them again. If the browser blocks site storage, the dashboard shows no tips.
+The **Tips** switch under Settings, **Companion**, sets it: **off** hides every dot and bubble, and **on** shows every tip again from the start. Which tips you have seen is remembered in this browser only, so another browser, or a dashboard on a different `--port`, shows them again. If the browser blocks site storage, the dashboard shows no tips.
 
 ## The daily card
 
@@ -356,7 +356,7 @@ The card never shows when any of these holds, It does not wait for a busy page: 
 
 With a project selected, the card reads that project's answers and streak, as the page does.
 
-The **Daily card** switch on the Settings page's **Companion** tab, below **Tips**, sets it. What it showed and when is remembered in this browser only (`eklavya-dash-daily`), so another browser, or a dashboard on a different `--port`, shows a card again. If the browser blocks site storage, no card shows, because a card that cannot remember would open on every visit.
+The **Daily card** switch under Settings, **Companion**, below **Tips**, sets it. What it showed and when is remembered in this browser only (`eklavya-dash-daily`), so another browser, or a dashboard on a different `--port`, shows a card again. If the browser blocks site storage, no card shows, because a card that cannot remember would open on every visit.
 
 ## Projects, scope, ground, tips and paging
 

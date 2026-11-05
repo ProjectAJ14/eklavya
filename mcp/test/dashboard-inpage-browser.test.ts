@@ -330,14 +330,14 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       expect(tag.scrollAfter).toBe(tag.scrollBefore);
       expect(tag.headKept).toBe(true);
 
-      // A Settings tab is a link: Enter follows it, and nothing but the pane changes.
+      // A Settings category in the sidebar is a link: Enter follows it, and nothing but the pane changes.
       await page.goto(base + '/#/settings/dashboard'); await ready(page);
-      const href = (await page.$$eval('.sw__tab', (a) => a.map((x) => x.getAttribute('href')!)))[1]!;
-      await tabTo(page, `.sw__tab[href="${href}"]`);
+      const href = (await page.$$eval('#grp-settings-prefs a', (a) => a.map((x) => x.getAttribute('href')!)))[1]!;
+      await tabTo(page, `#grp-settings-prefs a[href="${href}"]`);
       const set = await probeTransition(page, () => page.keyboard.press('Enter'), { keep: '#settings .sw' });
       expect(set.hash).toBe(href);
       expect(set).toMatchObject({ requests: [], keptSelector: true });
-      expect(await focused(page, `.sw__tab[href="${href}"]`)).toBe(true);
+      expect(await focused(page, `#grp-settings-prefs a[href="${href}"]`)).toBe(true);
       expect(w.errors).toEqual([]);
       await w.ctx.close();
     }, 90000);
@@ -416,12 +416,12 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       expect(await listText(page, rowsOf)).toEqual(all);
       expect(await page.getAttribute('[data-state="all"]', 'aria-pressed')).toBe('true');
 
-      // A Settings tab: the pane the reader left.
+      // A Settings category: the pane the reader left.
       await page.goto(base + '/#/settings/dashboard'); await ready(page);
-      const tabs = await page.$$eval('.sw__tab', (a) => a.map((x) => x.getAttribute('href')!));
+      const tabs = await page.$$eval('#grp-settings-prefs a', (a) => a.map((x) => x.getAttribute('href')!));
       const first = (await page.textContent('.sw__pane h1'))!;
       const pane = await page.textContent('.sw__pane .sw__list, .sw__pane .card');
-      await page.click(`.sw__tab[href="${tabs[2]}"]`); await ready(page);
+      await page.click(`#grp-settings-prefs a[href="${tabs[2]}"]`); await ready(page);
       expect(await page.textContent('.sw__pane .sw__list, .sw__pane .card')).not.toBe(pane);
       await page.goBack(); await ready(page);
       expect(await page.evaluate(() => location.hash)).toBe('#/settings/dashboard');
@@ -799,28 +799,11 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
     });
 
     describe('Settings', () => {
-      it('keeps the tab strip where the reader scrolled it on a phone', async () => {
-        const w = await open('#/settings/dashboard', { width: 560, height: 800 });
-        const { page } = w;
-        const strip = () => page.evaluate(() => { const t = document.querySelector('.sw__tabs')!; return [t.scrollLeft, t.scrollWidth - t.clientWidth]; });
-        expect((await strip())[1], 'the tabs overflow a phone').toBeGreaterThan(40);
-        // The reader scrolls the strip to its end and presses the last tab, which is then in view.
-        await page.evaluate(() => { const t = document.querySelector('.sw__tabs')!; t.scrollLeft = t.scrollWidth; });
-        const [at] = await strip();
-        expect(at).toBeGreaterThan(40);
-        const last = await page.$$eval('.sw__tab', (a) => a.at(-1)!.getAttribute('href')!);
-        const r = await probeTransition(page, () => page.click(`.sw__tab[href="${last}"]`), { keep: '#settings .sw' });
-        expect(r).toMatchObject({ requests: [], keptSelector: true });
-        expect(await page.getAttribute(`.sw__tab[href="${last}"]`, 'aria-current')).toBe('page');
-        expect((await strip())[0], 'the strip went back to its start').toBe(at);
-        await w.ctx.close();
-      }, 30000);
-
       it('reads from the server only when what it holds is missing or stale', async () => {
         const w = await open('#/settings/dashboard', { height: HEIGHT });
         const { page } = w;
-        const tabs = await page.$$eval('.sw__tab', (a) => a.map((x) => x.getAttribute('href')!));
-        const click = (href: string) => probeTransition(page, () => page.click(`.sw__tab[href="${href}"]`), { keep: '#settings .sw' });
+        const tabs = await page.$$eval('#grp-settings-prefs a', (a) => a.map((x) => x.getAttribute('href')!));
+        const click = (href: string) => probeTransition(page, () => page.click(`#grp-settings-prefs a[href="${href}"]`), { keep: '#settings .sw' });
 
         // Opened once: every tab after it is free.
         expect((await click(tabs[1]!)).requests).toEqual([]);
@@ -828,7 +811,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         await page.evaluate(() => { S.cursor = 'moved-on'; });
         const stale = await click(tabs[2]!);
         expect(stale.requests).toEqual(['/api/settings']);
-        expect(await page.getAttribute(`.sw__tab[href="${tabs[2]}"]`, 'aria-current')).toBe('page');
+        expect(await page.getAttribute(`#grp-settings-prefs a[href="${tabs[2]}"]`, 'aria-current')).toBe('page');
         // ...and then holds it under the new cursor.
         const after = await click(tabs[3]!);
         expect(after.requests).toEqual([]);
@@ -842,8 +825,8 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         const w = await open('#/settings/dashboard', { height: HEIGHT });
         const { page } = w;
         try {
-          const tabs = await page.$$eval('.sw__tab', (a) => a.map((x) => x.getAttribute('href')!));
-          const click = (href: string) => probeTransition(page, () => page.click(`.sw__tab[href="${href}"]`));
+          const tabs = await page.$$eval('#grp-settings-prefs a', (a) => a.map((x) => x.getAttribute('href')!));
+          const click = (href: string) => probeTransition(page, () => page.click(`#grp-settings-prefs a[href="${href}"]`));
           expect(await page.inputValue('#set-cadence')).not.toBe('end');
           // `eklavya config set cadence end`, from a terminal: the file changes under an open page. The server notices
           // and tells the page, which reads what it holds again (the payload, and Settings, once) and draws it where
@@ -898,10 +881,10 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
           // The late answer for the old data is dropped; the reader is shown the file as it is now, and the page holds it.
           await page.waitForFunction(() => (document.getElementById('set-cadence') as HTMLSelectElement | null)?.value === 'end');
           await page.unroute('**/api/settings');
-          const tabs = await page.$$eval('.sw__tab', (a) => a.map((x) => x.getAttribute('href')!));
-          const r = await probeTransition(page, () => page.click(`.sw__tab[href="${tabs[1]}"]`));
+          const tabs = await page.$$eval('#grp-settings-prefs a', (a) => a.map((x) => x.getAttribute('href')!));
+          const r = await probeTransition(page, () => page.click(`#grp-settings-prefs a[href="${tabs[1]}"]`));
           expect(r.requests, 'the read for the new data is held').toEqual([]);
-          await page.click(`.sw__tab[href="${tabs[0]}"]`);
+          await page.click(`#grp-settings-prefs a[href="${tabs[0]}"]`);
           expect(await page.inputValue('#set-cadence')).toBe('end');
           expect(w.errors).toEqual([]);
         } finally {
@@ -913,22 +896,22 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       it('is one screen whether it was reached as user settings or as preferences: the first tab pressed stays in the page', async () => {
         const w = await open('#/settings/user', { height: HEIGHT });
         const { page } = w;
-        const tabs = await page.$$eval('.sw__tab', (a) => a.map((x) => x.getAttribute('href')!));
+        const tabs = await page.$$eval('#grp-settings-prefs a', (a) => a.map((x) => x.getAttribute('href')!));
         await holdSidebar(page);
         const at = await scrollDown(page, 120);
         expect(at, 'the page is tall enough to have a place to lose').toBeGreaterThan(0);
         // The link the product itself makes (Feedback's "Open Settings", the project page's "user settings").
-        const first = await probeTransition(page, () => page.click(`.sw__tab[href="${tabs[1]}"]`), { keep: '#settings .sw' });
+        const first = await probeTransition(page, () => page.click(`#grp-settings-prefs a[href="${tabs[1]}"]`), { keep: '#settings .sw' });
         expect(first).toMatchObject({ hash: tabs[1], keptSelector: true, scrollBefore: at, scrollAfter: at, requests: [] });
         expect(await sidebarKept(page), 'the sidebar was rebuilt').toBe(true);
-        expect(await sidebar(page)).toMatchObject({ current: ['dashboard'] });
-        expect(await page.getAttribute(`.sw__tab[href="${tabs[1]}"]`, 'aria-current')).toBe('page');
+        expect(await sidebar(page)).toMatchObject({ current: ['pacing'] });
+        expect(await page.getAttribute(`#grp-settings-prefs a[href="${tabs[1]}"]`, 'aria-current')).toBe('page');
         // Back goes to the route the reader arrived by, in place too.
         const back = await probeTransition(page, () => page.goBack(), { keep: '#settings .sw' });
         expect(back).toMatchObject({ hash: '#/settings/user', keptSelector: true, requests: [] });
-        expect(await page.getAttribute(`.sw__tab[href="${tabs[0]}"]`, 'aria-current')).toBe('page');
+        expect(await page.getAttribute(`#grp-settings-prefs a[href="${tabs[0]}"]`, 'aria-current')).toBe('page');
         // And the tab after that is in place as well.
-        const next = await probeTransition(page, () => page.click(`.sw__tab[href="${tabs[2]}"]`), { keep: '#settings .sw' });
+        const next = await probeTransition(page, () => page.click(`#grp-settings-prefs a[href="${tabs[2]}"]`), { keep: '#settings .sw' });
         expect(next).toMatchObject({ hash: tabs[2], keptSelector: true, requests: [] });
         expect(w.errors).toEqual([]);
         await w.ctx.close();
@@ -957,8 +940,8 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
           const switched = await probeTransition(page, () => pickProject(page, fx.repo.mixed));
           expect(switched.requests).toEqual([`/api/settings?project=${enc(fx.repo.mixed)}`]);
           expect(await page.textContent('#settings .sw__pane h1')).toBe('User settings');
-          const tabs = await page.$$eval('.sw__tab', (a) => a.map((x) => x.getAttribute('href')!));
-          const next = await probeTransition(page, () => page.click(`.sw__tab[href^="${tabs[1]!.replace(/\?.*/, '')}"]`), { keep: '#settings .sw' });
+          const tabs = await page.$$eval('#grp-settings-prefs a', (a) => a.map((x) => x.getAttribute('href')!));
+          const next = await probeTransition(page, () => page.click(`#grp-settings-prefs a[href^="${tabs[1]!.replace(/\?.*/, '')}"]`), { keep: '#settings .sw' });
           expect(next).toMatchObject({ requests: [], keptSelector: true });
 
           // The project's own page is in the same response: the project's scope link draws it with no read.
@@ -970,15 +953,15 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
           expect(await page.textContent('#settings .sw__pane h1')).toBe('User settings');
 
           // A save changes the file and reads it again, and what it read is what the next tab draws.
-          await page.click(`.sw__tab[href^="${tabs[0]!.replace(/\?.*/, '')}"]`);
+          await page.click(`#grp-settings-prefs a[href^="${tabs[0]!.replace(/\?.*/, '')}"]`);
           await page.waitForSelector('#set-cadence', { state: 'attached' });
           await pickOption(page, '#set-cadence', 'end');
           await page.waitForSelector('[data-msg="cadence"].here:has-text("saved")');
-          const changed = await probeTransition(page, () => page.click('.sw__tab[href*="/changed"]'), { keep: '#settings .sw' });
+          const changed = await probeTransition(page, () => page.click('#grp-settings-prefs a[href*="/changed"]'), { keep: '#settings .sw' });
           expect(changed.requests).toEqual([]);
           expect(await page.textContent('#settings .sw__pane')).toMatch(/cadence[\s\S]*end/);
           // The tab the reader left: its control shows what was saved, and Reset puts the default back.
-          await page.click(`.sw__tab[href="${tabs[0]}"]`);
+          await page.click(`#grp-settings-prefs a[href="${tabs[0]}"]`);
           await page.waitForSelector('[data-unset="cadence"]');
           expect(await page.inputValue('#set-cadence')).toBe('end');
           await page.click('[data-unset="cadence"]');
@@ -994,7 +977,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         const w = await open('#/settings/dashboard', { height: HEIGHT });
         const { page } = w;
         try {
-          const tabs = await page.$$eval('.sw__tab', (a) => a.map((x) => x.getAttribute('href')!));
+          const tabs = await page.$$eval('#grp-settings-prefs a', (a) => a.map((x) => x.getAttribute('href')!));
           // The save is slow to be answered, so the reader has time to click another tab while it is out:
           // that tab is drawn from what the page holds, which is what was read before the save.
           let release = () => {};
@@ -1005,8 +988,8 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
           });
           await pickOption(page, '#set-cadence', 'end');
           await page.waitForSelector('[data-msg="cadence"]:has-text("saving")');
-          await page.click(`.sw__tab[href="${tabs[1]}"]`);
-          await page.waitForSelector(`.sw__tab[href="${tabs[1]}"][aria-current="page"]`);
+          await page.click(`#grp-settings-prefs a[href="${tabs[1]}"]`);
+          await page.waitForSelector(`#grp-settings-prefs a[href="${tabs[1]}"][aria-current="page"]`);
           expect(await page.textContent('.sw__pane .counts'), 'drawn from what was read before the save').toContain('0 set here');
           release();
           // The tab the reader is on was drawn from what was read before the save. Once the save's read
@@ -1014,7 +997,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
           await page.waitForFunction(() => SETS?.user.set.cadence === 'end');
           // ...and the tab the reader is on is drawn again from it: its head says one setting is set here.
           await page.waitForFunction(() => /1 set here/.test(document.querySelector('.sw__pane .counts')?.textContent ?? ''));
-          const changed = await probeTransition(page, () => page.click('.sw__tab[href*="/changed"]'), { keep: '#settings .sw' });
+          const changed = await probeTransition(page, () => page.click('#grp-settings-prefs a[href*="/changed"]'), { keep: '#settings .sw' });
           expect(changed.requests).toEqual([]);
           expect(await page.textContent('.sw__pane')).toMatch(/cadence[\s\S]*end/);
           expect(w.errors).toEqual([]);

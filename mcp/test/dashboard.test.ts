@@ -1471,6 +1471,15 @@ describe('every config key has a home in the dashboard or the terminal', () => {
     expect([...placed].sort()).toEqual([...leaves].sort());
     expect(new Set(placed).size).toBe(placed.length);
   });
+
+  it('gives every SETTINGS group an entry in the Settings sidebar, in order', () => {
+    // The sidebar lists the categories from SETTINGS_TABS in the page; a new group in SETTINGS fails here until it has one.
+    const page = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'assets', 'dashboard.html'), 'utf8');
+    const block = page.match(/const SETTINGS_TABS = \{([\s\S]*?)\n\};/)![1]!;
+    const ids = [...block.matchAll(/^\s*'?([\w-]+)'?:\s*\{ label:/gm)].map((m) => m[1]);
+    const groups = [...new Set(SETTINGS.map((f) => f.group))].map((g) => g.toLowerCase().replace(/\W+/g, '-'));
+    expect(ids).toEqual([...groups, 'terminal', 'companion', 'changed']);
+  });
 });
 
 describe('/api/settings', () => {

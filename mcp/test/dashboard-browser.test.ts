@@ -34,10 +34,12 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         ['#/artifacts/projects', '#/artifacts/projects', { wf: 'Artifacts', active: 'projects', h1: /^Projects$/ }],
         ['#/feedback', '#/feedback/dashboard', { wf: 'Feedback', active: 'dashboard', h1: /^Feedback$/ }],
         ['#/feedback/history', '#/feedback/history', { wf: 'Feedback', active: 'history', h1: /^History$/ }],
-        ['#/settings', '#/settings/dashboard', { wf: 'Settings', active: 'dashboard', h1: /^User settings$/ }],
-        ['#/settings/user', '#/settings/user', { wf: 'Settings', active: 'dashboard', h1: /^User settings$/ }],
-        ['#/settings/dashboard/memory', '#/settings/dashboard/memory', { wf: 'Settings', active: 'dashboard', h1: /^User settings$/ }],
-        ['#/settings/project', '#/settings/project', { wf: 'Settings', active: 'dashboard', h1: /^Project settings$/ }],
+        // Settings has no Dashboard entry: the category on show is the current one, the first when the route names none.
+        ['#/settings', '#/settings/dashboard', { wf: 'Settings', active: 'questions', h1: /^User settings$/ }],
+        ['#/settings/user', '#/settings/user', { wf: 'Settings', active: 'questions', h1: /^User settings$/ }],
+        ['#/settings/dashboard/memory', '#/settings/dashboard/memory', { wf: 'Settings', active: 'memory', h1: /^User settings$/ }],
+        ['#/settings/project', '#/settings/project', { wf: 'Settings', active: 'questions', h1: /^Project settings$/ }],
+        ['#/settings/danger', '#/settings/danger', { wf: 'Settings', active: 'danger', h1: /^Clean slate$/ }],
       ];
     };
 
@@ -772,7 +774,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
           act: () => w.page.click('[data-pager="concepts"][aria-label="Next page"]'),
           then: async () => expect(await w.page.textContent('[data-pager="concepts"][aria-current="true"]')).toBe('2'),
         },
-        { name: 'a Settings tab', from: '#/settings/dashboard', to: '#/settings/dashboard/memory', act: () => w.page.click('.sw__tab[href$="/memory"]'), keep: '#settings .sw' },
+        { name: 'a Settings category', from: '#/settings/dashboard', to: '#/settings/dashboard/memory', act: () => w.page.click('#nav a[data-nav="memory"]'), keep: '#settings .sw' },
       ];
       for (const c of cases) {
         await w.page.goto(base + '/' + c.from);
