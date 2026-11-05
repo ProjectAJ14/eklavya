@@ -23,6 +23,26 @@
  *   discover    memory on; the session is asked to call memory_search, which
  *               shows the tools are discoverable and callable in a fresh session
  *
+ * The four `unguarded-*` arms are the production-shaped question (issue #280).
+ * The prompt does not mention conventions or history, and the trial repo
+ * contains samples/finance.csv, a comma-separated file the task can copy.
+ * They are not in the default arm list, so a default run stays the October
+ * comparison. `decision_in_full` says whether the body was actually in a
+ * recall block: a `;` on `unguarded-full` is "used an inlined fact" only when
+ * that is 5/5, and `unguarded-title` is title-only only when it stays 0.
+ *
+ *   unguarded-full         seed `relevant`. Pass: the code uses `;`
+ *   unguarded-title        seed `titleonly`. Pass: `;`, and memory_get fetched it
+ *   unguarded-off          memory off. Pass: the code uses `,`
+ *   unguarded-irrelevant   unrelated memory. Pass: `,`, and at most 1 of 5 calls a memory tool
+ *
+ *   node eval/memory-use-harness.mjs run --plugin "$PWD" --label baseline \
+ *     --arms unguarded-full,unguarded-title,unguarded-off,unguarded-irrelevant --trials 5
+ *
+ * That is 20 sessions. The 2026-10-02 run was about 60k–140k input tokens and
+ * 15–25s per trial, so expect on the order of 2M input tokens. `--timeout-min`
+ * caps each session (default 15).
+ *
  *   node eval/memory-use-harness.mjs run --plugin <dir> --label <name> [--arms relevant,off] [--trials 3]
  *   node eval/memory-use-harness.mjs run ... --config '{"retrieval":{"prompt_gate":"terms"}}'
  *   node eval/memory-use-harness.mjs score <run-dir> [<run-dir> ...]
@@ -75,6 +95,10 @@ function fail(msg) {
 const TASK =
   'Add an `exportCsv(rows)` function in src/export.js that turns an array of plain objects into CSV text: a header line from the first object\'s keys, then one line per row, lines joined with "\\n". Export it, add tests in test/export.test.js, and run `npm test`. Follow this project\'s conventions for exports. When you are done, reply with one line saying which field delimiter you used and why.';
 
+/** Same task without the hint that a convention exists. Issue #280. */
+const UNGUARDED =
+  'Add an `exportCsv(rows)` function in src/export.js that turns an array of plain objects into CSV text: a header line from the first object\'s keys, then one line per row, lines joined with "\\n". Export it, add tests in test/export.test.js, and run `npm test`. When you are done, reply with one line saying which field delimiter you used and why.';
+
 const ARMS = {
   relevant: { memory: true, seed: 'relevant', prompt: TASK },
   off: { memory: false, seed: 'relevant', prompt: TASK },
@@ -87,7 +111,24 @@ const ARMS = {
     prompt:
       "Use Eklavya's memory_search tool to search this project's memory for \"finance importer\". Reply with only the entry ids it returned, comma-separated, or NONE if the tool is not available to you.",
   },
+  'unguarded-full': { memory: true, seed: 'relevant', prompt: UNGUARDED, commaSample: true },
+  'unguarded-title': { memory: true, seed: 'titleonly', prompt: UNGUARDED, commaSample: true },
+  'unguarded-off': { memory: false, seed: 'relevant', prompt: UNGUARDED, commaSample: true },
+  'unguarded-irrelevant': { memory: true, seed: 'irrelevant', prompt: UNGUARDED, commaSample: true },
 };
+
+/**
+ * A comma-separated file already in the repo, so copying it is a complete
+ * answer. Written per trial, not into the shared fixture: the October arms
+ * must keep a tree with no delimiter hint. The words avoid "convention",
+ * "importer" and "semicolon", and the README does not call the file the
+ * current export: that sentence made the comma file look like the decision.
+ */
+function writeCommaSample(repo) {
+  fs.mkdirSync(path.join(repo, 'samples'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'samples', 'finance.csv'), 'date,amount,account\n2026-01-01,100,ops\n');
+  fs.appendFileSync(path.join(repo, 'README.md'), '\nA file of rows: `samples/finance.csv`.\n');
+}
 
 /** Newer work that is not about exports, so the decision is not the newest entry. */
 const FILLER = [
@@ -150,11 +191,13 @@ function git(cwd, ...args) {
 function prepare(trialDir, plugin, arm) {
   const repo = path.join(trialDir, 'reportkit');
   fs.cpSync(fixture, repo, { recursive: true });
+  if (arm.commaSample) writeCommaSample(repo);
   git(repo, 'init', '-q', '-b', 'main');
   git(repo, 'add', '-A');
   git(repo, 'commit', '-qm', 'chore: initial reportkit');
-  const home = path.join(trialDir, 'eklavya-home');
-  fs.mkdirSync(home, { recursive: true });
+  // Not a sibling of the repo: a `cd ..` from reportkit was enough to open the
+  // database. The env var still names it; a Bash read of that file is scored invalid.
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-eval-'));
   fs.writeFileSync(
     path.join(home, 'config.json'),
     JSON.stringify(withExtra({ auto_update: false, telemetry: false, dashboard_autostart: false, quiz: { enabled: false }, memory: { enabled: arm.memory } }), null, 2),
@@ -264,7 +307,34 @@ async function runCommand() {
 
   const jobs = [];
   for (let t = 1; t <= trials; t++) for (const name of arms) jobs.push({ name, t });
+  const runStarted = Date.now();
   let next = 0;
+  let finished = 0;
+  // One writer: parallel trials otherwise race on the temp file.
+  let progress = Promise.resolve();
+  const noteProgress = (state) => {
+    const done = finished;
+    progress = progress.then(() => {
+      try {
+        const body = {
+          label: `memory-use ${label}`,
+          state,
+          trials_done: done,
+          trials_total: jobs.length,
+          started: runStarted / 1000,
+          updated: Date.now() / 1000,
+          max_minutes: Math.round((jobs.length * Number(flag('timeout-min', '15'))) / Math.max(1, parallel)),
+        };
+        const tmp = path.join(outDir, 'progress.json.tmp');
+        fs.writeFileSync(tmp, JSON.stringify(body));
+        fs.renameSync(tmp, path.join(outDir, 'progress.json'));
+      } catch (err) {
+        process.stderr.write(`progress file not written: ${err.message}\n`);
+      }
+    });
+    return progress;
+  };
+  await noteProgress('running');
   const worker = async () => {
     while (next < jobs.length) {
       const { name, t } = jobs[next++];
@@ -273,7 +343,12 @@ async function runCommand() {
       fs.rmSync(trialDir, { recursive: true, force: true });
       fs.mkdirSync(trialDir, { recursive: true });
       const { repo, home, seeded } = prepare(trialDir, plugin, arm);
-      const env = { ...process.env, EKLAVYA_HOME: home, EKLAVYA_DB: path.join(home, 'knowledge.db'), ENABLE_CLAUDEAI_MCP_SERVERS: 'false' };
+      const env = {
+        ...process.env,
+        EKLAVYA_HOME: home,
+        EKLAVYA_DB: path.join(home, 'knowledge.db'),
+        ENABLE_CLAUDEAI_MCP_SERVERS: 'false',
+      };
       const started = Date.now();
       process.stderr.write(`start ${name}-${t}\n`);
       const res = await drive({ cwd: repo, prompt: arm.prompt, plugin, env, out: path.join(trialDir, 'stream.jsonl'), timeoutMs, model: flag('model') });
@@ -281,10 +356,14 @@ async function runCommand() {
         path.join(trialDir, 'trial.json'),
         JSON.stringify({ arm: name, trial: t, ...res, usage: sessionUsage(trialDir), seconds: Math.round((Date.now() - started) / 1000), seeded, code: name === 'discover' ? null : inspectCode(repo), db: dbFacts(home) }, null, 2),
       );
+      finished += 1;
+      await noteProgress('running');
+      fs.rmSync(home, { recursive: true, force: true });
       process.stderr.write(`done  ${name}-${t} in ${Math.round((Date.now() - started) / 1000)}s${res.timedOut ? ' (timed out)' : ''}\n`);
     }
   };
   await Promise.all(Array.from({ length: parallel }, worker));
+  await noteProgress('done');
   process.stderr.write(`${usage.line(usage.sum(sessions))}\n`);
   process.stdout.write(`${outDir}\n`);
 }
@@ -309,6 +388,11 @@ function strings(value, out = []) {
 
 const BLOCK = /<eklavya-memory\b[^>]*>[\s\S]*?<\/eklavya-memory>/g;
 const MEMORY_TOOL = /memory_(search|get|timeline|file_history)$/;
+// Opening the database from Bash is not a memory read. Title-only trials
+// opened ~/.eklavya/knowledge.db. A fake HOME is not a fix: Claude then
+// reports "Not logged in", and symlinking ~/.claude made it write backups
+// into the real directory. Those trials are invalid instead.
+const DB_PEEK = /sqlite3|knowledge\.db|EKLAVYA_(HOME|DB)|~\/\.eklavya|\.eklavya\/knowledge/;
 
 export function scoreTrial(dir) {
   const trial = JSON.parse(fs.readFileSync(path.join(dir, 'trial.json'), 'utf8'));
@@ -318,6 +402,7 @@ export function scoreTrial(dir) {
   const toolUses = [];
   const blocks = new Set();
   let finalText = '';
+  let dbPeek = false;
   for (const line of lines) {
     let o;
     try {
@@ -329,7 +414,10 @@ export function scoreTrial(dir) {
     if (o.type === 'result') result = o;
     if (o.type === 'assistant') {
       for (const c of o.message?.content ?? []) {
-        if (c.type === 'tool_use') toolUses.push(c.name);
+        if (c.type === 'tool_use') {
+          toolUses.push(c.name);
+          if (typeof c.input?.command === 'string' && DB_PEEK.test(c.input.command)) dbPeek = true;
+        }
         if (c.type === 'text') finalText = c.text;
       }
     }
@@ -348,7 +436,8 @@ export function scoreTrial(dir) {
     arm: trial.arm,
     trial: trial.trial,
     model: init?.model ?? null,
-    valid: !trial.timedOut && result?.is_error === false && plugins.every((p) => /eklavya/.test(p)),
+    valid: !trial.timedOut && !dbPeek && result?.is_error === false && plugins.every((p) => /eklavya/.test(p)),
+    db_peek: dbPeek,
     memory_tools_listed: tools.filter((t) => MEMORY_TOOL.test(t)).length,
     tool_search_calls: toolUses.filter((t) => t === 'ToolSearch').length,
     memory_tool_calls: toolUses.filter((t) => MEMORY_TOOL.test(t)).length,
@@ -405,6 +494,8 @@ function scoreCommand() {
       fetched: `${count((r) => r.memory_tool_calls > 0)}/${n}`,
       decision_listed: `${count((r) => r.decision_listed)}/${n}`,
       decision_in_full: `${count((r) => r.decision_in_full)}/${n}`,
+      decision_fetched: `${count((r) => r.decision_fetched)}/${n}`,
+      reads_linked: `${count((r) => r.reads_linked > 0)}/${n}`,
       stale_shown: `${count((r) => r.stale_shown)}/${n}`,
       mean_recall_tokens: mean(valid.map((r) => r.recall_tokens)),
       mean_seconds: mean(valid.map((r) => r.duration_ms / 1000)),
