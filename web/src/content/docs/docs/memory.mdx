@@ -69,7 +69,7 @@ An **observation** summarises a batch of evidence into a title, narrative, facts
 - At the next session start, even if a smaller batch remains. Compaction is the same session, not a new start.
 - At any turn end or session start in any project, for a leftover from a session that has gone quiet for 20 minutes. A session you never return to is still summarised, without waiting for another session in its project.
 
-New installs use `claude-sonnet-5` to write observations through `claude -p` and
+New installs use `claude-haiku-5-5` to write observations through `claude -p` and
 your Claude Code login. The captured evidence described above goes to that
 model. Hooks queue the work and return without waiting. Types include `bugfix`,
 `refactor`, `decision`, `feature`, `discovery`, `change` and explicit `note`.
@@ -296,7 +296,7 @@ Memory does not record quiz attempts, grant mastery, clear review debt, promote 
 
 ### Prompt feedback reads memory
 
-Prompt feedback, when you turn it on with `feedback.enabled`, works from the prompts memory already recorded: it needs `memory.enabled`, and it sends nothing anywhere unless `providers.observer` is set. Each review is stored in its own table, with the text of one prompt, and deleting memory entries or pruning evidence does not remove it; delete an item from the dashboard's [Feedback page](/docs/dashboard/#feedback). Like memory, it never changes mastery. See [how it works](/docs/how-it-works/#prompt-feedback).
+Prompt feedback, when you turn it on with `feedback.enabled`, works from the prompts memory already recorded: it needs `memory.enabled`, and it sends nothing anywhere unless a model is set: `providers.feedback`, or `providers.observer` when that is `null`. Each review is stored in its own table, with the text of one prompt, and deleting memory entries or pruning evidence does not remove it; delete an item from the dashboard's [Feedback page](/docs/dashboard/#feedback). Like memory, it never changes mastery. See [how it works](/docs/how-it-works/#prompt-feedback).
 
 ### When you move or rename a checkout
 

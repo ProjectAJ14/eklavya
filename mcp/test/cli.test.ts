@@ -494,8 +494,8 @@ describe('eklavya memory', () => {
     expect(res.stdout).toMatch(/entries:\s+0 here, 0 in total/);
     expect(res.stdout).toMatch(/queue:\s+0 pending · 0 paused · 0 failed/);
     expect(res.stdout).toMatch(/oldest job:\s+—/);
-    expect(res.stdout).toMatch(/provider:\s+anthropic:claude-sonnet-5 \(via claude -p, on your subscription\)/);
-    expect(res.stdout).toMatch(/summarizer:\s+anthropic:claude-sonnet-5/);
+    expect(res.stdout).toMatch(/provider:\s+anthropic:claude-haiku-5-5 \(via claude -p, on your subscription\)/);
+    expect(res.stdout).toMatch(/summarizer:\s+anthropic:claude-haiku-5-5/);
     expect(res.stdout).toMatch(/Recall: — no context reused yet/);
   });
 
@@ -1255,7 +1255,7 @@ describe('providers are global-only', () => {
     const res = eklavya(['config', 'get']);
     expect(res.status).toBe(0);
     expect(JSON.parse(res.stdout.split('\n\n')[0]!).providers.observer).toEqual({
-      kind: 'anthropic', model: 'claude-sonnet-5',
+      kind: 'anthropic', model: 'claude-haiku-5-5',
     });
     expect(res.stdout).toMatch(/ignored in the project file.*providers/);
   });

@@ -1530,6 +1530,38 @@ describe('/api/settings', () => {
     host: `127.0.0.1:${port}`, origin: `http://127.0.0.1:${port}`, 'content-type': 'application/json', 'x-eklavya-token': token,
   });
 
+  it('changes a model by name on the Models tab, but turning one on from none stays a typed command', async () => {
+    const file = path.join(home, 'config.json');
+    fs.writeFileSync(file, JSON.stringify({ defaults_version: 1 }));
+    const send = (port: number, token: string, body: Record<string, unknown>) => post(port, { scope: 'user', ...body }, ok(port, token));
+    await withServer(async (port, token, url) => {
+      const d = await (await fetch(`${url}/api/settings`)).json();
+      expect(d.fields.filter((f: any) => f.group === 'Models').map((f: any) => f.key))
+        .toEqual(['providers.observer', 'providers.feedback', 'providers.judge']);
+      expect(d.fields.find((f: any) => f.key === 'providers.observer').options).toContain('claude-haiku-5-5');
+      expect(d.user.effective['providers.observer']).toBe('claude-haiku-5-5');
+      expect(d.user.effective['providers.feedback']).toBeNull();
+
+      // Feedback inherits a model that is on, so a name of its own is a change, not a switch-on.
+      expect((await send(port, token, { key: 'providers.feedback', value: 'claude-sonnet-5' })).status).toBe(200);
+      expect(JSON.parse(fs.readFileSync(file, 'utf8')).providers.feedback).toEqual({ kind: 'anthropic', model: 'claude-sonnet-5' });
+      expect((await (await fetch(`${url}/api/settings`)).json()).user.set['providers.feedback']).toBe('claude-sonnet-5');
+      expect((await send(port, token, { key: 'providers.feedback', value: 'two words' })).body.error).toMatch(/not a valid value/);
+
+      const judge = await send(port, token, { key: 'providers.judge', value: 'claude-haiku-5-5' });
+      expect(judge.status).toBe(400);
+      expect(judge.body.error).toMatch(/typed command: eklavya config set providers.judge <model>/);
+
+      // Off is allowed; back on, by a value or by resetting to the default, is not.
+      expect((await send(port, token, { key: 'providers.feedback', value: null })).status).toBe(200);
+      expect((await send(port, token, { key: 'providers.observer', value: null })).status).toBe(200);
+      expect((await send(port, token, { key: 'providers.observer', unset: true })).status).toBe(400);
+      expect((await send(port, token, { key: 'providers.feedback', value: 'claude-sonnet-5' })).status).toBe(400);
+      expect((await send(port, token, { key: 'providers.feedback', unset: true })).status).toBe(200);
+      expect(JSON.parse(fs.readFileSync(file, 'utf8')).providers).toEqual({ observer: null });
+    });
+  });
+
   it('reads both scopes and offers only projects with a checkout', async () => {
     await withServer(async (_port, _token, url) => {
       const d = await (await fetch(`${url}/api/settings?project=${encodeURIComponent(repo)}`)).json();

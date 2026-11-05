@@ -34,10 +34,10 @@ import {
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import {
   findRepoConfig, LEGACY_REPO_CONFIG_FILE, loadConfig, loadGlobalConfig, loadProjectConfig, configFileProblem, isGlobalOnlyKey, mainRepoRoot,
-  readConfigFile, normalizeLegacyKeys,
-  type EklavyaConfig,
+  readConfigFile, normalizeLegacyKeys, feedbackModel,
+  type EklavyaConfig, type ProviderConfig,
 } from './config.js';
-import { applySetting, knownKeys, SETTING_RULES, valueAt, type SettingRule } from './config-path.js';
+import { applySetting, defaultAt, knownKeys, PROVIDER_KEYS, SETTING_RULES, valueAt, type SettingRule } from './config-path.js';
 import { costReport, sessionReport } from './cost-report.js';
 import { applyProposal, restoreTools } from './toolprune-store.js';
 import {
@@ -1930,7 +1930,13 @@ const FIELDS: Omit<SettingField, 'type'>[] = [
   { key: 'retrieval.timeline_items', group: 'Memory', label: 'Timeline lines at session start',
     help: 'Recent-work lines in the session-start recall. 0 leaves the timeline out.' },
   { key: 'feedback.enabled', group: 'Feedback', label: 'Prompt feedback',
-    help: 'Review one prompt from a finished session, using your later prompts to show what it left out, in the background, using your observer model. Needs memory on and an observer model.' },
+    help: 'Review one prompt from a finished session, using your later prompts to show what it left out, in the background. Needs memory on and a model (Models).' },
+  { key: 'providers.observer', group: 'Models', label: 'Memory model',
+    help: 'Writes the memories from each session and rewrites outdated entries. Empty uses the local summariser and sends nothing. Runs through Claude Code on your subscription.' },
+  { key: 'providers.feedback', group: 'Models', label: 'Feedback model',
+    help: 'Reviews a prompt for prompt feedback. Empty uses the memory model.' },
+  { key: 'providers.judge', group: 'Models', label: 'Loop guard judge model',
+    help: 'Reads a digest of a stuck turn for the loop guard. Empty leaves the strict rule to decide.' },
   { key: 'privacy.exclude_paths', group: 'Privacy', label: 'Never capture paths',
     help: 'Path patterns, one per line, on top of the built-in credential paths.' },
   { key: 'privacy.exclude_tools', group: 'Privacy', label: 'Never capture tools',
@@ -1984,9 +1990,7 @@ export const SETTINGS: SettingField[] = FIELDS.map((f) => {
  * so turning one on stays a typed command rather than a click on a page.
  */
 export const CLI_ONLY: { key: string; why: string }[] = [
-  { key: 'providers.observer', why: 'sends session evidence to a model' },
   { key: 'providers.embeddings', why: 'sends memory text to a model' },
-  { key: 'providers.judge', why: 'sends a digest of a stuck turn to a model' },
   { key: 'notifications.enabled', why: 'posts to a webhook or runs a command' },
   { key: 'notifications.sinks', why: 'posts to a webhook or runs a command' },
   { key: 'sync.enabled', why: 'writes memory to a shared folder' },
@@ -2072,10 +2076,23 @@ const setIn = (file: Record<string, unknown>) => {
   const raw = normalizeLegacyKeys(file);
   return Object.fromEntries(settingKeys().flatMap((k) => {
     const v = valueAt(raw as unknown as EklavyaConfig, k);
-    return v === undefined ? [] : [[k, v]];
+    return v === undefined ? [] : [[k, shown(k, v)]];
   }));
 };
-const effectiveOf = (c: EklavyaConfig) => Object.fromEntries(settingKeys().map((k) => [k, valueAt(c, k)]));
+/** A provider is shown, and typed, as its model name. */
+const shown = (k: string, v: unknown) => (PROVIDER_KEYS.has(k) && v ? (v as ProviderConfig).model : v);
+const effectiveOf = (c: EklavyaConfig) => Object.fromEntries(settingKeys().map((k) => [k, shown(k, valueAt(c, k))]));
+
+/**
+ * The model each Models field decides, as it resolves now. A page may change a
+ * model or switch one off; switching one on from none sends work off this
+ * machine, so that stays a typed command, as the CLI_ONLY keys do.
+ */
+const MODEL_IN_USE: Record<string, (c: EklavyaConfig) => ProviderConfig | null> = {
+  'providers.observer': (c) => c.providers.observer,
+  'providers.feedback': feedbackModel,
+  'providers.judge': (c) => c.providers.judge,
+};
 
 /** `GET /api/settings?project=<checkout>`: both files and what they resolve to. */
 export function settingsState(db: DB, root: string | null): Record<string, unknown> {
@@ -2124,6 +2141,11 @@ export function updateSetting(db: DB, body: unknown): { status: number; body: Re
   }
   const unset = b.unset === true;
   if (!unset && b.value === undefined) return bad('Send a value, or unset: true.');
+  const inUse = MODEL_IN_USE[f.key];
+  // A feedback model of null means the memory model, so only a value turns it on.
+  if (inUse && !inUse(loadGlobalConfig()) && (unset ? defaultAt(f.key) : b.value) !== null) {
+    return bad(`${f.key} is off, and turning it on sends work to a model, so it is a typed command: eklavya config set ${f.key} <model>`);
+  }
   // Every rule -- range, type, list items, combinations -- is `applySetting`'s,
   // so this refuses exactly what `eklavya config set` refuses, in its words.
   try {

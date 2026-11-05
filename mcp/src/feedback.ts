@@ -1,7 +1,7 @@
 import { meterProviderCalls } from './ledger.js';
 import type { spawn as nodeSpawn } from 'node:child_process';
 import type { Database } from 'better-sqlite3';
-import type { EklavyaConfig } from './config.js';
+import { feedbackModel, type EklavyaConfig } from './config.js';
 import { ProviderError } from './memory/provider.js';
 import { ownWords } from './memory/recall.js';
 import { reviewPrompts, REVIEW_LIMIT, type AreaStatus, type GapArea } from './feedback-review.js';
@@ -186,7 +186,7 @@ export async function generateFeedback(
   if (!config.memory.enabled) return { status: 'needs_memory' };
   // The review's model call is charged to the cost ledger.
   meterProviderCalls(db, config, { project: opts.project });
-  const observer = config.providers.observer;
+  const observer = feedbackModel(config);
   if (!observer) return { status: 'needs_observer' };
   if (feedbackPending(db)) return { status: 'pending' };
 
@@ -262,7 +262,7 @@ export function startBackgroundFeedback(
   opts: { cwd: string; spawn: typeof nodeSpawn; now: number },
 ): void {
   try {
-    if (!feedbackEnabled(config) || !config.providers.observer) return;
+    if (!feedbackEnabled(config) || !feedbackModel(config)) return;
     if (process.env.CI || process.env.VITEST) return;
     if (feedbackPending(db)) return;
     const { now } = opts;
@@ -412,7 +412,7 @@ export function feedbackSummary(db: Database, config: EklavyaConfig) {
   return {
     enabled: config.feedback.enabled,
     memory: config.memory.enabled,
-    observer: config.providers.observer !== null,
+    observer: feedbackModel(config) !== null,
     pending,
     // Whether to ask for attention (the badge): a stale item left from before
     // feedback or memory was switched off waits quietly, and is still there to open.

@@ -3,6 +3,7 @@ import {
   DEFAULT_CONFIG,
   loadConfig,
   loadGlobalConfig,
+  MODEL_CHOICES,
   readConfigFile,
   writeConfigFile,
   type EklavyaConfig,
@@ -78,11 +79,12 @@ const NULLABLE: Record<string, 'string' | 'number' | 'object'> = {
   focus_topic: 'string',
   'memory.retention_days': 'number',
   'providers.observer': 'object',
+  'providers.feedback': 'object',
   'providers.embeddings': 'object',
   'providers.judge': 'object',
 };
 
-const PROVIDER_KEYS = new Set(['providers.observer', 'providers.embeddings', 'providers.judge']);
+export const PROVIDER_KEYS = new Set(['providers.observer', 'providers.feedback', 'providers.embeddings', 'providers.judge']);
 const MODEL_NAME = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,99}$/;
 
 export function parseValue(key: string, raw: string): unknown {
@@ -185,8 +187,11 @@ const canonical = (v: unknown): string =>
  * ships it to the page for its inputs and hints; the tool builds its number
  * schemas from it.
  *
- * Keyed by leaf. `providers.*` and `notifications.sinks` are objects `coerce`
- * already checks field by field, so they have no row here.
+ * Keyed by leaf. `notifications.sinks` and `providers.embeddings` are objects
+ * `coerce` already checks field by field, so they have no row here. The other
+ * providers are stored as `{kind, model}` but chosen by model name, so their
+ * row is about the name: `normalizeSetting` turns a typed name into the object
+ * and `settingProblem` checks the name inside it.
  */
 export interface SettingRule {
   type: 'bool' | 'enum' | 'number' | 'text' | 'list';
@@ -209,6 +214,8 @@ const whole = (min: number, max: number, nullable = false): SettingRule => ({ ty
 const share: SettingRule = { type: 'number', min: 0, max: 1 };
 const lines = (extra: Partial<SettingRule> = {}): SettingRule => ({ type: 'list', maxItems: 100, maxLength: 500, ...extra });
 const text = (nullable: boolean, maxLength: number): SettingRule => ({ type: 'text', nullable, maxLength });
+/** A model name, with the usual ones offered; empty is no model. */
+const model: SettingRule = { ...text(true, 100), options: MODEL_CHOICES };
 
 export const SETTING_RULES: Record<string, SettingRule> = {
   'quiz.enabled': bool,
@@ -245,6 +252,9 @@ export const SETTING_RULES: Record<string, SettingRule> = {
   'memory.stale_check': bool,
   'memory.stale_refresh_per_day': whole(0, 100),
   'feedback.enabled': bool,
+  'providers.observer': model,
+  'providers.feedback': model,
+  'providers.judge': model,
   'privacy.exclude_paths': lines(),
   'privacy.exclude_tools': lines({ maxLength: 200 }),
   'privacy.redact_patterns': lines({ regex: true }),
@@ -278,6 +288,8 @@ export const SETTING_RULES: Record<string, SettingRule> = {
 /** Text trimmed, list lines trimmed and blank ones dropped: typing, not meaning. */
 export function normalizeSetting(key: string, value: unknown): unknown {
   const rule = SETTING_RULES[key];
+  // A model typed as text (the dashboard sends one) is the whole provider.
+  if (PROVIDER_KEYS.has(key) && typeof value === 'string') return parseValue(key, value.trim());
   if (rule?.type === 'text' && typeof value === 'string') return value.trim();
   if (rule?.type === 'list' && Array.isArray(value)) {
     return value.map((x) => (typeof x === 'string' ? x.trim() : x)).filter((x) => x !== '');
@@ -290,6 +302,8 @@ export function settingProblem(key: string, value: unknown): string | null {
   const r = SETTING_RULES[key];
   if (!r) return null;
   if (value === null) return r.nullable ? null : `${key} cannot be empty.`;
+  // A provider is checked by its model name; `coerce` checks the kind.
+  if (PROVIDER_KEYS.has(key) && isPlainObject(value)) value = value.model;
   switch (r.type) {
     case 'bool':
       return typeof value === 'boolean' ? null : `${key} is true or false.`;

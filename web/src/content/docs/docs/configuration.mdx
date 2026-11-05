@@ -114,6 +114,7 @@ Lists accept comma-separated strings or JSON. Other values use the key's expecte
 | `economy.toolprune_protect` | Up to 100 lines of 200 characters |
 | `focus_topic`, `sync.device_id` | Text up to 200 characters, or `null` |
 | `sync.target` | Text up to 1000 characters, or `null` |
+| `providers.observer`, `providers.feedback`, `providers.judge` | A model name up to 100 characters (letters, digits, `.`, `_`, `:`, `/`, `-`), the JSON object `{"kind":"anthropic","model":"<name>"}`, or `null` |
 | `privacy.exclude_paths` | Up to 100 lines of 500 characters |
 | `privacy.redact_patterns` | Up to 100 lines of 500 characters, each a valid regular expression |
 | `privacy.exclude_tools` | Up to 100 lines of 200 characters |
@@ -143,7 +144,7 @@ A change that would not take effect is refused too: `focus learn` when no `focus
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `feedback.enabled` | `true` | Reviews one of your prompts from a finished session, using later prompts to show what it left out. Runs in the background, one item at a time. Needs `memory.enabled` and `providers.observer`; the [Feedback page](/docs/dashboard/#feedback) reports either missing setting. Settable at user and project scope. Uses the observer model through your Claude Code login. Older config files without this setting keep feedback off. See [prompt feedback](/docs/how-it-works/#prompt-feedback). |
+| `feedback.enabled` | `true` | Reviews one of your prompts from a finished session, using later prompts to show what it left out. Runs in the background, one item at a time. Needs `memory.enabled` and a model, `providers.feedback` or else `providers.observer`; the [Feedback page](/docs/dashboard/#feedback) reports either missing setting. Settable at user and project scope. Uses that model through your Claude Code login. Older config files without this setting keep feedback off. See [prompt feedback](/docs/how-it-works/#prompt-feedback). |
 
 #### `privacy`
 
@@ -173,14 +174,19 @@ Provider settings are global because one worker processes all projects on the ma
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `providers.observer` | `{ "kind": "anthropic", "model": "claude-sonnet-5" }` | Writes observation summaries and reviews prompts through `claude -p`, using your Claude Code login. Captured session evidence goes to this model. Set to `null` for local summaries and no prompt feedback. Older config files without this setting keep `null`. |
+| `providers.observer` | `{ "kind": "anthropic", "model": "claude-haiku-5-5" }` | The memory model: writes observation summaries and rewrites outdated entries through `claude -p`, using your Claude Code login, and reviews prompts while `providers.feedback` is `null`. Captured session evidence goes to this model. Set to `null` for local summaries. Older config files without this setting keep `null`. |
+| `providers.feedback` | `null` | The feedback model: reviews prompts for [prompt feedback](/docs/how-it-works/#prompt-feedback). `null` uses `providers.observer`, so with both `null` there is no prompt feedback. Your prompts go to this model. |
 | `providers.embeddings` | `null` | Accepted configuration field, but no external embedding provider is wired into current retrieval. Search still uses the local embedder; leave this unset. |
-| `providers.judge` | `null` | The loop guard's judge: with `economy.loopguard` on, a detached `claude -p` call that reads a digest of a turn (counts, commands with numbers and quoted strings masked, edited file names and error signatures, never file content or output) and says whether it is stuck. `null`: the strict rule decides. Global only, and CLI only on the dashboard, because it sends that digest to a model. |
+| `providers.judge` | `null` | The loop guard's judge: with `economy.loopguard` on, a detached `claude -p` call that reads a digest of a turn (counts, commands with numbers and quoted strings masked, edited file names and error signatures, never file content or output) and says whether it is stuck. `null`: the strict rule decides. |
+
+The dashboard's **Settings → Models** page shows the memory, feedback and judge models and changes them by name, with the usual models suggested. It can switch one off, but switching one on from none stays a typed command, because that starts sending work to a model. `providers.embeddings` is changed from the terminal only.
 
 New installs use the defaults without a settings walkthrough. Reinstalling keeps saved choices. Older user configs keep the previous defaults for these settings: no observer model and feedback off, unless explicitly set. With no observer, summaries are generated locally.
 
 ```bash
 eklavya config set providers.observer claude-sonnet-5
+eklavya config set providers.feedback claude-opus-5-5
+eklavya config set providers.feedback null   # back to the memory model
 ```
 
 A bare model name is shorthand for `{"kind":"anthropic","model":"<name>"}`, which still works, and `null` clears it. `anthropic` on its own is refused: it is the kind, not a model.
@@ -253,7 +259,7 @@ Translated from [TokenEconomizer](https://github.com/microsoft/TokenEconomizer) 
 ```bash
 eklavya config set economy.loopguard nudge
 eklavya config set economy.toolprune propose
-eklavya config set providers.judge claude-haiku-4-5
+eklavya config set providers.judge claude-haiku-5-5
 ```
 
 ### Nothing Eklavya configures lives in your repository

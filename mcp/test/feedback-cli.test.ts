@@ -71,11 +71,11 @@ describe('eklavya feedback generate', () => {
     expect(feedback(['generate'])).toMatchObject({ status: 0, out: 'off\n' });
   });
 
-  it('says needs memory, then needs providers.observer', () => {
+  it('says needs memory, then needs a model', () => {
     writeConfig({ feedback: { enabled: true }, memory: { enabled: false } });
     expect(feedback(['generate']).out).toBe('needs memory\n');
     writeConfig({ feedback: { enabled: true } });
-    expect(feedback(['generate']).out).toBe('needs providers.observer\n');
+    expect(feedback(['generate']).out).toBe('needs a model: providers.feedback or providers.observer\n');
   });
 
   it('says nothing to review on an empty history', () => {

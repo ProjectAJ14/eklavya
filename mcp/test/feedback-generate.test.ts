@@ -124,6 +124,14 @@ describe.skipIf(!posix)('generateFeedback: which session', () => {
     expect(reviewed()).toEqual([{ session_id: 'older', outcome: 'item' }]);
   });
 
+  it('uses providers.feedback when it is set, with no memory model at all', async () => {
+    stand(success(goodOutput()));
+    session(db, 'one', 3 * DAY);
+    const own = config({ providers: { observer: null, feedback: { kind: 'anthropic', model: 'haiku' }, embeddings: null, judge: null } });
+    expect((await run(own)).status).toBe('reviewed');
+    expect(feedbackPending(db)!.model).toBe('haiku');
+  });
+
   it('skips the current, fresh, stale, reviewed, helper and other-project sessions', async () => {
     stand(success(goodOutput()));
     session(db, 'current', 3 * DAY);

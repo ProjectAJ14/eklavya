@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import readline from 'node:readline/promises';
 import { emitKeypressEvents, type Key } from 'node:readline';
 import { dbPath, globalConfigPath } from './paths.js';
-import { loadConfig, loadGlobalConfig, readConfigFile, writeConfigFile, type EklavyaConfig } from './config.js';
+import { DEFAULT_MODEL, loadConfig, loadGlobalConfig, readConfigFile, writeConfigFile, type EklavyaConfig } from './config.js';
 import { bold, check, dim, glyph, paint, plain } from './theme.js';
 
 export type MemoryOwner = 'eklavya' | 'claude-mem';
@@ -23,16 +23,16 @@ type Option = { value: string; detail: string };
 type Step = { key: string; title: string; current: string; options: Option[] };
 
 /** What writes the memories. `local` is `providers.observer: null`. */
-export const DEFAULT_MODEL = 'claude-sonnet-5';
-export const RECOMMENDED_MODEL = 'claude-haiku-4-5';
+export { DEFAULT_MODEL };
+export const RECOMMENDED_MODEL = DEFAULT_MODEL;
 const MODELS: Option[] = [
   { value: 'local', detail: 'extractive, no model — nothing leaves this machine' },
   { value: RECOMMENDED_MODEL, detail: 'recommended — fast; runs on your Claude subscription' },
-  { value: DEFAULT_MODEL, detail: 'richer summaries, uses more of your plan' },
+  { value: 'claude-sonnet-5', detail: 'richer summaries, uses more of your plan' },
   { value: 'claude-opus-5-5', detail: 'the most capable, uses the most' },
 ];
 
-/** Asked only once memory is on: it is a question about what memory does. */
+/** Asked last, and only once memory is on: it is a question about what memory does. */
 export function modelStep(c: EklavyaConfig): Step {
   const current = c.providers.observer?.model ?? 'local';
   // A model set by hand stays choosable, so Enter keeps it.
@@ -42,14 +42,14 @@ export function modelStep(c: EklavyaConfig): Step {
   return { key: 'model', title: 'which model writes the memories', current, options };
 }
 
-/** Asked after the model: the one switch that sends a prompt there, so it names where it goes. */
+/** Asked after memory, before the model: the one switch that sends a prompt to it, so it names where it goes. */
 export function feedbackStep(c: EklavyaConfig, firstRun: boolean): Step {
   return {
     key: 'feedback',
     title: 'coach one of your prompts a session, from what you had to add later',
     current: firstRun || c.feedback.enabled ? 'on' : 'off',
     options: [
-      { value: 'on', detail: `up to eight prompts a session leave this machine for your model (${RECOMMENDED_MODEL} if you chose local)` },
+      { value: 'on', detail: `up to eight prompts a session leave this machine for your model (${RECOMMENDED_MODEL} if you pick local next)` },
       { value: 'off', detail: 'nothing sent; later: eklavya config set feedback.enabled true' },
     ],
   };
@@ -112,12 +112,12 @@ function steps(c: EklavyaConfig, claudeMem: boolean, firstRun: boolean): Step[] 
           title: 'record sessions, recall them next time',
           current: c.memory.enabled ? 'on' : 'off',
           options: [
-            { value: 'on', detail: 'stored on this machine; the next step picks what writes it' },
+            { value: 'on', detail: 'stored on this machine; a later step picks what writes it' },
             { value: 'off', detail: 'nothing recorded; quizzes unaffected' },
           ],
         },
-    modelStep(c),
     feedbackStep(c, firstRun),
+    modelStep(c),
   ];
 }
 
@@ -146,7 +146,7 @@ export function press(at: number, count: number, key: Key): { at: number; done: 
 
 class Closed extends Error {}
 
-/** Steps that are questions about memory's model, asked only while memory records. */
+/** Steps that follow memory (feedback, then its model), asked only while memory records. */
 const FOLLOW_UPS = new Set(['model', 'feedback']);
 
 /** Both spellings of "Eklavya records": the plain step's `on`, the Claude Mem step's `eklavya`. */

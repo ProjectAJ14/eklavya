@@ -28,7 +28,7 @@ Eklavya is a plugin for Claude Code. It does two jobs:
 Your learning history and memory are stored on your computer. There is no
 Eklavya account. Eklavya sends anonymous daily usage counts (including which dashboard
 sections and explainers are used), never code, paths, names or text. [Every field is listed](https://eklavya-run.web.app/docs/usage-analytics/),
-and `eklavya telemetry off` stops them. New installs use `claude-sonnet-5`
+and `eklavya telemetry off` stops them. New installs use `claude-haiku-5-5`
 through your Claude Code login for memory summaries and prompt feedback, so
 captured session evidence goes to that model. [Memory and data](https://eklavya-run.web.app/docs/memory/)
 explains the controls.
@@ -89,7 +89,7 @@ notes to check against the code.
 |---|---|---|
 | Captures your work | Saves prompts, file edits and tool calls as you work; unattended `claude -p` runs keep only tool and file activity. | [What gets captured](https://eklavya-run.web.app/docs/memory/#what-gets-captured) |
 | Hides secrets | Skips files like `.env` and keys, even when a read or edit of one fails. Removes tokens and passwords before saving or trimming. | [What is never captured](https://eklavya-run.web.app/docs/memory/#what-is-never-captured) |
-| Writes summaries | Groups work into observations and session summaries, using `claude-sonnet-5` on a new install or your saved observer choice. | [How observations are made](https://eklavya-run.web.app/docs/memory/#how-observations-are-made) |
+| Writes summaries | Groups work into observations and session summaries, using `claude-haiku-5-5` on a new install or your saved observer choice. | [How observations are made](https://eklavya-run.web.app/docs/memory/#how-observations-are-made) |
 | Recalls history | Gives Claude past work and where the last session left off at session start, on related prompts (not on short ones with fewer than three meaningful words, unless an entry names them), and before it reads a file with history. Session start tells Claude to search memory before each task and to correct entries the code contradicts; a prompt recall found nothing for, or one that is mostly a link, ticket key or screenshot, repeats that. On prompts and on a resume it skips entries the current session wrote, which Claude already has. Optional settings rank session start by your branch and changed files and let a prompt recall on its informative words. The session banner shows the estimated context saved. | [How recall works](https://eklavya-run.web.app/docs/memory/#how-recall-works) |
 | Search and notes | Ask `/eklavya:memory` about a past change, save a note or fix a wrong entry. | [Commands](https://eklavya-run.web.app/docs/commands/#eklavyamemory) |
 | Shows the savings | Estimates how much smaller recall is than the raw history, counting recall a hook sent. Calls to the memory search and read tools are logged locally. | [Savings](https://eklavya-run.web.app/docs/memory/#what-the-savings-percentage-measures) |

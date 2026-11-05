@@ -504,7 +504,7 @@ describe.skipIf(!posix)('install in a terminal', () => {
     };
     await install(['--skip-runtime']);
     expect(out).not.toContain('Your settings');
-    expect(out).toMatch(/model\s+claude-sonnet-5/);
+    expect(out).toMatch(/model\s+claude-haiku-5-5/);
     expect(out).toMatch(/feedback\s+on/);
   });
 });

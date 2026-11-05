@@ -62,8 +62,11 @@ Usage:
                                         quiz.only_on_changes true|false,
                                         quiz.panel true|false (experimental side panel),
                                         feedback.enabled true|false (review one of your prompts per
-                                        session; needs memory and providers.observer),
-                                        providers.observer <model> (a model name, or JSON, or null),
+                                        session; needs memory and a model),
+                                        providers.observer <model> (writes the memories),
+                                        providers.feedback <model> (reviews prompts; null uses
+                                        providers.observer), providers.judge <model> (loop guard)
+                                        — each a model name, or JSON, or null
                                         focus project|concept|learn, cadence as-you-go|end,
                                         difficulty auto|easy|medium|hard,
                                         explain_on_wrong true|false, delegate_work true|false
@@ -80,7 +83,8 @@ Usage:
   eklavya dashboard status|stop         Show or stop the background dashboard
   eklavya feedback generate             Review one of your prompts from an earlier session: what your later
                                         prompts show it left out, and a better version (needs
-                                        feedback.enabled, memory and providers.observer);
+                                        feedback.enabled, memory and providers.feedback or
+                                        providers.observer);
                                         one item at a time, shown on the dashboard's Feedback page
   eklavya artifacts new <title>         Start a page under ~/.eklavya/artifacts/<project>/ from the
                                         Eklavya template and print its path [--description <text>]
@@ -175,8 +179,10 @@ Config namespaces (nested; edit ~/.eklavya/config.json or this project's file di
   privacy.{exclude_paths, exclude_tools, redact_patterns}
   retrieval.{mode: keyword|semantic|hybrid, max_items, max_tokens, cross_project,
              seam_query, prompt_gate: strict|terms, timeline_items}
-  providers.{observer, embeddings, judge} — each null or {kind, model}; the model
-             runs through Claude Code on your subscription. judge reads a digest
+  providers.{observer, feedback, embeddings, judge} — each null or {kind, model};
+             the model runs through Claude Code on your subscription. observer
+             writes the memories (default claude-haiku-5-5); feedback reviews
+             prompts (default null: the observer's model); judge reads a digest
              of a stuck turn for the loop guard (default null)
   notifications.{enabled, sinks} — sinks are {kind: webhook|command|file, target,
              args, events}; off by default, and a send cannot be recalled
@@ -519,7 +525,7 @@ async function feedbackCommand(args: string[]): Promise<void> {
         {
           off: dim('off'),
           needs_memory: dim('needs memory'),
-          needs_observer: dim('needs providers.observer'),
+          needs_observer: dim('needs a model: providers.feedback or providers.observer'),
           pending: dim('a feedback item is waiting: acknowledge it first'),
           nothing: dim('nothing to review'),
           later: paint.warn(later),

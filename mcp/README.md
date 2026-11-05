@@ -17,7 +17,7 @@ choices. It registers the plugin, installs the managed runtime and chat/artifact
 skills, adds a short memory section to `~/.claude/CLAUDE.md` so Claude opens
 what Eklavya recalls (`--skip-claude-md` to skip it), and prepares local storage. New installs have the quiz side panel,
 memory and prompt feedback on. Memory summaries and prompt feedback use
-`claude-sonnet-5` through your Claude Code login, so captured session evidence
+`claude-haiku-5-5` through your Claude Code login, so captured session evidence
 goes to that model. [Memory](https://eklavya-run.web.app/docs/memory/) explains
 what is captured, when batches close (a quiet session's leftovers after 20 minutes, in any project) and how to use local summaries instead.
 If Claude Mem is installed, it keeps recording and Eklavya memory stays off
@@ -127,7 +127,7 @@ npx eklavya --version
 
 The [CLI reference](https://eklavya-run.web.app/docs/cli/) lists all commands and
 flags. `feedback generate` reviews one of your earlier prompts, using what your later prompts in that session had to add, when `feedback.enabled`,
-memory and `providers.observer` are set. Once a day, after your first answer, the Learning dashboard opens one card on arrival (a milestone, a welcome back, the most overdue concept and so on), chosen by the engine in `assets/daily-card.cjs`; the Daily card switch on Settings, Companion, turns it off. Dashboard counts of 1,000 or more read short (1K, 1.2K, 1M). The dashboard reads the database (its Concepts page shows each concept's tags and filters by one with `?tag=`) and has guarded writes: a setting
+memory and a model are set (`providers.feedback`, or `providers.observer` when that is `null`; both are on the dashboard's Settings → Models tab). Once a day, after your first answer, the Learning dashboard opens one card on arrival (a milestone, a welcome back, the most overdue concept and so on), chosen by the engine in `assets/daily-card.cjs`; the Daily card switch on Settings, Companion, turns it off. Dashboard counts of 1,000 or more read short (1K, 1.2K, 1M). The dashboard reads the database (its Concepts page shows each concept's tags and filters by one with `?tag=`) and has guarded writes: a setting
 change, a correction of a missed answer (which can also complete a level), acknowledging, deleting or counting the opening of a
 feedback item (`POST /api/feedback/acknowledge`, `/delete`, `/opened`; the reads are `GET /api/feedback` and `/api/feedback/list`),
 and a clean slate (`POST /api/clean-slate` with `{ "confirm": "clean slate" }`: the database moves aside to `knowledge.db.backup-<time>` and the server swaps in a new, empty one without restarting). `GET /api/session?id=` answers what Eklavya did in one session (cost, transcript path, its tool calls, memory sent, opened and used, and the savings estimates) for the session page Learning, Memory and Cost share. "Used" counts a session resumed after it was first counted (a Claude desktop session stays open for days): once it is quiet again, the next session start counts what is new. An open page listens to

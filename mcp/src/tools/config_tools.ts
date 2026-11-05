@@ -184,7 +184,7 @@ export const setConfig: ToolDef = {
       .object({ enabled: z.boolean().optional() })
       .optional()
       .describe(
-        'Prompt feedback (default true for new installs): reviews one of the developer\'s own prompts from a finished session, using the later prompts to show what it left out, in the background, one item at a time. Needs memory.enabled and providers.observer. Existing installs keep their saved choice or their previous off default. It never changes mastery.',
+        'Prompt feedback (default true for new installs): reviews one of the developer\'s own prompts from a finished session, using the later prompts to show what it left out, in the background, one item at a time. Needs memory.enabled and a model: providers.feedback, or providers.observer when that is null. Existing installs keep their saved choice or their previous off default. It never changes mastery.',
       ),
     retrieval: z
       .object({
@@ -241,6 +241,10 @@ export const setConfig: ToolDef = {
     providers: z
       .object({
         observer: z
+          .object({ kind: z.literal('anthropic'), model: z.string() })
+          .nullable()
+          .optional(),
+        feedback: z
           .object({ kind: z.literal('anthropic'), model: z.string() })
           .nullable()
           .optional(),

@@ -165,7 +165,7 @@ describe('providers are global-only', () => {
   it('ignores providers.observer set in a project file, and says so', () => {
     writeProject({ focus: 'project', providers: { observer: { kind: 'anthropic', model: 'theirs' } } });
     const resolved = loadConfig(repo);
-    expect(resolved.config.providers.observer).toEqual({ kind: 'anthropic', model: 'claude-sonnet-5' });
+    expect(resolved.config.providers.observer).toEqual({ kind: 'anthropic', model: 'claude-haiku-5-5' });
     expect(resolved.ignored).toEqual(['providers']);
     // The rest of the project file still applies.
     expect(resolved.config.focus).toBe('project');

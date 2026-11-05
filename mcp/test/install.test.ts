@@ -511,9 +511,10 @@ describe('install keeps the dials ready', () => {
     expect(press(0, 3, { name: 'x', sequence: 'x' })).toBeNull();
   });
 
-  it('starts the model step on Sonnet, offers a cheaper model, and keeps a hand-set one choosable', () => {
+  it('starts the model step on the recommended Haiku, and keeps a hand-set one choosable', () => {
     const fresh = modelStep(DEFAULT_CONFIG);
-    expect(fresh.current).toBe('claude-sonnet-5');
+    expect(fresh.current).toBe('claude-haiku-5-5');
+    expect(fresh.current).toBe(RECOMMENDED_MODEL);
     expect(fresh.options.find((o) => o.value === RECOMMENDED_MODEL)?.detail).toMatch(/^recommended/);
     const custom = modelStep({
       ...DEFAULT_CONFIG,
