@@ -1,3 +1,11 @@
+## [1.98.1](https://github.com/ProjectAJ14/eklavya/compare/v1.98.0...v1.98.1) (2026-11-05)
+
+
+### Bug Fixes
+
+* **banner:** drop the last-session cost line from the session banner ([#285](https://github.com/ProjectAJ14/eklavya/issues/285)) ([4039ecc](https://github.com/ProjectAJ14/eklavya/commit/4039ecc83f4744bab4e07729f5e3f15238f27ee5))
+* **memory:** let Claude search memory when the work changes topic ([#286](https://github.com/ProjectAJ14/eklavya/issues/286)) ([8925797](https://github.com/ProjectAJ14/eklavya/commit/89257978b9fc82bec8d54613abec240ac70b0db5))
+
 # [1.98.0](https://github.com/ProjectAJ14/eklavya/compare/v1.97.0...v1.98.0) (2026-11-05)
 
 
