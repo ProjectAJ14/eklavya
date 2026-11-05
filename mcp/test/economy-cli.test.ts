@@ -20,7 +20,7 @@ import {
   toolpruneCommand,
 } from '../src/cli-economy.js';
 import { foldSession, recordOverhead } from '../src/ledger.js';
-import { QUIET_MS, compact, lastSessionLine, memoryUsePending, openSession } from '../src/ledger-pending.js';
+import { QUIET_MS, compact, memoryUsePending, openSession } from '../src/ledger-pending.js';
 import { costReport } from '../src/cost-report.js';
 import { entryUse, flagStale, foldEntryUse, staleCounts, staleReason } from '../src/memory/use.js';
 import { appendEvent, insertEntry, recordReceipt, recordRead } from '../src/memory/store.js';
@@ -174,17 +174,10 @@ describe('eklavya cost', () => {
     expect(costReport(db, config(), repo).experiment).toEqual({ on: 0, off: 1, ran: true });
   });
 
-  it('the banner line names the last session, the guard and pruning since', () => {
-    expect(lastSessionLine(db, repo, null)).toBeNull();
-    seed();
-    db.prepare(`UPDATE econ_sessions SET ended_at = '2000-01-01'`).run();
-    db.prepare(`INSERT INTO econ_settings_writes (project, record, applied_at) VALUES (?, ?, ?)`).run(repo, '{"added":["X"]}', new Date().toISOString());
-    expect(lastSessionLine(db, repo, null)).toBe('Last session · 156 effective tokens on claude-sonnet-4-5 (part unpriced) · Eklavya 0% · loop guard stepped in 2× · 1 tool(s) pruned');
-    db.prepare(`UPDATE econ_sessions SET effective = 0, model = NULL, unpriced = NULL, ended_at = NULL`).run();
-    db.prepare('DELETE FROM econ_guard_events').run();
-    db.prepare('DELETE FROM econ_settings_writes').run();
-    expect(lastSessionLine(db, repo, null)).toBe('Last session · 0 effective tokens · Eklavya 0%');
+  it('compacts token counts for display', () => {
     expect(compact(2_500_000)).toBe('2.5M');
+    expect(compact(12_345)).toBe('12.3k');
+    expect(compact(156)).toBe('156');
   });
 });
 

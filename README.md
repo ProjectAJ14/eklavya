@@ -104,6 +104,7 @@ does that.
 `eklavya cost` shows what your recent sessions here cost, measured from Claude
 Code's own transcripts (token counts only), and how much of it was Eklavya's.
 Its prompt counts are prompts you typed, not background tasks reporting back.
+The session banner does not show cost; read it there or on the dashboard.
 Three controls come with it: a loop guard that redirects a turn stuck repeating
 the same failure (on), pinned facts learned from failures that recur (on), and
 tool pruning, which only proposes denying tools a repository never uses until
