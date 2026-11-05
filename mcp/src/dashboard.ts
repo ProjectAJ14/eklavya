@@ -38,7 +38,7 @@ import {
   type EklavyaConfig, type ProviderConfig,
 } from './config.js';
 import { applySetting, defaultAt, knownKeys, PROVIDER_KEYS, SETTING_RULES, valueAt, type SettingRule } from './config-path.js';
-import { costReport, sessionReport } from './cost-report.js';
+import { callReport, costReport, sessionReport } from './cost-report.js';
 import { applyProposal, restoreTools } from './toolprune-store.js';
 import {
   artifactsDir, dashboardPort, dbPath, DEFAULT_PORT, eklavyaHome, globalConfigPath, projectConfigPath, projectsDir,
@@ -3122,6 +3122,14 @@ export function startDashboard(
         // Not memoised: the ledger is written by detached folds the change
         // cursor does not watch, and the report is a handful of indexed reads.
         return send(res, 200, 'application/json', costBody(db, url.searchParams.get('project') || null));
+      }
+      if (url.pathname === '/api/cost/call') {
+        // One of Eklavya's own calls; not memoised, for the same reason as `/api/cost`.
+        const call = callReport(db, Number(url.searchParams.get('id')));
+        if (!call) return send(res, 404, 'application/json', JSON.stringify({ error: 'not_found' }));
+        // The retention in force for the call's project, so the page can say why evidence is gone.
+        const retention = readConfig(call.project).memory.retention_days;
+        return send(res, 200, 'application/json', JSON.stringify({ ...call, retention_days: retention }));
       }
       if (url.pathname === '/api/session') {
         // Not memoised, for the same reason as `/api/cost`: the ledger half is written by detached folds.

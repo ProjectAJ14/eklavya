@@ -684,6 +684,12 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         better: 'Fix the login bug in [the file].', tips: ['Name the file.'],
       })!;
       acknowledgeFeedback(db, fb);
+      // One of Eklavya's own calls, so the call page has an id; gone when this test is. A subagent's, inside a session:
+      // a background call would add a week to the Cost dashboard and make it taller than the room it holds.
+      const call = Number(db.prepare(
+        `INSERT INTO econ_overhead (occurred_at, session_id, source, model, input, output, effective, in_session)
+         VALUES ('2026-11-05T10:00:00Z', 's-mixed', 'subagent:eklavya-explainer', 'claude-sonnet-5', 900, 100, 1400, 1)`,
+      ).run().lastInsertRowid);
       const rows: [string, ProbeReport][] = [];
       try {
         const registry = await w.page.evaluate('Object.entries(WORKFLOWS).flatMap(([wf, W]) => Object.entries(W.pages).map(([page, p]) => ({ wf, page, detail: !!p.parent })))') as { wf: string; page: string; detail: boolean }[];
@@ -699,6 +705,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
           'memory/entry': { id: String(fx.entries.mixed), h1: /SameSite=Lax/ },
           'memory/session': { id: 's-mixed', h1: /^mixed$/ },
           'cost/session': { id: 's-mixed', h1: /^mixed$/ },
+          'cost/call': { id: String(call), h1: /^subagent:eklavya-explainer call$/, has: /does not keep the text/ },
           // The viewer has no heading: its tab bar names the page.
           'artifacts/view': { id: fix.other, has: /Queues, explained/ },
           'feedback/item': { id: String(fb), h1: /^Feedback item$/, has: /fix the login bug/ },
@@ -749,6 +756,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         }
       } finally {
         db.prepare('DELETE FROM feedback_items WHERE id = ?').run(fb);
+        db.prepare('DELETE FROM econ_overhead WHERE id = ?').run(call);
         // Printed even when a row fails, so the rows before it are not lost.
         if (process.env.EKLAVYA_PROBE_REPORT) {
           const scrub = (s: string) => s.replaceAll(enc(fx.root), '<root>').replaceAll(fx.root, '<root>')

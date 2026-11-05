@@ -2444,6 +2444,8 @@ const SLOT_MIN = {
   // than what comes grows while the memory folds below it shrink, and the footer bounces.
   'sess-ek': 700,
   'cost-main': 480, 'cost-sessions': 94, 'cost-calls': 94, 'cost-guard': 94, 'cost-tools': 94, 'cost-facts': 94,
+  // One of Eklavya's calls: its head, four tiles, two cards and a closed fold, 943px at 1280. Held above it, so it can only shrink.
+  'cost-call': 1000,
 };
 /** A list's room: [how many rows the page knows of, the most one page holds, px a row takes, px around the rows (pager, rule)]. Measured at 1280px. */
 const SLOT_ROWS = {
@@ -5720,6 +5722,7 @@ const WORKFLOWS = {
       tools:     { label: 'Tool pruning', view: () => viewCostPage('tools') },
       facts:     { label: 'Pinned facts', view: () => viewCostPage('facts') },
       session:   { parent: 'sessions', view: (p) => viewSession(p) },
+      call:      { parent: 'calls', view: (p) => viewCall(p) },
     },
   },
   settings: {
@@ -5860,6 +5863,95 @@ function viewCostPage(which) {
   return [pageHead(titles[which], [], COST_ABOUT), slots[which]()].join('');
 }
 
+/** What each source of Eklavya's own calls was doing, said plainly. */
+const CALL_SOURCE = {
+  observer: 'The memory observer: it read a batch of evidence captured from your work and wrote observations from it.',
+  feedback: 'The prompt review: it read one of your prompts and wrote the feedback on it.',
+  judge: 'The loop guard\'s judge: it read a turn that looked stuck and decided whether to step in.',
+  stale_refresh: 'A memory refresh: it rewrote an observation flagged as outdated against what has changed since.',
+};
+const callSource = (s) => CALL_SOURCE[s]
+  ?? (s.startsWith('subagent:') ? `Eklavya's ${s.slice(9)} subagent, run inside a Claude Code session. Its tokens are already in that session's total.` : s);
+
+/**
+ * What a call wrote, from the ids the ledger keeps (`produced` in `/api/cost/call`): the entries a memory batch
+ * wrote and the evidence it read while retention still keeps it, the entry a refresh rewrote, or the feedback item.
+ */
+function drawProduced(c) {
+  const p = c.produced;
+  const entryLines = (list, none) => lines(list.map((e) => ({ t: esc(e.title), s: esc(e.type ?? ''), go: MH('entry', e.id) })), none);
+  if (p.kind === 'feedback') {
+    return p.exists
+      ? lines([{ t: 'Feedback item', s: `Item <code class="slug">${esc(c.feedback_id)}</code>: the review this call wrote.`, go: href('feedback', 'item', c.feedback_id) }])
+      : mascotMessage(`<p class="empty">This call wrote feedback item ${esc(c.feedback_id)}, which has since been deleted.</p>`);
+  }
+  if (p.kind === 'refresh') {
+    return lines([p.refreshed
+      ? { t: esc(p.refreshed.title), s: 'The entry it was asked to rewrite, kept as history.', go: MH('entry', p.refreshed.id) }
+      : { t: `Entry ${esc(c.entry_id)}`, s: 'The entry it was asked to rewrite, since deleted.' }])
+      + entryLines(p.entries, 'The rewrite was not saved: the reply was not a usable entry, so the old one stays flagged.');
+  }
+  const read = p.events === null
+    ? 'The batch record itself is no longer kept, so neither is what it read.'
+    : p.kept === p.events
+      ? `It read ${plural(p.events, 'event')} of one session: ${p.kinds.map((k) => `${fmtN(k.n)} ${esc(k.kind.replace('_', ' '))}`).join(', ')}.`
+      : `It read ${plural(p.events, 'event')}; ${p.kept ? fmtN(p.kept) : 'none'} still kept. `
+        + (c.retention_days
+          ? `memory.retention_days keeps raw evidence for ${plural(c.retention_days, 'day')}, and the rest has expired.`
+          : 'The rest was removed by an earlier retention setting or a cleanup.');
+  return `<p class="counts" style="margin:0 0 var(--space-4)">${read}</p>` + entryLines(p.entries, 'It wrote nothing: the batch held nothing worth remembering, or a later write replaced it.');
+}
+
+/** One of Eklavya's own model calls: everything the ledger holds for it, which is numbers and names, never its text. */
+function viewCall(id) {
+  return slot('cost-call', '/api/cost/call?id=' + encodeURIComponent(id), drawCall, { label: 'Reading the ledger…', cls: 'stack' });
+}
+
+function drawCall(c) {
+  const when = new Date(c.occurred_at);
+  const back = `<a class="page__back" data-go="${esc(CH('calls'))}">← Eklavya's calls</a>`;
+  const head = pageHead(`${esc(c.source)} call`, [
+    esc(isNaN(when) ? c.occurred_at : when.toLocaleString()),
+    `<code class="slug">${esc(c.model ?? '—')}</code>${c.unpriced ? ' <span class="pill due">unpriced</span>' : ''}`,
+  ], `Call <code class="slug">${esc(c.id)}</code> in the cost ledger, recorded from the JSON envelope its
+     <code>claude -p</code> run returned. ${COST_ABOUT}`, back, true);
+  const stats = tiles([
+    ['Effective tokens', c.effective, c.unpriced ? 'measured · no price row for this model' : 'measured · fresh-input equivalents'],
+    ['Reported cost', c.cost_usd === null ? '—' : '$' + c.cost_usd.toFixed(3), 'as claude -p reported it'],
+    ['Input', c.input + c.cache_read + c.cache_write_5m + c.cache_write_1h, `measured · ${fmtN(c.input)} fresh, ${fmtN(c.cache_read)} cached`],
+    ['Output', c.output, 'measured · tokens written'],
+  ]);
+  const tokens = lines([
+    { t: 'Fresh input', s: 'weighs 1', v: esc(fmtN(c.input)) },
+    { t: 'Cache read', s: 'weighs 0.1', v: esc(fmtN(c.cache_read)) },
+    { t: 'Cache written, 5 minutes', s: 'weighs 1.25', v: esc(fmtN(c.cache_write_5m)) },
+    { t: 'Cache written, 1 hour', s: 'weighs 2', v: esc(fmtN(c.cache_write_1h)) },
+    { t: 'Output', s: 'weighs 5', v: esc(fmtN(c.output)) },
+    { t: 'Effective', s: c.unpriced ? 'not computed: the model has no price row' : 'the weighted sum', v: esc(fmtN(c.effective)) },
+  ]);
+  const where = lines([
+    { t: 'What it was', s: esc(callSource(c.source)) },
+    { t: 'Project', s: esc(c.project ? pname(c.project) : 'None recorded: this call was not made for one project.') },
+    c.session_id
+      ? { t: 'Session', s: `<code class="slug">${esc(c.session_id)}</code>`, go: CH('session', c.session_id) }
+      : { t: 'Session', s: 'None recorded: this call was not made inside or for one session.' },
+  ]);
+  const text = c.source.startsWith('subagent:') && c.session_id
+    ? `<p class="empty">Eklavya does not keep the text of its own calls. This one ran inside a session, so Claude Code's
+        transcript of that session holds it: <a data-go="${esc(CH('session', c.session_id))}">open the session</a> for its path.</p>`
+    : `<p class="empty">Eklavya does not keep the text of its own calls. The ledger records the numbers on this page and
+        nothing of what was sent or returned${c.produced ? '' : ', and no record says which observation or review this call produced'}.</p>`;
+  return [
+    head,
+    stats,
+    card('Input and output', 'What was sent to the model and what it answered.', mascotMessage(text)),
+    c.produced ? card('What it produced', 'Read from the rows the call wrote, which Eklavya keeps anyway.', drawProduced(c)) : '',
+    card('Where it came from', '', where),
+    fold('call:tokens', 'Tokens', `${fmtN(c.effective)} effective`, tokens,
+      { hint: 'Effective tokens weigh each kind by what it costs against fresh input.' }),
+  ].join('');
+}
+
 /** Apply or Restore on the Tool pruning page: one write, then the page is read again. */
 function prunePress(b) {
   b.disabled = true;
@@ -5890,7 +5982,7 @@ function drawCostPage(which, d) {
     if (!d.overhead_rows.length) return empty('Eklavya has made no model call that was recorded.');
     const p = page('costcalls', d.overhead_rows.length);
     return table([{ t: 'When' }, { t: 'Source' }, { t: 'Model' }, { t: 'Effective', n: 1 }, { t: 'Reported $', n: 1 }],
-      slice(d.overhead_rows, p).map((o) => `<tr><td>${esc(fmtDate(o.occurred_at))}</td><td>${esc(o.source)}${o.in_session ? ' <span class="pill">in a session</span>' : ''}</td>
+      slice(d.overhead_rows, p).map((o) => `<tr class="row" data-go="${esc(CH('call', o.id))}"><td>${esc(fmtDate(o.occurred_at))}</td><td>${esc(o.source)}${o.in_session ? ' <span class="pill">in a session</span>' : ''}</td>
         <td><code class="slug">${esc(o.model ?? '—')}</code>${o.unpriced ? ' <span class="pill due">unpriced</span>' : ''}</td>
         <td class="num">${fmtN(o.effective)}</td><td class="num">${o.cost_usd === null ? '—' : esc(o.cost_usd.toFixed(3))}</td></tr>`))
       + pager('costcalls', d.overhead_rows.length, p);

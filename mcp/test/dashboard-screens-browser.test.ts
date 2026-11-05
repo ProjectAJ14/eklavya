@@ -92,6 +92,92 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.ctx.close();
     });
   });
+  describe('one of Eklavya\'s calls', () => {
+    it('opens from its row by click and by keyboard, and says plainly that no text was kept', async () => {
+      const add = db.prepare(
+        `INSERT INTO econ_overhead (occurred_at, project, session_id, source, model, input, cache_read, output, effective, cost_usd, in_session)
+         VALUES (?, ?, ?, ?, 'claude-sonnet-5', 900, 4000, 100, 1800, 0.138, ?)`,
+      );
+      const observer = Number(add.run('2026-11-05T10:00:00Z', null, null, 'observer', 0).lastInsertRowid);
+      const sub = Number(add.run('2026-11-04T10:00:00Z', fx.repo.mixed, 's-mixed', 'subagent:eklavya-explainer', 1).lastInsertRowid);
+      try {
+        const w = await open('#/cost/calls', { width: 390 });
+        const { page } = w;
+        await page.click(`tr.row[data-go*="/cost/call/${observer}"]`);
+        await page.waitForSelector('#cost-call h1');
+        expect(page.url()).toContain(`#/cost/call/${observer}`);
+        expect(await page.textContent('h1.page__title')).toBe('observer call');
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+        const view = (await page.textContent('#view'))!.replace(/\s+/g, ' ');
+        expect(view).toContain('Eklavya does not keep the text of its own calls');
+        expect(view).toContain('$0.138');
+        expect(view).toContain('None recorded: this call was not made inside or for one session.');
+        // Back to the list, then the subagent's row by keyboard: it links to its session, where the transcript is.
+        await page.click('.page__back');
+        await page.waitForSelector(`tr.row[data-go*="/cost/call/${sub}"]`);
+        await page.focus(`tr.row[data-go*="/cost/call/${sub}"]`);
+        await page.keyboard.press('Enter');
+        await page.waitForSelector('#cost-call h1');
+        expect(await page.textContent('h1.page__title')).toBe('subagent:eklavya-explainer call');
+        expect(await page.textContent('#view')).toContain('transcript of that session holds it');
+        await page.click('#cost-call li[data-go*="/cost/session/s-mixed"]');
+        await page.waitForSelector('.sess-talk eklavya-mascot');
+        expect(page.url()).toContain('#/cost/session/s-mixed');
+        // An id the ledger does not hold: the fill's 404.
+        await page.goto(`${base}/#/cost/call/99999`); await ready(page);
+        await page.waitForSelector('text=Could not load');
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+        expect(w.outbound).toEqual([]);
+        expect(w.errors).toEqual([expect.stringMatching(/status of 404/)]);
+        await w.ctx.close();
+      } finally {
+        db.prepare('DELETE FROM econ_overhead WHERE id IN (?, ?)').run(observer, sub);
+      }
+    }, 60000);
+  });
+
+  describe('what one of Eklavya\'s calls produced', () => {
+    it('lists the entries a batch wrote and the evidence still kept, the refreshed entry, and a deleted feedback item', async () => {
+      const batch = Number(db.prepare("INSERT INTO memory_batches (project, session_id, reason, event_count) VALUES (?, 's-mixed', 'time', 3)").run(fx.repo.mixed).lastInsertRowid);
+      db.prepare("INSERT INTO evidence_events (event_uid, project, session_id, kind, occurred_at, batch_id) VALUES ('call-ev', ?, 's-mixed', 'file_edit', '2026-11-05T09:00:00Z', ?)").run(fx.repo.mixed, batch);
+      const entry = Number(db.prepare("INSERT INTO memory_entries (entry_uid, project, session_id, batch_id, type, title, occurred_at) VALUES ('call-entry', ?, 's-mixed', ?, 'feature', 'Linked from a call', '2026-11-05T09:00:00Z')").run(fx.repo.mixed, batch).lastInsertRowid);
+      const add = db.prepare("INSERT INTO econ_overhead (occurred_at, project, session_id, source, batch_id, entry_id, feedback_id) VALUES ('2026-11-05T10:00:00Z', ?, ?, ?, ?, ?, ?)");
+      const observer = Number(add.run(fx.repo.mixed, 's-mixed', 'observer', batch, null, null).lastInsertRowid);
+      const refresh = Number(add.run(fx.repo.mixed, null, 'stale_refresh', null, entry, null).lastInsertRowid);
+      const review = Number(add.run(fx.repo.mixed, null, 'feedback', null, null, 999999).lastInsertRowid);
+      try {
+        const w = await open(`#/cost/call/${observer}`, { width: 390 });
+        const { page } = w;
+        await page.waitForSelector('#cost-call h1');
+        let view = (await page.textContent('#view'))!.replace(/\s+/g, ' ');
+        expect(view).toContain('What it produced');
+        expect(view).toContain('Eklavya does not keep the text of its own calls');
+        expect(view).not.toContain('no record says which observation');
+        expect(view).toContain('It read 3 events; 1 still kept.');
+        expect(page.url()).toContain(`#/cost/call/${observer}`);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+        await page.click(`#cost-call li[data-go*="/memory/entry/${entry}"]`);
+        await page.waitForURL(new RegExp(`#/memory/entry/${entry}`));
+        await page.goto(`${base}/#/cost/call/${refresh}`); await ready(page);
+        await page.waitForSelector('#cost-call h1');
+        view = (await page.textContent('#view'))!.replace(/\s+/g, ' ');
+        expect(view).toContain('Linked from a call');
+        expect(view).toContain('The rewrite was not saved');
+        await page.goto(`${base}/#/cost/call/${review}`); await ready(page);
+        await page.waitForSelector('#cost-call h1');
+        expect(await page.textContent('#view')).toContain('which has since been deleted');
+        expect(w.outbound).toEqual([]);
+        expect(w.errors).toEqual([]);
+        await w.ctx.close();
+      } finally {
+        db.prepare('DELETE FROM econ_overhead WHERE id IN (?, ?, ?)').run(observer, refresh, review);
+        db.prepare('DELETE FROM memory_entries WHERE id = ?').run(entry);
+        db.prepare("DELETE FROM evidence_events WHERE event_uid = 'call-ev'").run();
+        db.prepare('DELETE FROM memory_batches WHERE id = ?').run(batch);
+      }
+    }, 60000);
+  });
+
   describe('one session page from every workflow', () => {
     it('opens the same page from Learning, Memory and Cost, and a ledger-only session too', async () => {
       const row = db.prepare(
