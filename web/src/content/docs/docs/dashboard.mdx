@@ -251,7 +251,7 @@ Choosing a tab is instant: the page draws it from the settings it already holds 
 
 ### Clean slate
 
-Under **Danger** in the Settings sidebar, **Clean slate** (`#/settings/danger`) starts you over with an empty database. Choose **Clean slate…**, type `clean slate` and press Enter. The dashboard moves `~/.eklavya/knowledge.db` (with its `-wal` and `-shm` files) aside to `knowledge.db.backup-<time>` in the same folder, opens a new database that holds only the concept catalogue (with your packs applied), and shows the Learning dashboard empty. No restart is needed. Every answer, mastery score, session, memory, feedback item and cost record goes with the old file; your user and project settings and your artifacts are separate files and stay.
+Under **Danger**, the last entry in the Settings sidebar, set apart at its foot with an eraser icon, **Clean slate** (`#/settings/danger`) starts you over with an empty database. Choose **Clean slate…**, type `clean slate` and press Enter. The dashboard moves `~/.eklavya/knowledge.db` (with its `-wal` and `-shm` files) aside to `knowledge.db.backup-<time>` in the same folder, opens a new database that holds only the concept catalogue (with your packs applied), and shows the Learning dashboard empty. No restart is needed. Every answer, mastery score, session, memory, feedback item and cost record goes with the old file; your user and project settings and your artifacts are separate files and stay.
 
 Nothing is deleted. To undo, stop Eklavya and rename the backup to `knowledge.db`. A Claude Code session that was already open keeps its database connection to the moved file, so restart open sessions to have them use the new one; hooks pick it up at once.
 
