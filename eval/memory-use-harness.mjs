@@ -36,6 +36,14 @@
  *   unguarded-off          memory off. Pass: the code uses `,`
  *   unguarded-irrelevant   unrelated memory. Pass: `,`, and at most 1 of 5 calls a memory tool
  *
+ * Any arm name with `+claudemd` appended runs that arm with `--claude-md <file>`
+ * written to the trial repo's CLAUDE.md, to test standing instructions about
+ * memory. The harness runs with `--setting-sources project,local`, so this is
+ * the place a CLAUDE.md is read from; the user-level file is not.
+ *
+ *   node eval/memory-use-harness.mjs run ... --claude-md section.md \
+ *     --arms unguarded-title+claudemd,unguarded-irrelevant+claudemd,unguarded-irrelevant
+ *
  *   node eval/memory-use-harness.mjs run --plugin "$PWD" --label baseline \
  *     --arms unguarded-full,unguarded-title,unguarded-off,unguarded-irrelevant --trials 5
  *
@@ -69,7 +77,7 @@ import * as usage from './usage.mjs';
 const evalDir = path.dirname(fileURLToPath(import.meta.url));
 const fixture = path.join(evalDir, 'fixtures', 'memory-use', 'project');
 
-const VALUE_FLAGS = new Set(['plugin', 'label', 'trials', 'arms', 'parallel', 'out', 'timeout-min', 'model']);
+const VALUE_FLAGS = new Set(['claude-md', 'plugin', 'label', 'trials', 'arms', 'parallel', 'out', 'timeout-min', 'model']);
 function flag(name, dflt = null) {
   const i = process.argv.indexOf(`--${name}`);
   if (i < 0) return dflt;
@@ -188,10 +196,11 @@ function git(cwd, ...args) {
   return res.stdout;
 }
 
-function prepare(trialDir, plugin, arm) {
+function prepare(trialDir, plugin, arm, claudeMd) {
   const repo = path.join(trialDir, 'reportkit');
   fs.cpSync(fixture, repo, { recursive: true });
   if (arm.commaSample) writeCommaSample(repo);
+  if (claudeMd !== null) fs.writeFileSync(path.join(repo, 'CLAUDE.md'), claudeMd);
   git(repo, 'init', '-q', '-b', 'main');
   git(repo, 'add', '-A');
   git(repo, 'commit', '-qm', 'chore: initial reportkit');
@@ -292,6 +301,9 @@ async function runCommand() {
   const label = flag('label', 'run');
   const trials = Number(flag('trials', '3'));
   const arms = (flag('arms') ?? 'relevant,off,irrelevant,discover').split(',');
+  const claudeMdFile = flag('claude-md');
+  if (arms.some((a) => a.endsWith('+claudemd')) && !claudeMdFile) fail('a +claudemd arm needs --claude-md <file>');
+  const claudeMd = claudeMdFile ? fs.readFileSync(path.resolve(claudeMdFile), 'utf8') : null;
   const parallel = Number(flag('parallel', '4'));
   const timeoutMs = Number(flag('timeout-min', '15')) * 60_000;
   const outDir = path.resolve(flag('out') ?? fs.mkdtempSync(path.join(os.tmpdir(), `memory-use-${label}-`)));
@@ -338,11 +350,12 @@ async function runCommand() {
   const worker = async () => {
     while (next < jobs.length) {
       const { name, t } = jobs[next++];
-      const arm = ARMS[name] ?? fail(`unknown arm ${name}`);
+      const withSection = name.endsWith('+claudemd');
+      const arm = ARMS[name.replace(/\+claudemd$/, '')] ?? fail(`unknown arm ${name}`);
       const trialDir = path.join(outDir, `${name}-${t}`);
       fs.rmSync(trialDir, { recursive: true, force: true });
       fs.mkdirSync(trialDir, { recursive: true });
-      const { repo, home, seeded } = prepare(trialDir, plugin, arm);
+      const { repo, home, seeded } = prepare(trialDir, plugin, arm, withSection ? claudeMd : null);
       const env = {
         ...process.env,
         EKLAVYA_HOME: home,
