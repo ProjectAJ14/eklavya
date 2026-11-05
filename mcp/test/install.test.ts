@@ -620,10 +620,20 @@ describe('the memory section in CLAUDE.md', () => {
     expect(text.startsWith(theirs)).toBe(true);
     // Deferred tools are one reason reads did not happen (issue #280): the
     // section has to carry the exact query that loads the tool.
-    expect(text).toContain('ToolSearch select:mcp__plugin_eklavya_eklavya__memory_get');
-    // The measured wording leaves search out: offering it made sessions search
-    // irrelevant memory (eval/results/2026-11-05-memory-claudemd.md).
-    expect(text).not.toContain('memory_search');
+    expect(text).toContain('ToolSearch select:mcp__plugin_eklavya_eklavya__memory_get,mcp__plugin_eklavya_eklavya__memory_search');
+    // Search is tied to the work turning, never offered as an alternative to
+    // opening a listed entry: that made sessions search irrelevant memory
+    // (eval/results/2026-11-05-memory-claudemd.md).
+    expect(text).toMatch(/In a session that has such a block, when the work later turns to something you did not start on .*`memory_search`/);
+    expect(text).not.toMatch(/memory_get`[^\n]*, or run `memory_search/);
+    // Irrelevant recall must not start a search, and a project without memory
+    // (no block: memory off, or the plugin absent) must not call a tool at all.
+    expect(text).toContain('If no listed title is about the task you started on, do not search memory');
+    expect(text).toContain('A session with no such block has no Eklavya memory for this project: call no memory tool.');
+    // Every bullet that calls a tool names the block it depends on.
+    for (const line of text.split('\n').filter((l) => /^- .*memory_search/.test(l) && !l.includes('ToolSearch'))) {
+      expect(line).toMatch(/such a block/);
+    }
     expect(fs.readFileSync(`${file()}.eklavya-bak`, 'utf8')).toBe(theirs);
 
     // An older version's wording, with the user's text after it, is replaced, not duplicated.

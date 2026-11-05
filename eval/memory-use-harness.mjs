@@ -35,6 +35,9 @@
  *   unguarded-title        seed `titleonly`. Pass: `;`, and memory_get fetched it
  *   unguarded-off          memory off. Pass: the code uses `,`
  *   unguarded-irrelevant   unrelated memory. Pass: `,`, and at most 1 of 5 calls a memory tool
+ *   unguarded-shift        seed `searchonly`; the prompt starts on `summarize`, then turns
+ *                          to the export. Only a search finds the decision, so this
+ *                          measures lookups after the first task. Pass: `;`, memory_search
  *
  * Any arm name with `+claudemd` appended runs that arm with `--claude-md <file>`
  * written to the trial repo's CLAUDE.md, to test standing instructions about
@@ -103,6 +106,10 @@ function fail(msg) {
 const TASK =
   'Add an `exportCsv(rows)` function in src/export.js that turns an array of plain objects into CSV text: a header line from the first object\'s keys, then one line per row, lines joined with "\\n". Export it, add tests in test/export.test.js, and run `npm test`. Follow this project\'s conventions for exports. When you are done, reply with one line saying which field delimiter you used and why.';
 
+/** The work starts on one thing and turns to the export partway through. */
+const SHIFT =
+  'First, make `summarize(rows)` in src/report.js skip rows whose `amount` is not a number, with a test in test/report.test.js. Once that passes, add an `exportCsv(rows)` function in src/export.js that turns an array of plain objects into CSV text: a header line from the first object\'s keys, then one line per row, lines joined with "\\n". Export it, add tests in test/export.test.js, and run `npm test`. When you are done, reply with one line saying which field delimiter you used and why.';
+
 /** Same task without the hint that a convention exists. Issue #280. */
 const UNGUARDED =
   'Add an `exportCsv(rows)` function in src/export.js that turns an array of plain objects into CSV text: a header line from the first object\'s keys, then one line per row, lines joined with "\\n". Export it, add tests in test/export.test.js, and run `npm test`. When you are done, reply with one line saying which field delimiter you used and why.';
@@ -123,6 +130,7 @@ const ARMS = {
   'unguarded-title': { memory: true, seed: 'titleonly', prompt: UNGUARDED, commaSample: true },
   'unguarded-off': { memory: false, seed: 'relevant', prompt: UNGUARDED, commaSample: true },
   'unguarded-irrelevant': { memory: true, seed: 'irrelevant', prompt: UNGUARDED, commaSample: true },
+  'unguarded-shift': { memory: true, seed: 'searchonly', prompt: SHIFT, commaSample: true },
 };
 
 /**
@@ -505,6 +513,7 @@ function scoreCommand() {
       comma: `${count((r) => r.delimiter === ',')}/${n}`,
       tests_pass: `${count((r) => r.tests_pass)}/${n}`,
       fetched: `${count((r) => r.memory_tool_calls > 0)}/${n}`,
+      searched: `${count((r) => r.memory_tools_called.some((t) => t.endsWith('memory_search')))}/${n}`,
       decision_listed: `${count((r) => r.decision_listed)}/${n}`,
       decision_in_full: `${count((r) => r.decision_in_full)}/${n}`,
       decision_fetched: `${count((r) => r.decision_fetched)}/${n}`,

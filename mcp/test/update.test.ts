@@ -161,7 +161,7 @@ describe('runUpdate', () => {
     expect(ran()).toBe('install --auto\n');
     expect(said.join('\n')).toMatch(/memory section in CLAUDE\.md is missing or out of date/);
     // An edited section, in a file saved with Windows line endings.
-    fs.writeFileSync(claudeMd(), `# Mine\r\n\r\n${MEMORY_SECTION.replace('call no memory tool', 'search anyway').replace(/\n/g, '\r\n')}`);
+    fs.writeFileSync(claudeMd(), `# Mine\r\n\r\n${MEMORY_SECTION.replace('search memory once', 'search memory always').replace(/\n/g, '\r\n')}`);
     await runUpdate({ background: false });
     expect(ran()).toBe('install --auto\ninstall --auto\n');
     // The same section with CRLF endings is current: no install.
