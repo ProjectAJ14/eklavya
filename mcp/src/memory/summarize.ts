@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { EntryRow, EvidenceRow } from './store.js';
+import type { CallLink } from './provider.js';
 
 /**
  * The `Summarizer` port and its local implementation (ADR-04).
@@ -73,6 +74,8 @@ export interface SummarizeOptions {
   signal?: AbortSignal;
   /** The provider's process-group leader, then null once its whole group has exited. */
   onSpawn?: (pid: number | null) => void;
+  /** The batch the call summarises, for the cost ledger (`CallSpec.link`). */
+  link?: CallLink;
 }
 
 export interface Summarizer {

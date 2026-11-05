@@ -2,7 +2,7 @@ import { meterProviderCalls } from './ledger.js';
 import type { spawn as nodeSpawn } from 'node:child_process';
 import type { Database } from 'better-sqlite3';
 import { feedbackModel, type EklavyaConfig } from './config.js';
-import { ProviderError } from './memory/provider.js';
+import { ProviderError, type CallLink } from './memory/provider.js';
 import { ownWords } from './memory/recall.js';
 import { reviewPrompts, REVIEW_LIMIT, type AreaStatus, type GapArea } from './feedback-review.js';
 import { runtimeCli } from './update.js';
@@ -212,8 +212,10 @@ export async function generateFeedback(
       continue;
     }
     let got;
+    // The ledger writes this call's row id back here; the item it produced is linked to it below.
+    const link: CallLink = {};
     try {
-      got = await reviewPrompts(observer.model, prompts.map((p) => p.text), { signal: opts.signal });
+      got = await reviewPrompts(observer.model, prompts.map((p) => p.text), { signal: opts.signal, link });
     } catch (err) {
       // `reviewPrompts` rejects only with a ProviderError (the call and the
       // validation both raise one), so the class is always there to read.
@@ -236,6 +238,7 @@ export async function generateFeedback(
     // Another writer got there while the model was thinking: nothing is marked,
     // so this session is reviewed once the pending item is acknowledged.
     if (id === null) return { status: 'pending' };
+    if (link.ledgerId) db.prepare('UPDATE econ_overhead SET feedback_id = ? WHERE id = ?').run(id, link.ledgerId);
     mark.run(s.session_id, 'item', null);
     return { status: 'reviewed', date: s.began.slice(0, 10) };
   }

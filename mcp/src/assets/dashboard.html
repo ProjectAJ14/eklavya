@@ -5789,7 +5789,7 @@ function cleanSlateSubmit(e) {
 const COST_ABOUT = `Effective tokens are a session's usage in fresh-input-token equivalents of the model that
   served it: cache reads weigh 0.1, 5-minute cache writes 1.25, 1-hour writes 2 and output 5. Measured figures are
   read from Claude Code's transcripts and from the JSON each of Eklavya's own claude -p calls returns; nothing but
-  numbers and tool names is stored. A model with no price row is shown as unpriced, never guessed. Failures avoided
+  numbers, tool names and the ids of what a call worked on is stored, never a prompt or a reply. A model with no price row is shown as unpriced, never guessed. Failures avoided
   by facts is an estimate: the sessions shown a pinned fact that ran its command and never its failing form, which
   some of them may have done without reading the fact.`;
 const costUrl = () => '/api/cost' + (PROJECT !== null ? '?project=' + encodeURIComponent(PROJECT) : '');
