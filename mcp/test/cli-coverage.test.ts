@@ -8,6 +8,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { tempDbPath, cleanup } from './helpers.js';
 import { openDb } from '../src/db.js';
+import { MEMORY_SECTION } from '../src/claude-md.js';
 
 /**
  * The CLI's branches `cli.test.ts` does not reach: the telemetry command,
@@ -770,6 +771,9 @@ echo '${runtimeCli}' > "$pkg/dist/cli.js"`,
   it('says it is up to date', () => {
     ownedRuntime('0.0.1');
     fs.writeFileSync(path.join(home, 'update.json'), JSON.stringify({ applied: '0.0.1' }));
+    // The memory section is current too, or the update reinstalls to restore it.
+    fs.mkdirSync(claudeDir, { recursive: true });
+    fs.writeFileSync(path.join(claudeDir, 'CLAUDE.md'), MEMORY_SECTION);
     const res = eklavya(['update'], { env: withNpm(npm('0.0.1')) });
     expect(res.stdout).toMatch(/up to date · 0\.0\.1/);
     expect(res.status).toBe(0);

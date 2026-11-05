@@ -32,6 +32,7 @@ import { refreshDashboard, spawnDashboard, stopDashboard } from './dashboard-dae
 import { eklavyaHome } from './paths.js';
 import { loadGlobalConfig } from './config.js';
 import { claimInstall, releaseInstall } from './install-lock.js';
+import { sectionCurrent } from './claude-md.js';
 
 /** How often the background check runs, at most. Every session would ask npm otherwise. */
 export const CHECK_EVERY_MS = 60 * 60 * 1000;
@@ -309,9 +310,16 @@ export async function runUpdate(opts: { background: boolean; say?: (line: string
     // The new runtime's install, so the plugin files, skill and registration
     // match the code that will run them. Skipped when it already finished for
     // this version: an hourly re-registration would rewrite Claude Code's files
-    // for nothing.
-    if (readState().applied !== version) {
-      say(`refreshing the plugin, skill and registration for ${version}…`);
+    // for nothing. The exception is the memory section in CLAUDE.md, which the
+    // user may have deleted or edited since: the runtime's own install writes
+    // it, so a CLI of another version never writes its wording over the runtime's.
+    const applied = readState().applied === version;
+    if (!applied || !sectionCurrent()) {
+      say(
+        applied
+          ? `the memory section in CLAUDE.md is missing or out of date; restoring it…`
+          : `refreshing the plugin, skill and registration for ${version}…`,
+      );
       const refresh = run(process.execPath, [runtimeCli(), 'install', '--auto'], 5 * 60_000);
       /* c8 ignore next -- defensive: node itself always starts, so both streams are strings */
       log(`${refresh.stdout ?? ''}${refresh.stderr ?? ''}`);

@@ -19,13 +19,16 @@ import {
   updateNotice,
   writeState,
 } from '../src/update.js';
+import { MEMORY_SECTION } from '../src/claude-md.js';
 
 const mcpRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const cliPath = path.join(mcpRoot, 'dist', 'cli.js');
 
 let home = '';
 let bin = '';
-const saved = { home: process.env.EKLAVYA_HOME, runtime: process.env.EKLAVYA_RUNTIME, path: process.env.PATH };
+const saved = { home: process.env.EKLAVYA_HOME, runtime: process.env.EKLAVYA_RUNTIME, path: process.env.PATH, claude: process.env.CLAUDE_CONFIG_DIR };
+// The CLAUDE.md the updater checks: never the developer's own.
+const claudeMd = () => path.join(home, 'claude', 'CLAUDE.md');
 
 /** A runtime at `version` whose cli.js records its argv and exits `code`. */
 function fakeRuntime(version: string, code = 0): void {
@@ -69,6 +72,8 @@ beforeEach(() => {
   bin = path.join(home, 'bin');
   fs.mkdirSync(bin);
   process.env.EKLAVYA_HOME = home;
+  process.env.CLAUDE_CONFIG_DIR = path.join(home, 'claude');
+  fs.mkdirSync(path.join(home, 'claude'));
   delete process.env.EKLAVYA_RUNTIME;
   process.env.PATH = `${bin}${path.delimiter}${saved.path}`;
 });
@@ -79,6 +84,7 @@ afterEach(() => {
     ['EKLAVYA_HOME', saved.home],
     ['EKLAVYA_RUNTIME', saved.runtime],
     ['PATH', saved.path],
+    ['CLAUDE_CONFIG_DIR', saved.claude],
   ] as const) {
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;
@@ -140,7 +146,36 @@ describe('runUpdate', () => {
     fakeRuntime('1.2.0');
     fakeNpm('1.2.0');
     writeState({ applied: '1.2.0' });
+    fs.writeFileSync(claudeMd(), `# Mine\n\n${MEMORY_SECTION}`);
     expect(await runUpdate({ background: false })).toEqual({ status: 'current', version: '1.2.0' });
+    expect(ran()).toBe('');
+  });
+
+  it('runs install --auto on a current runtime when the CLAUDE.md memory section is gone or edited', async () => {
+    fakeRuntime('1.2.0');
+    fakeNpm('1.2.0');
+    writeState({ applied: '1.2.0' });
+    const said: string[] = [];
+    // No file at all.
+    expect(await runUpdate({ background: false, say: (l) => said.push(l) })).toEqual({ status: 'current', version: '1.2.0' });
+    expect(ran()).toBe('install --auto\n');
+    expect(said.join('\n')).toMatch(/memory section in CLAUDE\.md is missing or out of date/);
+    // An edited section, in a file saved with Windows line endings.
+    fs.writeFileSync(claudeMd(), `# Mine\r\n\r\n${MEMORY_SECTION.replace('call no memory tool', 'search anyway').replace(/\n/g, '\r\n')}`);
+    await runUpdate({ background: false });
+    expect(ran()).toBe('install --auto\ninstall --auto\n');
+    // The same section with CRLF endings is current: no install.
+    fs.writeFileSync(claudeMd(), `# Mine\r\n\r\n${MEMORY_SECTION.replace(/\n/g, '\r\n')}`);
+    await runUpdate({ background: false });
+    expect(ran()).toBe('install --auto\ninstall --auto\n');
+  });
+
+  it('treats an unreadable CLAUDE.md as current rather than reinstalling every hour', async () => {
+    fakeRuntime('1.2.0');
+    fakeNpm('1.2.0');
+    writeState({ applied: '1.2.0' });
+    fs.mkdirSync(claudeMd());
+    await runUpdate({ background: false });
     expect(ran()).toBe('');
   });
 
