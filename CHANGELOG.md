@@ -1,3 +1,10 @@
+# [1.98.0](https://github.com/ProjectAJ14/eklavya/compare/v1.97.0...v1.98.0) (2026-11-05)
+
+
+### Features
+
+* **dashboard:** settings sidebar, Models page, and call details ([#284](https://github.com/ProjectAJ14/eklavya/issues/284)) ([87c6cf7](https://github.com/ProjectAJ14/eklavya/commit/87c6cf715243ed02f72ed8537f72787754cd95cd))
+
 # [1.97.0](https://github.com/ProjectAJ14/eklavya/compare/v1.96.0...v1.97.0) (2026-11-05)
 
 
